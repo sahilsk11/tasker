@@ -1,0 +1,118 @@
+import type { CreateTaskArtifactInput, TaskArtifact } from "../domain/task-artifact.js";
+import type { CreateTaskSessionInput, TaskSession } from "../domain/task-session.js";
+import type { CreateTaskTicketInput, TaskTicket } from "../domain/task-ticket.js";
+import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../domain/task.js";
+import type { TaskArtifactRepository } from "../repository/task-artifact.repository.js";
+import type { TaskSessionRepository } from "../repository/task-session.repository.js";
+import type { TaskTicketRepository } from "../repository/task-ticket.repository.js";
+import type { TaskRepository } from "../repository/task.repository.js";
+import { NotFoundError } from "./errors.js";
+
+export type TaskResources = {
+  readonly artifacts: readonly TaskArtifact[];
+  readonly sessions: readonly TaskSession[];
+  readonly tickets: readonly TaskTicket[];
+};
+
+export class TaskService {
+  public constructor(
+    private readonly tasks: TaskRepository,
+    private readonly artifacts: TaskArtifactRepository,
+    private readonly sessions: TaskSessionRepository,
+    private readonly tickets: TaskTicketRepository
+  ) {}
+
+  public async addArtifact(
+    taskId: TaskId,
+    input: CreateTaskArtifactInput
+  ): Promise<TaskArtifact> {
+    await this.requireTask(taskId);
+    return this.artifacts.createForTask(taskId, input);
+  }
+
+  public async addSession(
+    taskId: TaskId,
+    input: CreateTaskSessionInput
+  ): Promise<TaskSession> {
+    await this.requireTask(taskId);
+    return this.sessions.createForTask(taskId, input);
+  }
+
+  public async addTicket(
+    taskId: TaskId,
+    input: CreateTaskTicketInput
+  ): Promise<TaskTicket> {
+    await this.requireTask(taskId);
+    return this.tickets.createForTask(taskId, input);
+  }
+
+  public async createTask(input: CreateTaskInput): Promise<Task> {
+    if (input.parentTaskId != null) {
+      await this.requireTask(input.parentTaskId);
+    }
+
+    return this.tasks.create(input);
+  }
+
+  public async getResources(taskId: TaskId): Promise<TaskResources> {
+    await this.requireTask(taskId);
+
+    const [artifacts, sessions, tickets] = await Promise.all([
+      this.artifacts.listByTaskId(taskId),
+      this.sessions.listByTaskId(taskId),
+      this.tickets.listByTaskId(taskId)
+    ]);
+
+    return { artifacts, sessions, tickets };
+  }
+
+  public async getTask(taskId: TaskId): Promise<Task> {
+    return this.requireTask(taskId);
+  }
+
+  public async listArtifacts(taskId: TaskId): Promise<readonly TaskArtifact[]> {
+    await this.requireTask(taskId);
+    return this.artifacts.listByTaskId(taskId);
+  }
+
+  public async listChildren(taskId: TaskId): Promise<readonly Task[]> {
+    await this.requireTask(taskId);
+    return this.tasks.findChildren(taskId);
+  }
+
+  public async listSessions(taskId: TaskId): Promise<readonly TaskSession[]> {
+    await this.requireTask(taskId);
+    return this.sessions.listByTaskId(taskId);
+  }
+
+  public async listTasks(): Promise<readonly Task[]> {
+    return this.tasks.list();
+  }
+
+  public async listTickets(taskId: TaskId): Promise<readonly TaskTicket[]> {
+    await this.requireTask(taskId);
+    return this.tickets.listByTaskId(taskId);
+  }
+
+  public async updateTask(taskId: TaskId, input: UpdateTaskInput): Promise<Task> {
+    if (input.parentTaskId != null) {
+      await this.requireTask(input.parentTaskId);
+    }
+
+    const task = await this.tasks.update(taskId, input);
+    if (task == null) {
+      throw new NotFoundError(`Task ${taskId} not found`);
+    }
+
+    return task;
+  }
+
+  private async requireTask(taskId: TaskId): Promise<Task> {
+    const task = await this.tasks.findById(taskId);
+    if (task == null) {
+      throw new NotFoundError(`Task ${taskId} not found`);
+    }
+
+    return task;
+  }
+}

@@ -9,3 +9,8 @@ export type TaskTicket = {
   readonly taskId: TaskId;
   readonly url: string | null;
 };
+
+export type CreateTaskTicketInput = {
+  readonly externalId: string;
+  readonly url: string | null;
+};

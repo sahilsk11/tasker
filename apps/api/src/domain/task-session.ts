@@ -10,3 +10,7 @@ export type TaskSession = {
   readonly provider: AgentProvider;
   readonly taskId: TaskId;
 };
+
+export type CreateTaskSessionInput = {
+  readonly provider: AgentProvider;
+};

@@ -10,3 +10,9 @@ export type TaskArtifact = {
   readonly taskId: TaskId;
   readonly uri: string;
 };
+
+export type CreateTaskArtifactInput = {
+  readonly kind: string;
+  readonly label: string;
+  readonly uri: string;
+};

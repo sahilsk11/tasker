@@ -14,3 +14,9 @@ export type CreateTaskInput = {
   readonly parentTaskId: TaskId | null;
   readonly title: string;
 };
+
+export type UpdateTaskInput = {
+  readonly description?: string | null;
+  readonly parentTaskId?: TaskId | null;
+  readonly title?: string;
+};

@@ -7,12 +7,15 @@ import { SqliteTaskSessionRepository } from "./repository/task-session.repositor
 import { SqliteTaskSessionTranscriptRepository } from "./repository/task-session-transcript.repository.js";
 import { SqliteTaskTicketRepository } from "./repository/task-ticket.repository.js";
 import { SqliteTaskRepository } from "./repository/task.repository.js";
+import { registerLinearResolver } from "./resolver/linear.resolver.js";
 import { registerTaskResolver } from "./resolver/task.resolver.js";
-import { NotFoundError } from "./service/errors.js";
+import { BadRequestError, NotFoundError } from "./service/errors.js";
+import { LinearService } from "./service/linear.service.js";
 import { TaskService } from "./service/task.service.js";
 
 export type CreateAppOptions = {
   readonly databasePath: string;
+  readonly linearApiKey: string | null;
 };
 
 export async function createApp(options: CreateAppOptions) {
@@ -26,6 +29,7 @@ export async function createApp(options: CreateAppOptions) {
     new SqliteTaskSessionTranscriptRepository(db),
     new SqliteTaskTicketRepository(db)
   );
+  const linearService = new LinearService(options.linearApiKey);
 
   const server = Fastify({ logger: true });
 
@@ -40,10 +44,16 @@ export async function createApp(options: CreateAppOptions) {
       return;
     }
 
+    if (error instanceof BadRequestError) {
+      void reply.code(400).send({ error: error.message });
+      return;
+    }
+
     void reply.send(error);
   });
 
   registerTaskResolver(server, taskService);
+  registerLinearResolver(server, taskService, linearService);
 
   server.addHook("onClose", async () => {
     await db.destroy();

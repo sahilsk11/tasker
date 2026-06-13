@@ -32,3 +32,8 @@ apps/worker     Local agent session runner
 packages/core   Shared task/run/artifact types and schemas
 packages/agents Local agent process abstractions
 ```
+
+## Design Notes
+
+- [Task actions](docs/task-actions.md): recommended model for dynamic task
+  actions, action runs, resource-aware suggestions, and the starter catalog.

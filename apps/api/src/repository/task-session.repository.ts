@@ -4,9 +4,11 @@ import type { Database, TaskSessionRow } from "../db/schema.js";
 import type {
   AgentProvider,
   CreateTaskSessionInput,
-  TaskSession
+  TaskSession,
+  TaskSessionId
 } from "../domain/task-session.js";
 import type { TaskId } from "../domain/task.js";
+import type { TranscriptEntry } from "../domain/transcript-entry.js";
 
 function normalizeSessionTitle(title: string | null | undefined): string {
   const trimmed = title?.trim();
@@ -18,8 +20,39 @@ export type TaskSessionRepository = {
     taskId: TaskId,
     input: CreateTaskSessionInput
   ) => Promise<TaskSession>;
-  readonly findById: (sessionId: TaskSession["id"]) => Promise<TaskSession | null>;
+  readonly clearPendingForkSessionToken: (
+    sessionId: TaskSessionId
+  ) => Promise<TaskSession | null>;
+  readonly findById: (sessionId: TaskSessionId) => Promise<TaskSession | null>;
   readonly listByTaskId: (taskId: TaskId) => Promise<readonly TaskSession[]>;
+  readonly recordTranscriptEntry: (
+    sessionId: TaskSessionId,
+    entry: TranscriptEntry
+  ) => Promise<TaskSession | null>;
+  readonly recordTurnCancelled: (
+    sessionId: TaskSessionId
+  ) => Promise<TaskSession | null>;
+  readonly recordTurnFailed: (
+    sessionId: TaskSessionId
+  ) => Promise<TaskSession | null>;
+  readonly recordTurnFinished: (
+    sessionId: TaskSessionId
+  ) => Promise<TaskSession | null>;
+  readonly recordTurnStarted: (
+    sessionId: TaskSessionId,
+    input: RecordTurnStartedInput
+  ) => Promise<TaskSession | null>;
+  readonly setRunning: (sessionId: TaskSessionId) => Promise<TaskSession | null>;
+  readonly setSessionToken: (
+    sessionId: TaskSessionId,
+    token: string
+  ) => Promise<TaskSession | null>;
+};
+
+export type RecordTurnStartedInput = {
+  readonly model?: string;
+  readonly planMode: boolean;
+  readonly status: Extract<TaskSession["status"], "running" | "starting">;
 };
 
 export class SqliteTaskSessionRepository implements TaskSessionRepository {
@@ -49,7 +82,16 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
     return toTaskSession(row);
   }
 
-  public async findById(sessionId: TaskSession["id"]): Promise<TaskSession | null> {
+  public async clearPendingForkSessionToken(
+    sessionId: TaskSessionId
+  ): Promise<TaskSession | null> {
+    return this.updateSession(sessionId, {
+      pending_fork_session_token: null,
+      updated_at: new Date().toISOString()
+    });
+  }
+
+  public async findById(sessionId: TaskSessionId): Promise<TaskSession | null> {
     const row = await this.db
       .selectFrom("task_sessions")
       .selectAll()
@@ -68,6 +110,101 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
       .execute();
 
     return rows.map(toTaskSession);
+  }
+
+  public async recordTranscriptEntry(
+    sessionId: TaskSessionId,
+    entry: TranscriptEntry
+  ): Promise<TaskSession | null> {
+    return this.updateSession(sessionId, {
+      ...(entry.kind === "user_prompt"
+        ? { last_message_at: new Date(entry.createdAt).toISOString() }
+        : {}),
+      updated_at: new Date().toISOString()
+    });
+  }
+
+  public async recordTurnCancelled(
+    sessionId: TaskSessionId
+  ): Promise<TaskSession | null> {
+    return this.updateSession(sessionId, {
+      last_turn_outcome: "cancelled",
+      status: "idle",
+      updated_at: new Date().toISOString()
+    });
+  }
+
+  public async recordTurnFailed(
+    sessionId: TaskSessionId
+  ): Promise<TaskSession | null> {
+    return this.updateSession(sessionId, {
+      last_turn_outcome: "failed",
+      status: "failed",
+      updated_at: new Date().toISOString()
+    });
+  }
+
+  public async recordTurnFinished(
+    sessionId: TaskSessionId
+  ): Promise<TaskSession | null> {
+    return this.updateSession(sessionId, {
+      last_turn_outcome: "success",
+      status: "idle",
+      updated_at: new Date().toISOString()
+    });
+  }
+
+  public async recordTurnStarted(
+    sessionId: TaskSessionId,
+    input: RecordTurnStartedInput
+  ): Promise<TaskSession | null> {
+    return this.updateSession(sessionId, {
+      last_turn_outcome: null,
+      model: input.model ?? null,
+      plan_mode: input.planMode ? 1 : 0,
+      status: input.status,
+      updated_at: new Date().toISOString()
+    });
+  }
+
+  public async setRunning(sessionId: TaskSessionId): Promise<TaskSession | null> {
+    return this.updateSession(sessionId, {
+      status: "running",
+      updated_at: new Date().toISOString()
+    });
+  }
+
+  public async setSessionToken(
+    sessionId: TaskSessionId,
+    token: string
+  ): Promise<TaskSession | null> {
+    return this.updateSession(sessionId, {
+      session_token: token,
+      updated_at: new Date().toISOString()
+    });
+  }
+
+  private async updateSession(
+    sessionId: TaskSessionId,
+    values: Partial<{
+      readonly last_message_at: string | null;
+      readonly last_turn_outcome: string | null;
+      readonly model: string | null;
+      readonly pending_fork_session_token: string | null;
+      readonly plan_mode: number;
+      readonly session_token: string | null;
+      readonly status: string;
+      readonly updated_at: string;
+    }>
+  ): Promise<TaskSession | null> {
+    const row = await this.db
+      .updateTable("task_sessions")
+      .set(values)
+      .where("id", "=", sessionId)
+      .returningAll()
+      .executeTakeFirst();
+
+    return row == null ? null : toTaskSession(row);
   }
 }
 

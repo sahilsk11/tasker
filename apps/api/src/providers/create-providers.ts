@@ -1,4 +1,5 @@
 import type { AgentProvider } from "../domain/agent-provider.js";
+import { CodexAppServerManager } from "./codex-app-server-manager.js";
 import {
   CodexProviderAdapter,
   type CodexSessionManager
@@ -20,7 +21,7 @@ export type CreateServerProvidersArgs = {
 export function createServerProviders(
   args: CreateServerProvidersArgs = {}
 ): ServerProviderRegistry {
-  const codexManager = args.codexManager ?? new UnsupportedCodexManager();
+  const codexManager = args.codexManager ?? new CodexAppServerManager();
   const opencodeManager = args.opencodeManager ?? new UnsupportedOpenCodeManager();
   const entries: Array<readonly [AgentProvider, ServerProviderAdapter]> = [
     ["codex", args.adapters?.codex ?? new CodexProviderAdapter(codexManager)],
@@ -43,24 +44,6 @@ export function providerCanForkFromRegistry(
   provider: AgentProvider
 ): boolean {
   return registry.require(provider).capabilities.canFork;
-}
-
-class UnsupportedCodexManager implements CodexSessionManager {
-  public startSession(): Promise<string | null> {
-    return Promise.reject(new Error(
-      "Codex process management is not wired in Tasker yet"
-    ));
-  }
-
-  public startTurn(): Promise<never> {
-    return Promise.reject(new Error(
-      "Codex turn execution is not wired in Tasker yet"
-    ));
-  }
-
-  public stopAll(): void {
-    return undefined;
-  }
 }
 
 class UnsupportedOpenCodeManager implements OpenCodeSessionManager {

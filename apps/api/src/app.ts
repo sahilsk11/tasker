@@ -28,6 +28,7 @@ export async function createApp(options: CreateAppOptions) {
   const db = createDb({ path: options.databasePath });
   const sessionRepository = new SqliteTaskSessionRepository(db);
   const sessionTranscriptRepository = new SqliteTaskSessionTranscriptRepository(db);
+  const providerRegistry = options.providerRegistry ?? createServerProviders();
   const taskService = new TaskService(
     new SqliteTaskRepository(db),
     new SqliteTaskArtifactRepository(db),
@@ -38,7 +39,7 @@ export async function createApp(options: CreateAppOptions) {
   const taskSessionCoordinator = new TaskSessionCoordinator(
     sessionRepository,
     sessionTranscriptRepository,
-    options.providerRegistry ?? createServerProviders()
+    providerRegistry
   );
   const linearService = new LinearService(options.linearApiKey);
 
@@ -67,6 +68,9 @@ export async function createApp(options: CreateAppOptions) {
   registerLinearResolver(server, taskService, linearService);
 
   server.addHook("onClose", async () => {
+    for (const provider of providerRegistry.values()) {
+      provider.stopAll();
+    }
     await db.destroy();
   });
 

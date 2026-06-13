@@ -1,1 +1,76 @@
 @import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+@theme {
+  --color-background: #0b0b0c;
+  --color-foreground: #f4f4f5;
+  --color-card: #171719;
+  --color-card-foreground: #f4f4f5;
+  --color-popover: #1b1b1f;
+  --color-popover-foreground: #f4f4f5;
+  --color-primary: #f4f4f5;
+  --color-primary-foreground: #111113;
+  --color-secondary: #222226;
+  --color-secondary-foreground: #e4e4e7;
+  --color-muted: #242429;
+  --color-muted-foreground: #9a9aa3;
+  --color-accent: #5e6ad2;
+  --color-accent-foreground: #ffffff;
+  --color-destructive: #f87171;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #2a2a30;
+  --color-input: #2a2a30;
+  --color-ring: #6e79e6;
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-info: #60a5fa;
+
+  --font-sans:
+    "Geist Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  --font-mono:
+    "Geist Mono Variable", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco,
+    Consolas, "Liberation Mono", monospace;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(circle at top left, rgb(94 106 210 / 0.1), transparent 28rem),
+      var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  * {
+    border-color: var(--color-border);
+  }
+}

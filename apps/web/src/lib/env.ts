@@ -6,5 +6,4 @@ const viteEnv = import.meta.env as unknown as ViteEnv;
 const rawApiBaseUrl = viteEnv.VITE_API_BASE_URL ?? "";
 const trimmedApiBaseUrl = rawApiBaseUrl.replace(/\/$/u, "");
 
-export const apiBaseUrl =
-  trimmedApiBaseUrl.length > 0 ? trimmedApiBaseUrl : "http://localhost:3000";
+export const apiBaseUrl = trimmedApiBaseUrl.length > 0 ? trimmedApiBaseUrl : "/api";

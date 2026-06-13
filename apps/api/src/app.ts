@@ -4,6 +4,7 @@ import { createDb } from "./db/client.js";
 import { migrate } from "./db/migrate.js";
 import { SqliteTaskArtifactRepository } from "./repository/task-artifact.repository.js";
 import { SqliteTaskSessionRepository } from "./repository/task-session.repository.js";
+import { SqliteTaskSessionTranscriptRepository } from "./repository/task-session-transcript.repository.js";
 import { SqliteTaskTicketRepository } from "./repository/task-ticket.repository.js";
 import { SqliteTaskRepository } from "./repository/task.repository.js";
 import { registerTaskResolver } from "./resolver/task.resolver.js";
@@ -22,6 +23,7 @@ export async function createApp(options: CreateAppOptions) {
     new SqliteTaskRepository(db),
     new SqliteTaskArtifactRepository(db),
     new SqliteTaskSessionRepository(db),
+    new SqliteTaskSessionTranscriptRepository(db),
     new SqliteTaskTicketRepository(db)
   );
 

@@ -1,9 +1,15 @@
 import type { CreateTaskArtifactInput, TaskArtifact } from "../domain/task-artifact.js";
-import type { CreateTaskSessionInput, TaskSession } from "../domain/task-session.js";
+import type {
+  CreateTaskSessionInput,
+  TaskSession,
+  TaskSessionId
+} from "../domain/task-session.js";
 import type { CreateTaskTicketInput, TaskTicket } from "../domain/task-ticket.js";
 import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../domain/task.js";
+import type { TranscriptEntry } from "../domain/transcript-entry.js";
 import type { TaskArtifactRepository } from "../repository/task-artifact.repository.js";
 import type { TaskSessionRepository } from "../repository/task-session.repository.js";
+import type { TaskSessionTranscriptRepository } from "../repository/task-session-transcript.repository.js";
 import type { TaskTicketRepository } from "../repository/task-ticket.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 import { NotFoundError } from "./errors.js";
@@ -19,6 +25,7 @@ export class TaskService {
     private readonly tasks: TaskRepository,
     private readonly artifacts: TaskArtifactRepository,
     private readonly sessions: TaskSessionRepository,
+    private readonly sessionTranscript: TaskSessionTranscriptRepository,
     private readonly tickets: TaskTicketRepository
   ) {}
 
@@ -36,6 +43,14 @@ export class TaskService {
   ): Promise<TaskSession> {
     await this.requireTask(taskId);
     return this.sessions.createForTask(taskId, input);
+  }
+
+  public async appendSessionTranscriptEntry(
+    sessionId: TaskSessionId,
+    entry: TranscriptEntry
+  ): Promise<TranscriptEntry> {
+    await this.requireSession(sessionId);
+    return this.sessionTranscript.append(sessionId, entry);
   }
 
   public async addTicket(
@@ -85,6 +100,13 @@ export class TaskService {
     return this.sessions.listByTaskId(taskId);
   }
 
+  public async listSessionTranscriptEntries(
+    sessionId: TaskSessionId
+  ): Promise<readonly TranscriptEntry[]> {
+    await this.requireSession(sessionId);
+    return this.sessionTranscript.listBySessionId(sessionId);
+  }
+
   public async listTasks(): Promise<readonly Task[]> {
     return this.tasks.list();
   }
@@ -114,5 +136,14 @@ export class TaskService {
     }
 
     return task;
+  }
+
+  private async requireSession(sessionId: TaskSessionId): Promise<TaskSession> {
+    const session = await this.sessions.findById(sessionId);
+    if (session == null) {
+      throw new NotFoundError(`Task session ${sessionId} not found`);
+    }
+
+    return session;
   }
 }

@@ -11,24 +11,24 @@ export type { AgentProvider } from "./agent-provider.js";
 export type TaskSession = {
   readonly createdAt: Date;
   readonly id: TaskSessionId;
-  readonly lastMessageAt?: Date;
-  readonly lastTurnOutcome?: SessionLastTurnOutcome;
-  readonly localPath?: string;
-  readonly model?: string;
-  readonly pendingForkSessionToken?: string | null;
-  readonly planMode?: boolean;
+  readonly lastMessageAt: Date | null;
+  readonly lastTurnOutcome: SessionLastTurnOutcome;
+  readonly localPath: string;
+  readonly model: string | null;
+  readonly pendingForkSessionToken: string | null;
+  readonly planMode: boolean;
   readonly provider: AgentProvider;
-  readonly sessionToken?: string | null;
-  readonly status?: SessionStatus;
+  readonly sessionToken: string | null;
+  readonly status: SessionStatus;
   readonly taskId: TaskId;
-  readonly title?: string;
-  readonly updatedAt?: Date;
+  readonly title: string;
+  readonly updatedAt: Date;
 };
 
 export type CreateTaskSessionInput = {
   readonly localPath?: string;
-  readonly model?: string;
+  readonly model?: string | null;
   readonly planMode?: boolean;
   readonly provider: AgentProvider;
-  readonly title?: string;
+  readonly title?: string | null;
 };

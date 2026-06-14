@@ -19,10 +19,14 @@ export type ApiArtifact = {
 };
 
 export type ApiSession = {
+  readonly actionId: string | null;
+  readonly claimedAt: string | null;
   readonly createdAt: string;
   readonly id: string;
-  readonly provider: "codex" | "cursor" | "opencode";
+  readonly provider: string;
+  readonly providerId: string | null;
   readonly taskId: string;
+  readonly transcriptPath: string | null;
 };
 
 export type ApiTicket = {

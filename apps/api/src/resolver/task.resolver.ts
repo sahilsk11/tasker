@@ -2,7 +2,6 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { UpdateTaskInput } from "../domain/task.js";
 import type { TranscriptEntry } from "../domain/transcript-entry.js";
-import type { TaskSessionCoordinator } from "../service/task-session-coordinator.js";
 import type { TaskService } from "../service/task.service.js";
 
 const taskIdParamsSchema = z.object({
@@ -52,14 +51,9 @@ const createTicketSchema = z.object({
   url: z.string().url().nullable().default(null)
 });
 
-const sendSessionMessageSchema = z.object({
-  content: z.string().min(1)
-});
-
 export function registerTaskResolver(
   server: FastifyInstance,
-  taskService: TaskService,
-  taskSessionCoordinator: TaskSessionCoordinator
+  taskService: TaskService
 ): void {
   server.get("/health", () => ({ ok: true }));
 
@@ -140,15 +134,6 @@ export function registerTaskResolver(
       transcriptEntrySchema.parse(request.body) as TranscriptEntry
     );
     return reply.code(201).send({ entry });
-  });
-
-  server.post("/sessions/:sessionId/messages", async (request, reply) => {
-    const { sessionId } = sessionIdParamsSchema.parse(request.params);
-    const result = await taskSessionCoordinator.sendMessage(
-      sessionId,
-      sendSessionMessageSchema.parse(request.body)
-    );
-    return reply.code(202).send(result);
   });
 
   server.get("/tasks/:id/tickets", async (request) => {

@@ -65,6 +65,40 @@ export type CreateTicketInput = {
   readonly url: string | null;
 };
 
+export type LinearStateOption = {
+  readonly id: string;
+  readonly name: string;
+  readonly position: number;
+  readonly type: string;
+};
+
+export type LinearTeamOption = {
+  readonly id: string;
+  readonly key: string;
+  readonly name: string;
+  readonly states: readonly LinearStateOption[];
+};
+
+export type LinearProjectOption = {
+  readonly id: string;
+  readonly name: string;
+  readonly teamIds: readonly string[];
+};
+
+export type LinearOptions = {
+  readonly configured: boolean;
+  readonly projects: readonly LinearProjectOption[];
+  readonly teams: readonly LinearTeamOption[];
+};
+
+export type CreateLinearTicketInput = {
+  readonly description: string | null;
+  readonly projectId: string | null;
+  readonly stateId: string;
+  readonly teamId: string;
+  readonly title: string;
+};
+
 export async function listTaskBundles(): Promise<readonly TaskBundle[]> {
   const { tasks } = await apiClient.get<{ readonly tasks: readonly ApiTask[] }>("/tasks");
   return Promise.all(
@@ -93,6 +127,24 @@ export async function createTaskTicket(
 ): Promise<ApiTicket> {
   const { ticket } = await apiClient.post<{ readonly ticket: ApiTicket }>(
     `/tasks/${taskId}/tickets`,
+    input
+  );
+  return ticket;
+}
+
+export async function getLinearOptions(): Promise<LinearOptions> {
+  const { linear } = await apiClient.get<{ readonly linear: LinearOptions }>(
+    "/linear/options"
+  );
+  return linear;
+}
+
+export async function createLinearTaskTicket(
+  taskId: string,
+  input: CreateLinearTicketInput
+): Promise<ApiTicket> {
+  const { ticket } = await apiClient.post<{ readonly ticket: ApiTicket }>(
+    `/tasks/${taskId}/linear-ticket`,
     input
   );
   return ticket;

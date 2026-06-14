@@ -8,6 +8,14 @@ import type {
 } from "../domain/task-session.js";
 import type { TaskId } from "../domain/task.js";
 
+function nullableIsoDate(value: Date | null): string | null {
+  return value == null ? null : value.toISOString();
+}
+
+function serializeMetadata(value: Record<string, unknown> | null | undefined): string | null {
+  return value == null ? null : JSON.stringify(value);
+}
+
 export type TaskSessionRepository = {
   readonly createForTask: (
     taskId: TaskId,
@@ -23,13 +31,20 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
     taskId: TaskId,
     input: CreateTaskSessionInput
   ): Promise<TaskSession> {
+    const now = new Date();
+    const claimedAt = input.claimedAt === undefined ? now : input.claimedAt;
     const row = await this.db
       .insertInto("task_sessions")
       .values({
-        created_at: new Date().toISOString(),
+        action_id: input.actionId ?? null,
+        claimed_at: nullableIsoDate(claimedAt),
+        created_at: now.toISOString(),
         id: randomUUID(),
+        metadata_json: serializeMetadata(input.metadata),
         provider: input.provider,
-        task_id: taskId
+        provider_id: input.providerId ?? null,
+        task_id: taskId,
+        transcript_path: input.transcriptPath ?? null
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -42,6 +57,7 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
       .selectFrom("task_sessions")
       .selectAll()
       .where("task_id", "=", taskId)
+      .where("claimed_at", "is not", null)
       .orderBy("created_at", "asc")
       .execute();
 
@@ -51,9 +67,27 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
 
 function toTaskSession(row: TaskSessionRow): TaskSession {
   return {
+    actionId: row.action_id,
+    claimedAt: row.claimed_at == null ? null : new Date(row.claimed_at),
     createdAt: new Date(row.created_at),
     id: row.id,
+    metadata: parseMetadata(row.metadata_json),
     provider: row.provider as AgentProvider,
-    taskId: row.task_id
+    providerId: row.provider_id,
+    taskId: row.task_id,
+    transcriptPath: row.transcript_path
   };
+}
+
+function parseMetadata(value: string | null): Record<string, unknown> | null {
+  if (value == null) {
+    return null;
+  }
+
+  const parsed = JSON.parse(value) as unknown;
+  if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null;
+  }
+
+  return parsed as Record<string, unknown>;
 }

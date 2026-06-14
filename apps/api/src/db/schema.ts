@@ -26,10 +26,15 @@ export type TaskArtifactsTable = {
 };
 
 export type TaskSessionsTable = {
+  readonly action_id: string | null;
+  readonly claimed_at: string | null;
   readonly created_at: Generated<string>;
   readonly id: string;
+  readonly metadata_json: string | null;
   readonly provider: string;
+  readonly provider_id: string | null;
   readonly task_id: string;
+  readonly transcript_path: string | null;
 };
 
 export type TaskTicketsTable = {

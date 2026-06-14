@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
 import type { Database, TaskSessionRow } from "../db/schema.js";
 import type {
-  AgentProvider,
+  ClaimTaskSessionInput,
   CreateTaskSessionInput,
   TaskSession
 } from "../domain/task-session.js";
@@ -17,6 +17,10 @@ function serializeMetadata(value: Record<string, unknown> | null | undefined): s
 }
 
 export type TaskSessionRepository = {
+  readonly claim: (
+    sessionId: string,
+    input: ClaimTaskSessionInput
+  ) => Promise<TaskSession | null>;
   readonly createForTask: (
     taskId: TaskId,
     input: CreateTaskSessionInput
@@ -26,6 +30,43 @@ export type TaskSessionRepository = {
 
 export class SqliteTaskSessionRepository implements TaskSessionRepository {
   public constructor(private readonly db: Kysely<Database>) {}
+
+  public async claim(
+    sessionId: string,
+    input: ClaimTaskSessionInput
+  ): Promise<TaskSession | null> {
+    const values: Partial<{
+      claimed_at: string;
+      metadata_json: string | null;
+      provider: string;
+      provider_id: string | null;
+      transcript_path: string | null;
+    }> = {
+      claimed_at: new Date().toISOString()
+    };
+
+    if (input.metadata !== undefined) {
+      values.metadata_json = serializeMetadata(input.metadata);
+    }
+    if (input.provider != null) {
+      values.provider = input.provider;
+    }
+    if (input.providerId !== undefined) {
+      values.provider_id = input.providerId;
+    }
+    if (input.transcriptPath !== undefined) {
+      values.transcript_path = input.transcriptPath;
+    }
+
+    const row = await this.db
+      .updateTable("task_sessions")
+      .set(values)
+      .where("id", "=", sessionId)
+      .returningAll()
+      .executeTakeFirst();
+
+    return row == null ? null : toTaskSession(row);
+  }
 
   public async createForTask(
     taskId: TaskId,
@@ -72,7 +113,7 @@ function toTaskSession(row: TaskSessionRow): TaskSession {
     createdAt: new Date(row.created_at),
     id: row.id,
     metadata: parseMetadata(row.metadata_json),
-    provider: row.provider as AgentProvider,
+    provider: row.provider,
     providerId: row.provider_id,
     taskId: row.task_id,
     transcriptPath: row.transcript_path

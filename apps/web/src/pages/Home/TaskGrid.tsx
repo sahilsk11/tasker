@@ -6,7 +6,7 @@ import { TaskActionRow, TaskActionsDialog } from "./TaskActions";
 import { ResourceGroup, ResourceTableDialog } from "./TaskResources";
 import {
   getResourceGroupsForBundle,
-  type ResourceGroupView
+  type ResourceKind
 } from "./task-resource-groups";
 
 export function TaskGrid({
@@ -46,8 +46,10 @@ export function TaskGridSkeleton(): React.JSX.Element {
 
 function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Element {
   const groupedResources = getResourceGroupsForBundle(bundle);
-  const [selectedGroup, setSelectedGroup] = useState<ResourceGroupView | null>(null);
+  const [selectedKind, setSelectedKind] = useState<ResourceKind | null>(null);
   const [showAllActions, setShowAllActions] = useState(false);
+  const selectedGroup =
+    groupedResources.find((group) => group.kind === selectedKind) ?? null;
   const description = bundle.task.description ?? "No description provided.";
 
   return (
@@ -75,7 +77,7 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
                   <ResourceGroup
                     key={group.kind}
                     group={group}
-                    onOpen={() => setSelectedGroup(group)}
+                    onOpen={() => setSelectedKind(group.kind)}
                   />
                 ))}
               </div>
@@ -99,7 +101,7 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
         taskTitle={bundle.task.title}
         onOpenChange={(isOpen) => {
           if (!isOpen) {
-            setSelectedGroup(null);
+            setSelectedKind(null);
           }
         }}
       />

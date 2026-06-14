@@ -1,9 +1,9 @@
 import type { AgentProvider } from "../domain/agent-provider.js";
-import { CodexAppServerManager } from "./codex-app-server-manager.js";
 import {
   CodexProviderAdapter,
   type CodexSessionManager
 } from "./codex-provider.js";
+import { CodexSdkManager } from "./codex-sdk-manager.js";
 import {
   OpenCodeProviderAdapter,
   type OpenCodeSessionManager
@@ -21,7 +21,7 @@ export type CreateServerProvidersArgs = {
 export function createServerProviders(
   args: CreateServerProvidersArgs = {}
 ): ServerProviderRegistry {
-  const codexManager = args.codexManager ?? new CodexAppServerManager();
+  const codexManager = args.codexManager ?? new CodexSdkManager();
   const opencodeManager = args.opencodeManager ?? new UnsupportedOpenCodeManager();
   const entries: Array<readonly [AgentProvider, ServerProviderAdapter]> = [
     ["codex", args.adapters?.codex ?? new CodexProviderAdapter(codexManager)],

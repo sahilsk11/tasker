@@ -10,6 +10,7 @@ import type {
 
 export type StartCodexSessionInput = {
   readonly cwd: string;
+  readonly effort?: string;
   readonly model: string;
   readonly pendingForkSessionToken: string | null;
   readonly serviceTier?: "fast";
@@ -33,10 +34,11 @@ export type CodexSessionManager = {
   ) => Promise<string | null>;
   readonly startTurn: (input: StartCodexTurnInput) => Promise<HarnessTurn>;
   readonly stopAll: () => void;
+  readonly stopSession: (sessionId: string) => void;
 };
 
 const CODEX_CAPABILITIES = {
-  canFork: true,
+  canFork: false,
   drivesTurnViaBackgroundSession: false,
   initialActiveStatus: "starting",
   supportsPlanMode: true
@@ -74,6 +76,7 @@ export class CodexProviderAdapter implements ServerProviderAdapter {
   ): Promise<ProviderTurnResult> {
     const sessionInput: StartCodexSessionInput = {
       cwd: context.localPath,
+      ...(context.effort == null ? {} : { effort: context.effort }),
       model: context.model ?? DEFAULT_CODEX_MODEL,
       pendingForkSessionToken: context.pendingForkSessionToken,
       sessionId: context.sessionId,
@@ -103,8 +106,7 @@ export class CodexProviderAdapter implements ServerProviderAdapter {
   }
 
   public stopChat(sessionId: string): void {
-    void sessionId;
-    // Codex sessions are long-lived; the concrete manager owns lifecycle details.
+    this.manager.stopSession(sessionId);
   }
 
   public stopSession(sessionId: string): void {
@@ -113,6 +115,10 @@ export class CodexProviderAdapter implements ServerProviderAdapter {
 
   public stopAll(): void {
     this.manager.stopAll();
+  }
+
+  public forkNotSupportedMessage(): string {
+    return "Codex SDK sessions cannot be forked yet";
   }
 
   public onCancelPendingTool(tool: { readonly toolKind: string }) {

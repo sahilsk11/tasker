@@ -26,7 +26,7 @@ const createArtifactSchema = z.object({
 });
 
 const createSessionSchema = z.object({
-  provider: z.enum(["claude", "codex", "cursor", "opencode"])
+  provider: z.enum(["codex", "cursor", "opencode"])
 });
 
 const createTicketSchema = z.object({

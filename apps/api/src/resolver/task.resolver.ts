@@ -93,6 +93,11 @@ export function registerTaskResolver(
     return { resources: await taskService.getResources(id) };
   });
 
+  server.get("/tasks/:id/actions", async (request) => {
+    const { id } = taskIdParamsSchema.parse(request.params);
+    return { actions: await taskService.listActions(id) };
+  });
+
   server.get("/tasks/:id/artifacts", async (request) => {
     const { id } = taskIdParamsSchema.parse(request.params);
     return { artifacts: await taskService.listArtifacts(id) };

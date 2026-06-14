@@ -26,6 +26,7 @@ export type {
   ProviderTurnResult
 } from "./provider-adapter.js";
 export type { CreateTaskArtifactInput, TaskArtifact, TaskArtifactId } from "./task-artifact.js";
+export type { TaskAction, TaskActionId } from "./task-action.js";
 export type {
   PendingToolSnapshot,
   ProviderCatalogEntry,

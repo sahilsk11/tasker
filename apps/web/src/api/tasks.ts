@@ -33,6 +33,14 @@ export type ApiTicket = {
   readonly url: string | null;
 };
 
+export type ApiTaskAction = {
+  readonly description: string;
+  readonly id: string;
+  readonly isRecommended: boolean;
+  readonly label: string;
+  readonly prompt: string;
+};
+
 export type TaskResources = {
   readonly artifacts: readonly ApiArtifact[];
   readonly sessions: readonly ApiSession[];
@@ -40,6 +48,7 @@ export type TaskResources = {
 };
 
 export type TaskBundle = {
+  readonly actions: readonly ApiTaskAction[];
   readonly children: readonly ApiTask[];
   readonly resources: TaskResources;
   readonly task: ApiTask;
@@ -60,12 +69,15 @@ export async function listTaskBundles(): Promise<readonly TaskBundle[]> {
   const { tasks } = await apiClient.get<{ readonly tasks: readonly ApiTask[] }>("/tasks");
   return Promise.all(
     tasks.map(async (task) => {
-      const [{ resources }, { tasks: children }] = await Promise.all([
+      const [{ actions }, { resources }, { tasks: children }] = await Promise.all([
+        apiClient.get<{ readonly actions: readonly ApiTaskAction[] }>(
+          `/tasks/${task.id}/actions`
+        ),
         apiClient.get<{ readonly resources: TaskResources }>(`/tasks/${task.id}/resources`),
         apiClient.get<{ readonly tasks: readonly ApiTask[] }>(`/tasks/${task.id}/children`)
       ]);
 
-      return { children, resources, task };
+      return { actions, children, resources, task };
     })
   );
 }

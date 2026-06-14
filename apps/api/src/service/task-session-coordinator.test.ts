@@ -125,6 +125,116 @@ void test("session turns persist provider-neutral runtime metadata", async () =>
     } finally {
       database.close();
     }
+
+    const secondMessageResponse = await app.inject({
+      method: "POST",
+      payload: {
+        content: "stream the second turn"
+      },
+      url: `/sessions/${session.id}/runs`
+    });
+    assert.equal(secondMessageResponse.statusCode, 202);
+    await waitForSessionIdle(app, task.id, session.id);
+
+    const chatResponse = await app.inject({
+      method: "GET",
+      url: `/sessions/${session.id}/chat`
+    });
+    assert.equal(chatResponse.statusCode, 200);
+    const chat = (readJson(chatResponse.body) as {
+      readonly snapshot: {
+        readonly messages: ReadonlyArray<{
+          readonly id: string;
+          readonly parts: ReadonlyArray<{ readonly type: string }>;
+          readonly role: string;
+          readonly turnId: string;
+        }>;
+      };
+    }).snapshot;
+    assert.deepEqual(chat.messages.map((message) => message.role), [
+      "user",
+      "assistant",
+      "user",
+      "assistant"
+    ]);
+    assert.equal(new Set(chat.messages.map((message) => message.turnId)).size, 2);
+    assert.equal(new Set(chat.messages.map((message) => message.id)).size, 4);
+    assert.equal(
+      chat.messages
+        .filter((message) => message.role === "assistant")
+        .every((message) => message.parts.some((part) => part.type === "tool-call")),
+      true
+    );
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+void test("session turns can be cancelled through the public contract", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-cancel-turn-"));
+  const databasePath = join(dir, "tasker.sqlite");
+  const app = await createApp({
+    databasePath,
+    linearApiKey: null,
+    providerRegistry: new ServerProviderRegistry([
+      ["codex", new FakeProviderAdapter({ waitForInterrupt: true })]
+    ])
+  });
+
+  try {
+    const taskResponse = await app.inject({
+      method: "POST",
+      payload: {
+        title: "Cancel"
+      },
+      url: "/tasks"
+    });
+    assert.equal(taskResponse.statusCode, 201);
+    const task = (readJson(taskResponse.body) as {
+      readonly task: { readonly id: string };
+    }).task;
+
+    const sessionResponse = await app.inject({
+      method: "POST",
+      payload: {
+        localPath: dir,
+        provider: "codex"
+      },
+      url: `/tasks/${task.id}/sessions`
+    });
+    assert.equal(sessionResponse.statusCode, 201);
+    const session = (readJson(sessionResponse.body) as {
+      readonly session: { readonly id: string };
+    }).session;
+
+    const runResponse = await app.inject({
+      method: "POST",
+      payload: {
+        content: "wait"
+      },
+      url: `/sessions/${session.id}/runs`
+    });
+    assert.equal(runResponse.statusCode, 202);
+    await waitForSessionStatus(app, task.id, session.id, "running");
+
+    const cancelResponse = await app.inject({
+      method: "POST",
+      url: `/sessions/${session.id}/cancel`
+    });
+    assert.equal(cancelResponse.statusCode, 202);
+    await waitForSessionIdle(app, task.id, session.id);
+
+    const transcriptResponse = await app.inject({
+      method: "GET",
+      url: `/sessions/${session.id}/transcript`
+    });
+    const entries = (readJson(transcriptResponse.body) as {
+      readonly entries: TranscriptEntry[];
+    }).entries;
+    const lastEntry = entries.at(-1);
+    assert.equal(lastEntry?.kind, "result");
+    assert.equal(lastEntry.subtype, "cancelled");
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });
@@ -155,6 +265,10 @@ class FakeProviderAdapter implements ServerProviderAdapter {
   } as const;
   public readonly id: AgentProvider = "codex";
 
+  public constructor(
+    private readonly options: { readonly waitForInterrupt?: boolean } = {}
+  ) {}
+
   public resolveSettings() {
     return {
       model: "fake-codex",
@@ -164,7 +278,7 @@ class FakeProviderAdapter implements ServerProviderAdapter {
 
   public startTurn(context: ProviderTurnContext): Promise<ProviderTurnResult> {
     return Promise.resolve({
-      turn: makeHarnessTurn(context.model ?? "fake-codex")
+      turn: makeHarnessTurn(context.model ?? "fake-codex", this.options)
     });
   }
 
@@ -181,16 +295,27 @@ class FakeProviderAdapter implements ServerProviderAdapter {
   }
 }
 
-function makeHarnessTurn(model: string): HarnessTurn {
+function makeHarnessTurn(
+  model: string,
+  options: { readonly waitForInterrupt?: boolean } = {}
+): HarnessTurn {
+  const interruptController = new AbortController();
   return {
     close: () => undefined,
-    interrupt: () => Promise.resolve(),
+    interrupt: () => {
+      interruptController.abort();
+      return Promise.resolve();
+    },
     provider: "codex",
-    stream: makeHarnessEvents(model)
+    stream: makeHarnessEvents(model, interruptController.signal, options)
   };
 }
 
-async function* makeHarnessEvents(model: string): AsyncIterable<HarnessEvent> {
+async function* makeHarnessEvents(
+  model: string,
+  signal: AbortSignal,
+  options: { readonly waitForInterrupt?: boolean }
+): AsyncIterable<HarnessEvent> {
   await Promise.resolve();
 
   yield {
@@ -206,6 +331,10 @@ async function* makeHarnessEvents(model: string): AsyncIterable<HarnessEvent> {
     slashCommands: [],
     tools: []
   });
+  if (options.waitForInterrupt === true) {
+    await waitForAbort(signal);
+    return;
+  }
   yield transcript({
     kind: "tool_call",
     tool: {
@@ -237,6 +366,16 @@ async function* makeHarnessEvents(model: string): AsyncIterable<HarnessEvent> {
     kind: "result",
     result: "done",
     subtype: "success"
+  });
+}
+
+function waitForAbort(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    signal.addEventListener("abort", () => resolve(), { once: true });
   });
 }
 
@@ -274,6 +413,31 @@ async function waitForSessionIdle(
   }
 
   throw new Error("Timed out waiting for session to become idle");
+}
+
+async function waitForSessionStatus(
+  app: Awaited<ReturnType<typeof createApp>>,
+  taskId: string,
+  sessionId: string,
+  status: string
+): Promise<void> {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const response = await app.inject({
+      method: "GET",
+      url: `/tasks/${taskId}/sessions`
+    });
+    assert.equal(response.statusCode, 200);
+    const sessions = (readJson(response.body) as {
+      readonly sessions: ReadonlyArray<{ readonly id: string; readonly status: string }>;
+    }).sessions;
+    const session = sessions.find((candidate) => candidate.id === sessionId);
+    if (session?.status === status) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
+  throw new Error(`Timed out waiting for session ${sessionId} to reach ${status}`);
 }
 
 function readJson(body: string): unknown {

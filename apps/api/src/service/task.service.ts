@@ -1,5 +1,9 @@
 import type { TaskAction } from "../domain/task-action.js";
 import type { CreateTaskArtifactInput, TaskArtifact } from "../domain/task-artifact.js";
+import {
+  toTaskSessionChatSnapshot,
+  type TaskSessionChatSnapshot
+} from "../domain/task-session-chat.js";
 import type {
   CreateTaskSessionInput,
   TaskSession,
@@ -111,6 +115,16 @@ export class TaskService {
   ): Promise<readonly TranscriptEntry[]> {
     await this.requireSession(sessionId);
     return this.sessionTranscript.listBySessionId(sessionId);
+  }
+
+  public async getSessionChatSnapshot(
+    sessionId: TaskSessionId
+  ): Promise<TaskSessionChatSnapshot> {
+    await this.requireSession(sessionId);
+    return toTaskSessionChatSnapshot(
+      sessionId,
+      await this.sessionTranscript.listBySessionId(sessionId)
+    );
   }
 
   public async listTasks(): Promise<readonly Task[]> {

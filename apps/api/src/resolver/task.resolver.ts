@@ -1,6 +1,7 @@
 import type { ServerResponse } from "node:http";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import type { TaskSessionChatSnapshot } from "../domain/task-session-chat.js";
 import type { UpdateTaskInput } from "../domain/task.js";
 import type { TranscriptEntry } from "../domain/transcript-entry.js";
 import type {
@@ -138,6 +139,11 @@ export function registerTaskResolver(
     };
   });
 
+  server.get("/sessions/:sessionId/chat", async (request) => {
+    const { sessionId } = sessionIdParamsSchema.parse(request.params);
+    return { snapshot: await taskService.getSessionChatSnapshot(sessionId) };
+  });
+
   server.get("/sessions/:sessionId/events", async (request, reply) => {
     const { sessionId } = sessionIdParamsSchema.parse(request.params);
     await taskService.listSessionTranscriptEntries(sessionId);
@@ -158,6 +164,30 @@ export function registerTaskResolver(
     void streamSessionEvents(reply.raw, subscription);
   });
 
+  server.get("/sessions/:sessionId/chat/events", async (request, reply) => {
+    const { sessionId } = sessionIdParamsSchema.parse(request.params);
+    await taskService.listSessionTranscriptEntries(sessionId);
+
+    const subscription = taskSessionCoordinator.subscribe(sessionId);
+    reply.hijack();
+    reply.raw.writeHead(200, {
+      "cache-control": "no-cache, no-transform",
+      "connection": "keep-alive",
+      "content-type": "text/event-stream",
+      "x-accel-buffering": "no"
+    });
+    reply.raw.write("retry: 1000\n\n");
+    writeChatSnapshotEvent(
+      reply.raw,
+      await taskService.getSessionChatSnapshot(sessionId)
+    );
+
+    request.raw.on("close", () => {
+      subscription.close();
+    });
+    void streamSessionChatEvents(reply.raw, subscription, taskService);
+  });
+
   server.post("/sessions/:sessionId/transcript", async (request, reply) => {
     const { sessionId } = sessionIdParamsSchema.parse(request.params);
     const entry = await taskService.appendSessionTranscriptEntry(
@@ -173,6 +203,21 @@ export function registerTaskResolver(
       sessionId,
       sendSessionMessageSchema.parse(request.body)
     );
+    return reply.code(202).send(result);
+  });
+
+  server.post("/sessions/:sessionId/runs", async (request, reply) => {
+    const { sessionId } = sessionIdParamsSchema.parse(request.params);
+    const result = await taskSessionCoordinator.sendMessage(
+      sessionId,
+      sendSessionMessageSchema.parse(request.body)
+    );
+    return reply.code(202).send(result);
+  });
+
+  server.post("/sessions/:sessionId/cancel", async (request, reply) => {
+    const { sessionId } = sessionIdParamsSchema.parse(request.params);
+    const result = await taskSessionCoordinator.cancelTurn(sessionId);
     return reply.code(202).send(result);
   });
 
@@ -216,10 +261,46 @@ async function streamSessionEvents(
   }
 }
 
+async function streamSessionChatEvents(
+  response: ServerResponse,
+  subscription: TaskSessionStreamSubscription,
+  taskService: TaskService
+): Promise<void> {
+  try {
+    for await (const event of subscription.events) {
+      if (response.writableEnded) {
+        break;
+      }
+
+      writeChatSnapshotEvent(
+        response,
+        await taskService.getSessionChatSnapshot(event.sessionId)
+      );
+    }
+  } finally {
+    subscription.close();
+    if (!response.writableEnded) {
+      response.end();
+    }
+  }
+}
+
 function writeSessionEvent(
   response: ServerResponse,
   event: TaskSessionStreamEvent
 ): void {
   response.write(`event: ${event.type}\n`);
   response.write(`data: ${JSON.stringify(event)}\n\n`);
+}
+
+function writeChatSnapshotEvent(
+  response: ServerResponse,
+  snapshot: TaskSessionChatSnapshot
+): void {
+  response.write("event: chat_snapshot\n");
+  response.write(`data: ${JSON.stringify({
+    sessionId: snapshot.sessionId,
+    snapshot,
+    type: "chat_snapshot"
+  })}\n\n`);
 }

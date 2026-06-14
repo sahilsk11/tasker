@@ -22,6 +22,10 @@ export type SendTaskSessionMessageResult = {
   readonly session: TaskSession;
 };
 
+export type CancelTaskSessionTurnResult = {
+  readonly accepted: true;
+};
+
 export type TaskSessionStreamEvent =
   | {
       readonly entry: TranscriptEntry;
@@ -173,6 +177,23 @@ export class TaskSessionCoordinator {
     return this.activeTurns.get(sessionId);
   }
 
+  public async cancelTurn(
+    sessionId: TaskSessionId
+  ): Promise<CancelTaskSessionTurnResult> {
+    await this.requireSession(sessionId);
+    const active = this.activeTurns.get(sessionId);
+    if (active == null) {
+      throw new BadRequestError("Task session is not running");
+    }
+
+    active.cancelRequested = true;
+    active.cancelReason = "user_cancelled";
+    active.cancelDetail = "Cancelled by user";
+    await active.turn.interrupt();
+
+    return { accepted: true };
+  }
+
   public subscribe(sessionId: TaskSessionId): TaskSessionStreamSubscription {
     const queue = new AsyncQueue<TaskSessionStreamEvent>();
     const subscribers = this.subscribers.get(sessionId) ?? new Set();
@@ -276,6 +297,18 @@ export class TaskSessionCoordinator {
         await this.recordTurnFailure(active.sessionId, error, active);
       }
     } finally {
+      if (active.cancelRequested && !active.hasFinalResult && !active.cancelRecorded) {
+        active.cancelRecorded = true;
+        const resultEntry = withTurnMetadata(makeResultEntry({
+          isError: false,
+          result: active.cancelDetail ?? "cancelled",
+          subtype: "cancelled"
+        }), active);
+        active.hasFinalResult = true;
+        await this.appendTranscriptEntry(active.sessionId, resultEntry);
+        await this.recordResultEntry(active.sessionId, resultEntry);
+      }
+
       active.turn.close();
       if (this.activeTurns.get(active.sessionId) === active) {
         this.activeTurns.delete(active.sessionId);

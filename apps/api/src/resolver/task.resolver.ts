@@ -1,21 +1,10 @@
-import type { ServerResponse } from "node:http";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { UpdateTaskInput } from "../domain/task.js";
-import type { TranscriptEntry } from "../domain/transcript-entry.js";
-import type {
-  TaskSessionCoordinator,
-  TaskSessionStreamEvent,
-  TaskSessionStreamSubscription
-} from "../service/task-session-coordinator.js";
 import type { TaskService } from "../service/task.service.js";
 
 const taskIdParamsSchema = z.object({
   id: z.string().min(1)
-});
-
-const sessionIdParamsSchema = z.object({
-  sessionId: z.string().min(1)
 });
 
 const createTaskSchema = z.object({
@@ -37,34 +26,17 @@ const createArtifactSchema = z.object({
 });
 
 const createSessionSchema = z.object({
-  localPath: z.string().default(""),
-  model: z.string().nullable().default(null),
-  planMode: z.boolean().default(false),
-  provider: z.enum(["claude", "codex", "cursor", "opencode"]),
-  title: z.string().nullable().default(null)
+  provider: z.enum(["codex", "cursor", "opencode"])
 });
-
-const transcriptEntrySchema = z.object({
-  _id: z.string().min(1),
-  createdAt: z.number().finite(),
-  hidden: z.boolean().optional(),
-  kind: z.string().min(1),
-  messageId: z.string().optional()
-}).passthrough();
 
 const createTicketSchema = z.object({
   externalId: z.string().min(1),
   url: z.string().url().nullable().default(null)
 });
 
-const sendSessionMessageSchema = z.object({
-  content: z.string().min(1)
-});
-
 export function registerTaskResolver(
   server: FastifyInstance,
-  taskService: TaskService,
-  taskSessionCoordinator: TaskSessionCoordinator
+  taskService: TaskService
 ): void {
   server.get("/health", () => ({ ok: true }));
 
@@ -131,51 +103,6 @@ export function registerTaskResolver(
     return reply.code(201).send({ session });
   });
 
-  server.get("/sessions/:sessionId/transcript", async (request) => {
-    const { sessionId } = sessionIdParamsSchema.parse(request.params);
-    return {
-      entries: await taskService.listSessionTranscriptEntries(sessionId)
-    };
-  });
-
-  server.get("/sessions/:sessionId/events", async (request, reply) => {
-    const { sessionId } = sessionIdParamsSchema.parse(request.params);
-    await taskService.listSessionTranscriptEntries(sessionId);
-
-    const subscription = taskSessionCoordinator.subscribe(sessionId);
-    reply.hijack();
-    reply.raw.writeHead(200, {
-      "cache-control": "no-cache, no-transform",
-      "connection": "keep-alive",
-      "content-type": "text/event-stream",
-      "x-accel-buffering": "no"
-    });
-    reply.raw.write("retry: 1000\n\n");
-
-    request.raw.on("close", () => {
-      subscription.close();
-    });
-    void streamSessionEvents(reply.raw, subscription);
-  });
-
-  server.post("/sessions/:sessionId/transcript", async (request, reply) => {
-    const { sessionId } = sessionIdParamsSchema.parse(request.params);
-    const entry = await taskService.appendSessionTranscriptEntry(
-      sessionId,
-      transcriptEntrySchema.parse(request.body) as TranscriptEntry
-    );
-    return reply.code(201).send({ entry });
-  });
-
-  server.post("/sessions/:sessionId/messages", async (request, reply) => {
-    const { sessionId } = sessionIdParamsSchema.parse(request.params);
-    const result = await taskSessionCoordinator.sendMessage(
-      sessionId,
-      sendSessionMessageSchema.parse(request.body)
-    );
-    return reply.code(202).send(result);
-  });
-
   server.get("/tasks/:id/tickets", async (request) => {
     const { id } = taskIdParamsSchema.parse(request.params);
     return { tickets: await taskService.listTickets(id) };
@@ -195,31 +122,4 @@ function parseUpdateTaskInput(body: unknown): UpdateTaskInput {
     ...(parsed.parentTaskId !== undefined ? { parentTaskId: parsed.parentTaskId } : {}),
     ...(parsed.title !== undefined ? { title: parsed.title } : {})
   };
-}
-
-async function streamSessionEvents(
-  response: ServerResponse,
-  subscription: TaskSessionStreamSubscription
-): Promise<void> {
-  try {
-    for await (const event of subscription.events) {
-      if (response.writableEnded) {
-        break;
-      }
-      writeSessionEvent(response, event);
-    }
-  } finally {
-    subscription.close();
-    if (!response.writableEnded) {
-      response.end();
-    }
-  }
-}
-
-function writeSessionEvent(
-  response: ServerResponse,
-  event: TaskSessionStreamEvent
-): void {
-  response.write(`event: ${event.type}\n`);
-  response.write(`data: ${JSON.stringify(event)}\n\n`);
 }

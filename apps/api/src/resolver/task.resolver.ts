@@ -1,13 +1,8 @@
-import type { ServerResponse } from "node:http";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { UpdateTaskInput } from "../domain/task.js";
 import type { TranscriptEntry } from "../domain/transcript-entry.js";
-import type {
-  TaskSessionCoordinator,
-  TaskSessionStreamEvent,
-  TaskSessionStreamSubscription
-} from "../service/task-session-coordinator.js";
+import type { TaskSessionCoordinator } from "../service/task-session-coordinator.js";
 import type { TaskService } from "../service/task.service.js";
 
 const taskIdParamsSchema = z.object({
@@ -138,26 +133,6 @@ export function registerTaskResolver(
     };
   });
 
-  server.get("/sessions/:sessionId/events", async (request, reply) => {
-    const { sessionId } = sessionIdParamsSchema.parse(request.params);
-    await taskService.listSessionTranscriptEntries(sessionId);
-
-    const subscription = taskSessionCoordinator.subscribe(sessionId);
-    reply.hijack();
-    reply.raw.writeHead(200, {
-      "cache-control": "no-cache, no-transform",
-      "connection": "keep-alive",
-      "content-type": "text/event-stream",
-      "x-accel-buffering": "no"
-    });
-    reply.raw.write("retry: 1000\n\n");
-
-    request.raw.on("close", () => {
-      subscription.close();
-    });
-    void streamSessionEvents(reply.raw, subscription);
-  });
-
   server.post("/sessions/:sessionId/transcript", async (request, reply) => {
     const { sessionId } = sessionIdParamsSchema.parse(request.params);
     const entry = await taskService.appendSessionTranscriptEntry(
@@ -195,31 +170,4 @@ function parseUpdateTaskInput(body: unknown): UpdateTaskInput {
     ...(parsed.parentTaskId !== undefined ? { parentTaskId: parsed.parentTaskId } : {}),
     ...(parsed.title !== undefined ? { title: parsed.title } : {})
   };
-}
-
-async function streamSessionEvents(
-  response: ServerResponse,
-  subscription: TaskSessionStreamSubscription
-): Promise<void> {
-  try {
-    for await (const event of subscription.events) {
-      if (response.writableEnded) {
-        break;
-      }
-      writeSessionEvent(response, event);
-    }
-  } finally {
-    subscription.close();
-    if (!response.writableEnded) {
-      response.end();
-    }
-  }
-}
-
-function writeSessionEvent(
-  response: ServerResponse,
-  event: TaskSessionStreamEvent
-): void {
-  response.write(`event: ${event.type}\n`);
-  response.write(`data: ${JSON.stringify(event)}\n\n`);
 }

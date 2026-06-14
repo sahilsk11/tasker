@@ -29,6 +29,12 @@ export type ApiSession = {
   readonly transcriptPath: string | null;
 };
 
+export type CreateTaskSessionInput = {
+  readonly actionId: string;
+  readonly claimed: boolean;
+  readonly provider: string;
+};
+
 export type ApiTicket = {
   readonly createdAt: string;
   readonly externalId: string;
@@ -123,6 +129,17 @@ export async function listTaskBundles(): Promise<readonly TaskBundle[]> {
 export async function createTask(input: CreateTaskInput): Promise<ApiTask> {
   const { task } = await apiClient.post<{ readonly task: ApiTask }>("/tasks", input);
   return task;
+}
+
+export async function createTaskSession(
+  taskId: string,
+  input: CreateTaskSessionInput
+): Promise<ApiSession> {
+  const { session } = await apiClient.post<{ readonly session: ApiSession }>(
+    `/tasks/${taskId}/sessions`,
+    input
+  );
+  return session;
 }
 
 export async function createTaskTicket(

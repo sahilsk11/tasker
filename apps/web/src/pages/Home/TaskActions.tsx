@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ApiTaskAction } from "@/api/tasks";
+import type { ApiSession, ApiTaskAction } from "@/api/tasks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
+import { localApiBaseUrl } from "@/lib/env";
 import { cn } from "@/lib/utils";
 
 const taskActionIcons: Record<string, LucideIcon> = {
@@ -114,66 +115,199 @@ export function TaskActionsDialog({
 export function TaskActionPromptDialog({
   action,
   onOpenChange,
+  session,
+  taskDescription,
   taskTitle
 }: {
   readonly action: ApiTaskAction | null;
   readonly onOpenChange: (isOpen: boolean) => void;
+  readonly session: ApiSession | null;
+  readonly taskDescription: string | null;
   readonly taskTitle: string;
 }): React.JSX.Element {
-  const [copied, setCopied] = useState(false);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
 
   useEffect(() => {
-    setCopied(false);
-  }, [action]);
+    setCopiedPrompt(false);
+  }, [action, session]);
+
+  const claimCommand =
+    session == null ? "" : buildCodexClaimCommand(localApiBaseUrl, session.id);
+  const prompt =
+    action == null || session == null
+      ? ""
+      : buildCodexActionPrompt({
+          action,
+          claimCommand,
+          taskDescription,
+          taskTitle
+        });
 
   async function copyPrompt(): Promise<void> {
-    if (action == null) {
+    if (prompt.length === 0) {
       return;
     }
 
-    await navigator.clipboard.writeText(action.prompt);
-    setCopied(true);
+    await copyPlainText(prompt);
+    setCopiedPrompt(true);
   }
 
   const Icon = action == null ? Workflow : taskActionIcons[action.id] ?? Workflow;
 
   return (
-    <Dialog open={action != null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto]">
+    <Dialog open={action != null && session != null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden p-0">
         <DialogHeader>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Icon className="size-4" />
-            <span className="text-xs font-medium uppercase tracking-[0.12em]">
-              Prompt
-            </span>
+          <div className="p-5 pb-0">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Icon className="size-4" />
+              <span className="text-xs font-medium uppercase tracking-[0.12em]">
+                Codex prompt
+              </span>
+            </div>
+            <DialogTitle>{action?.label ?? "Action prompt"}</DialogTitle>
+            <DialogDescription>
+              Copy this markdown prompt into Codex. The claim command uses the
+              local Tasker API, not this browser URL.
+            </DialogDescription>
           </div>
-          <DialogTitle>{action?.label ?? "Action prompt"}</DialogTitle>
-          <DialogDescription>
-            Copy and paste this prompt into your coding agent for {taskTitle}.
-          </DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 border-t border-border p-5">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <span className="text-sm font-medium">Markdown preview</span>
+        <div className="grid min-h-0 gap-4 overflow-y-auto border-t border-border p-5">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-medium">Prompt preview</span>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => void copyPrompt()}
-              disabled={action == null}
+              disabled={prompt.length === 0}
             >
-              {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-              <span>{copied ? "Copied" : "Copy prompt"}</span>
+              {copiedPrompt ? <Check className="size-4" /> : <Copy className="size-4" />}
+              <span>{copiedPrompt ? "Copied" : "Copy prompt"}</span>
             </Button>
           </div>
-          <pre className="max-h-[24rem] min-h-52 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-4 font-mono text-sm leading-6 text-foreground">
-            {action?.prompt}
-          </pre>
+          {action == null || session == null ? null : (
+            <CodexPromptPreview
+              action={action}
+              claimCommand={claimCommand}
+              taskDescription={taskDescription}
+              taskTitle={taskTitle}
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>
   );
+}
+
+function CodexPromptPreview({
+  action,
+  claimCommand,
+  taskDescription,
+  taskTitle
+}: {
+  readonly action: ApiTaskAction;
+  readonly claimCommand: string;
+  readonly taskDescription: string | null;
+  readonly taskTitle: string;
+}): React.JSX.Element {
+  const description = taskDescription?.trim();
+
+  return (
+    <div className="grid gap-4 text-sm leading-6">
+      <section className="grid gap-2 border-b border-border pb-4">
+        <h3 className="text-base font-semibold text-foreground">{taskTitle}</h3>
+        {description == null || description.length === 0 ? null : (
+          <p className="text-muted-foreground">{description}</p>
+        )}
+      </section>
+
+      <section className="grid gap-2 border-b border-border pb-4">
+        <h4 className="font-medium text-foreground">Action</h4>
+        <p className="text-muted-foreground">{action.prompt}</p>
+      </section>
+
+      <section className="grid gap-3">
+        <div className="grid gap-1">
+          <h4 className="font-medium text-foreground">Tasker session claim</h4>
+          <p className="text-muted-foreground">
+            Before doing the task, claim this Tasker session. If CODEX_THREAD_ID
+            is not set, continue with the task and report that claim failed.
+          </p>
+        </div>
+        <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-secondary/40 p-4 font-mono text-xs leading-5 text-foreground">
+          {claimCommand}
+        </pre>
+      </section>
+    </div>
+  );
+}
+
+function buildCodexActionPrompt({
+  action,
+  claimCommand,
+  taskDescription,
+  taskTitle
+}: {
+  readonly action: ApiTaskAction;
+  readonly claimCommand: string;
+  readonly taskDescription: string | null;
+  readonly taskTitle: string;
+}): string {
+  const description = taskDescription?.trim();
+  const contextLines = [
+    `# ${taskTitle}`,
+    ...(description == null || description.length === 0
+      ? []
+      : ["", "## Description", description]),
+    "",
+    "## Action",
+    action.prompt
+  ];
+
+  return `${contextLines.join("\n")}
+
+## Tasker session claim
+
+Before doing the task, claim this Tasker session.
+
+Run this command from the agent if available:
+
+\`\`\`bash
+${claimCommand}
+\`\`\`
+
+If CODEX_THREAD_ID is not set, still continue with the task and report that claim failed.`;
+}
+
+function buildCodexClaimCommand(apiUrl: string, sessionId: string): string {
+  const claimUrl = `${apiUrl}/sessions/${sessionId}/claim`;
+  return `curl -sS -X POST "${claimUrl}" \\
+  -H "Content-Type: application/json" \\
+  --data-binary @- <<EOF
+{
+  "provider": "codex",
+  "providerId": "\${CODEX_THREAD_ID:-}",
+  "metadata": {
+    "reportedCwd": "$(pwd)",
+    "codexThreadIdEnvPresent": $([ -n "\${CODEX_THREAD_ID:-}" ] && echo true || echo false)
+  }
+}
+EOF`;
+}
+
+async function copyPlainText(value: string): Promise<void> {
+  if (typeof ClipboardItem !== "undefined") {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        "text/plain": new Blob([value], { type: "text/plain" })
+      })
+    ]);
+    return;
+  }
+
+  await navigator.clipboard.writeText(value);
 }
 
 function TaskActionButton({

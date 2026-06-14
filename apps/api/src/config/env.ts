@@ -1,4 +1,5 @@
 export type Env = {
+  readonly codexSessionsRoot: string | undefined;
   readonly databasePath: string;
   readonly host: string;
   readonly linearApiKey: string | null;
@@ -7,6 +8,7 @@ export type Env = {
 
 export function loadEnv(): Env {
   return {
+    codexSessionsRoot: normalizeOptionalEnv(process.env["CODEX_SESSIONS_ROOT"]) ?? undefined,
     databasePath: process.env["DATABASE_PATH"] ?? "./tasker.sqlite",
     host: process.env["HOST"] ?? "127.0.0.1",
     linearApiKey: normalizeOptionalEnv(process.env["LINEAR_API_KEY"]),

@@ -62,7 +62,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
       resource(
         "session",
         session.providerId ?? capitalize(session.provider),
-        session.providerId ?? capitalize(session.provider),
+        capitalize(session.provider),
         "Claimed",
         formatDate(session.claimedAt ?? session.createdAt)
       )

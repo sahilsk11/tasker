@@ -11,6 +11,10 @@ import type { TaskArtifactRepository } from "../repository/task-artifact.reposit
 import type { TaskSessionRepository } from "../repository/task-session.repository.js";
 import type { TaskTicketRepository } from "../repository/task-ticket.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
+import {
+  defaultCodexSessionsRoot,
+  resolveCodexTranscriptPath
+} from "./codex-transcript.js";
 import { NotFoundError } from "./errors.js";
 
 export type TaskResources = {
@@ -24,7 +28,8 @@ export class TaskService {
     private readonly tasks: TaskRepository,
     private readonly artifacts: TaskArtifactRepository,
     private readonly sessions: TaskSessionRepository,
-    private readonly tickets: TaskTicketRepository
+    private readonly tickets: TaskTicketRepository,
+    private readonly codexSessionsRoot = defaultCodexSessionsRoot()
   ) {}
 
   public async addArtifact(
@@ -47,7 +52,8 @@ export class TaskService {
     sessionId: string,
     input: ClaimTaskSessionInput
   ): Promise<TaskSession> {
-    const session = await this.sessions.claim(sessionId, input);
+    const claimInput = await this.withDiscoveredTranscript(input);
+    const session = await this.sessions.claim(sessionId, claimInput);
     if (session == null) {
       throw new NotFoundError(`Task session ${sessionId} not found`);
     }
@@ -136,6 +142,25 @@ export class TaskService {
     }
 
     return task;
+  }
+
+  private async withDiscoveredTranscript(
+    input: ClaimTaskSessionInput
+  ): Promise<ClaimTaskSessionInput> {
+    if (
+      input.provider !== "codex" ||
+      input.providerId == null ||
+      input.providerId.length === 0 ||
+      input.transcriptPath !== undefined
+    ) {
+      return input;
+    }
+
+    const transcriptPath = await resolveCodexTranscriptPath(input.providerId, {
+      sessionsRoot: this.codexSessionsRoot
+    });
+
+    return transcriptPath == null ? input : { ...input, transcriptPath };
   }
 }
 

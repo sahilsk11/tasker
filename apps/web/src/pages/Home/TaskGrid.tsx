@@ -1,6 +1,7 @@
 import { GitBranch } from "lucide-react";
-import { useEffect, useState } from "react";
-import type { ApiTaskAction, TaskBundle } from "@/api/tasks";
+import { useState } from "react";
+import { createTaskSession } from "@/api/tasks";
+import type { ApiSession, ApiTaskAction, TaskBundle } from "@/api/tasks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TaskActionPromptDialog,
@@ -50,7 +51,9 @@ export function TaskGridSkeleton(): React.JSX.Element {
 
 function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Element {
   const groupedResources = getResourceGroupsForBundle(bundle);
-  const [pendingAction, setPendingAction] = useState<ApiTaskAction | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<ApiSession | null>(null);
   const [selectedKind, setSelectedKind] = useState<ResourceKind | null>(null);
   const [selectedAction, setSelectedAction] = useState<ApiTaskAction | null>(null);
   const [showAllActions, setShowAllActions] = useState(false);
@@ -58,22 +61,33 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
     groupedResources.find((group) => group.kind === selectedKind) ?? null;
   const description = bundle.task.description ?? "No description provided.";
 
-  useEffect(() => {
-    if (showAllActions || pendingAction == null) {
-      return;
+  async function openActionPrompt(action: ApiTaskAction): Promise<void> {
+    setActionError(null);
+    setIsCreatingPrompt(true);
+
+    try {
+      const session = await createTaskSession(bundle.task.id, {
+        actionId: action.id,
+        claimed: false,
+        provider: "codex"
+      });
+      setSelectedSession(session);
+      setSelectedAction(action);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Failed to create task session."
+      );
+    } finally {
+      setIsCreatingPrompt(false);
     }
-
-    const timeout = window.setTimeout(() => {
-      setSelectedAction(pendingAction);
-      setPendingAction(null);
-    }, 100);
-
-    return () => window.clearTimeout(timeout);
-  }, [pendingAction, showAllActions]);
+  }
 
   function selectAction(action: ApiTaskAction): void {
-    setPendingAction(action);
+    const delayMs = showAllActions ? 100 : 0;
     setShowAllActions(false);
+    window.setTimeout(() => {
+      void openActionPrompt(action);
+    }, delayMs);
   }
 
   return (
@@ -111,6 +125,12 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
               onSelectAction={selectAction}
               onViewAll={() => setShowAllActions(true)}
             />
+            {actionError == null ? null : (
+              <p className="text-sm text-destructive">{actionError}</p>
+            )}
+            {isCreatingPrompt ? (
+              <p className="text-sm text-muted-foreground">Preparing prompt...</p>
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -127,8 +147,11 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
         onOpenChange={(isOpen) => {
           if (!isOpen) {
             setSelectedAction(null);
+            setSelectedSession(null);
           }
         }}
+        session={selectedSession}
+        taskDescription={bundle.task.description}
         taskTitle={bundle.task.title}
       />
       <ResourceTableDialog

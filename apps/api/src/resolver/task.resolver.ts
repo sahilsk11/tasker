@@ -176,6 +176,12 @@ export function registerTaskResolver(
     return reply.code(202).send(result);
   });
 
+  server.post("/sessions/:sessionId/cancel", async (request, reply) => {
+    const { sessionId } = sessionIdParamsSchema.parse(request.params);
+    const result = await taskSessionCoordinator.cancelTurn(sessionId);
+    return reply.code(202).send(result);
+  });
+
   server.get("/tasks/:id/tickets", async (request) => {
     const { id } = taskIdParamsSchema.parse(request.params);
     return { tickets: await taskService.listTickets(id) };

@@ -3,6 +3,7 @@ import type { ProviderActiveTurnState } from "../domain/provider-adapter.js";
 import type { TaskSession, TaskSessionId } from "../domain/task-session.js";
 import type { HarnessTurn } from "../domain/task-session-turn.js";
 import type {
+  InterruptedEntry,
   ResultEntry,
   TranscriptEntry,
   UserPromptEntry
@@ -20,6 +21,10 @@ export type SendTaskSessionMessageInput = {
 export type SendTaskSessionMessageResult = {
   readonly accepted: true;
   readonly session: TaskSession;
+};
+
+export type CancelTaskSessionTurnResult = {
+  readonly accepted: true;
 };
 
 export type TaskSessionStreamEvent =
@@ -171,6 +176,29 @@ export class TaskSessionCoordinator {
 
   public getActiveTurn(sessionId: TaskSessionId): ProviderActiveTurnState | undefined {
     return this.activeTurns.get(sessionId);
+  }
+
+  public async cancelTurn(sessionId: TaskSessionId): Promise<CancelTaskSessionTurnResult> {
+    await this.requireSession(sessionId);
+    const active = this.activeTurns.get(sessionId);
+    if (active == null) {
+      throw new BadRequestError("Task session is not running");
+    }
+
+    active.cancelRequested = true;
+    active.cancelReason = "user_cancelled";
+    active.cancelDetail = "Cancelled by user";
+    await this.appendTranscriptEntry(
+      sessionId,
+      withTurnMetadata(timestamped<InterruptedEntry>({
+        detail: active.cancelDetail,
+        kind: "interrupted",
+        reason: active.cancelReason
+      }), active)
+    );
+    await active.turn.interrupt();
+
+    return { accepted: true };
   }
 
   public subscribe(sessionId: TaskSessionId): TaskSessionStreamSubscription {

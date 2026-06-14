@@ -131,6 +131,72 @@ void test("session turns persist provider-neutral runtime metadata", async () =>
   }
 });
 
+void test("session turns can be cancelled through the HTTP resolver", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-cancel-turn-"));
+  const databasePath = join(dir, "tasker.sqlite");
+  const app = await createApp({
+    databasePath,
+    linearApiKey: null,
+    providerRegistry: new ServerProviderRegistry([
+      ["codex", new CancellableProviderAdapter()]
+    ])
+  });
+
+  try {
+    const taskResponse = await app.inject({
+      method: "POST",
+      payload: { title: "Cancelable turn" },
+      url: "/tasks"
+    });
+    assert.equal(taskResponse.statusCode, 201);
+    const task = (readJson(taskResponse.body) as {
+      readonly task: { readonly id: string };
+    }).task;
+
+    const sessionResponse = await app.inject({
+      method: "POST",
+      payload: {
+        localPath: dir,
+        provider: "codex",
+        title: "Codex stream"
+      },
+      url: `/tasks/${task.id}/sessions`
+    });
+    assert.equal(sessionResponse.statusCode, 201);
+    const session = (readJson(sessionResponse.body) as {
+      readonly session: { readonly id: string };
+    }).session;
+
+    const messageResponse = await app.inject({
+      method: "POST",
+      payload: { content: "start a long turn" },
+      url: `/sessions/${session.id}/messages`
+    });
+    assert.equal(messageResponse.statusCode, 202);
+
+    const cancelResponse = await app.inject({
+      method: "POST",
+      url: `/sessions/${session.id}/cancel`
+    });
+    assert.equal(cancelResponse.statusCode, 202);
+    await waitForSessionIdle(app, task.id, session.id);
+
+    const transcriptResponse = await app.inject({
+      method: "GET",
+      url: `/sessions/${session.id}/transcript`
+    });
+    assert.equal(transcriptResponse.statusCode, 200);
+    const entries = (readJson(transcriptResponse.body) as {
+      readonly entries: TranscriptEntry[];
+    }).entries;
+    assert.ok(entries.some((entry) => entry.kind === "interrupted"));
+    assert.ok(entries.some((entry) => entry.kind === "result" && entry.subtype === "cancelled"));
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 type RuntimeMetadataRow = {
   readonly display: string | null;
   readonly item_id: string | null;
@@ -181,12 +247,37 @@ class FakeProviderAdapter implements ServerProviderAdapter {
   }
 }
 
+class CancellableProviderAdapter extends FakeProviderAdapter {
+  public override startTurn(context: ProviderTurnContext): Promise<ProviderTurnResult> {
+    return Promise.resolve({
+      turn: makeCancellableHarnessTurn(context.model ?? "fake-codex")
+    });
+  }
+}
+
 function makeHarnessTurn(model: string): HarnessTurn {
   return {
     close: () => undefined,
     interrupt: () => Promise.resolve(),
     provider: "codex",
     stream: makeHarnessEvents(model)
+  };
+}
+
+function makeCancellableHarnessTurn(model: string): HarnessTurn {
+  let interrupt: (() => void) | null = null;
+  const interrupted = new Promise<void>((resolve) => {
+    interrupt = resolve;
+  });
+
+  return {
+    close: () => undefined,
+    interrupt: () => {
+      interrupt?.();
+      return Promise.resolve();
+    },
+    provider: "codex",
+    stream: makeCancellableHarnessEvents(model, interrupted)
   };
 }
 
@@ -237,6 +328,29 @@ async function* makeHarnessEvents(model: string): AsyncIterable<HarnessEvent> {
     kind: "result",
     result: "done",
     subtype: "success"
+  });
+}
+
+async function* makeCancellableHarnessEvents(
+  model: string,
+  interrupted: Promise<void>
+): AsyncIterable<HarnessEvent> {
+  yield transcript({
+    agents: [],
+    kind: "system_init",
+    mcpServers: [],
+    model,
+    provider: "codex",
+    slashCommands: [],
+    tools: []
+  });
+  await interrupted;
+  yield transcript({
+    durationMs: 1,
+    isError: false,
+    kind: "result",
+    result: "cancelled",
+    subtype: "cancelled"
   });
 }
 

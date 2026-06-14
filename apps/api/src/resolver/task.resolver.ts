@@ -1,15 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { UpdateTaskInput } from "../domain/task.js";
-import type { TranscriptEntry } from "../domain/transcript-entry.js";
 import type { TaskService } from "../service/task.service.js";
 
 const taskIdParamsSchema = z.object({
   id: z.string().min(1)
-});
-
-const sessionIdParamsSchema = z.object({
-  sessionId: z.string().min(1)
 });
 
 const createTaskSchema = z.object({
@@ -31,20 +26,8 @@ const createArtifactSchema = z.object({
 });
 
 const createSessionSchema = z.object({
-  localPath: z.string().default(""),
-  model: z.string().nullable().default(null),
-  planMode: z.boolean().default(false),
-  provider: z.enum(["claude", "codex", "cursor", "opencode"]),
-  title: z.string().nullable().default(null)
+  provider: z.enum(["claude", "codex", "cursor", "opencode"])
 });
-
-const transcriptEntrySchema = z.object({
-  _id: z.string().min(1),
-  createdAt: z.number().finite(),
-  hidden: z.boolean().optional(),
-  kind: z.string().min(1),
-  messageId: z.string().optional()
-}).passthrough();
 
 const createTicketSchema = z.object({
   externalId: z.string().min(1),
@@ -118,22 +101,6 @@ export function registerTaskResolver(
       createSessionSchema.parse(request.body)
     );
     return reply.code(201).send({ session });
-  });
-
-  server.get("/sessions/:sessionId/transcript", async (request) => {
-    const { sessionId } = sessionIdParamsSchema.parse(request.params);
-    return {
-      entries: await taskService.listSessionTranscriptEntries(sessionId)
-    };
-  });
-
-  server.post("/sessions/:sessionId/transcript", async (request, reply) => {
-    const { sessionId } = sessionIdParamsSchema.parse(request.params);
-    const entry = await taskService.appendSessionTranscriptEntry(
-      sessionId,
-      transcriptEntrySchema.parse(request.body) as TranscriptEntry
-    );
-    return reply.code(201).send({ entry });
   });
 
   server.get("/tasks/:id/tickets", async (request) => {

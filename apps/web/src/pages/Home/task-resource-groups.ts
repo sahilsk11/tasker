@@ -61,10 +61,10 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
     ...bundle.resources.sessions.map((session) =>
       resource(
         "session",
-        session.provider,
-        capitalize(session.provider),
-        "Created",
-        formatDate(session.createdAt)
+        session.title,
+        session.providerId ?? capitalize(session.provider),
+        "Claimed",
+        formatDate(session.claimedAt ?? session.createdAt)
       )
     ),
     ...bundle.resources.artifacts.map(resourceFromArtifact),

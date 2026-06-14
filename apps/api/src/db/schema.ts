@@ -27,19 +27,24 @@ export type TaskArtifactsTable = {
 };
 
 export type TaskSessionsTable = {
+  readonly action_id: string | null;
+  readonly claimed_at: string | null;
   readonly created_at: Generated<string>;
   readonly id: string;
   readonly last_message_at: string | null;
   readonly last_turn_outcome: string | null;
   readonly local_path: string;
+  readonly metadata_json: string | null;
   readonly model: string | null;
   readonly pending_fork_session_token: string | null;
   readonly plan_mode: Generated<number>;
   readonly provider: string;
+  readonly provider_id: string | null;
   readonly session_token: string | null;
   readonly status: string;
   readonly task_id: string;
   readonly title: string;
+  readonly transcript_path: string | null;
   readonly updated_at: Generated<string>;
 };
 

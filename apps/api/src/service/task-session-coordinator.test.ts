@@ -51,8 +51,51 @@ void test("session turns persist provider-neutral runtime metadata", async () =>
     });
     assert.equal(sessionResponse.statusCode, 201);
     const session = (readJson(sessionResponse.body) as {
-      readonly session: { readonly id: string };
+      readonly session: {
+        readonly actionId: string | null;
+        readonly claimedAt: string | null;
+        readonly id: string;
+        readonly metadata: Record<string, unknown> | null;
+        readonly providerId: string | null;
+        readonly transcriptPath: string | null;
+      };
     }).session;
+    assert.equal(session.actionId, null);
+    assert.equal(typeof session.claimedAt, "string");
+    assert.equal(session.metadata, null);
+    assert.equal(session.providerId, null);
+    assert.equal(session.transcriptPath, null);
+
+    const unclaimedSessionId = randomUUID();
+    const setupDatabase = new SqliteDatabase(databasePath);
+    try {
+      setupDatabase
+        .prepare(`
+          INSERT INTO task_sessions (
+            id,
+            task_id,
+            provider,
+            created_at,
+            title,
+            local_path,
+            status,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+        .run(
+          unclaimedSessionId,
+          task.id,
+          "codex",
+          new Date().toISOString(),
+          "Unclaimed prompt",
+          "",
+          "idle",
+          new Date().toISOString()
+        );
+    } finally {
+      setupDatabase.close();
+    }
 
     const messageResponse = await app.inject({
       method: "POST",
@@ -64,6 +107,15 @@ void test("session turns persist provider-neutral runtime metadata", async () =>
     assert.equal(messageResponse.statusCode, 202);
 
     await waitForSessionIdle(app, task.id, session.id);
+    const sessionsResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/sessions`
+    });
+    assert.equal(sessionsResponse.statusCode, 200);
+    const sessions = (readJson(sessionsResponse.body) as {
+      readonly sessions: ReadonlyArray<{ readonly id: string }>;
+    }).sessions;
+    assert.deepEqual(sessions.map((candidate) => candidate.id), [session.id]);
 
     const transcriptResponse = await app.inject({
       method: "GET",

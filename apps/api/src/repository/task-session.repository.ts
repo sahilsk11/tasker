@@ -15,6 +15,14 @@ function normalizeSessionTitle(title: string | null | undefined): string {
   return trimmed == null || trimmed.length === 0 ? "New Session" : trimmed;
 }
 
+function nullableIsoDate(value: Date | null): string | null {
+  return value == null ? null : value.toISOString();
+}
+
+function serializeMetadata(value: Record<string, unknown> | null | undefined): string | null {
+  return value == null ? null : JSON.stringify(value);
+}
+
 export type TaskSessionRepository = {
   readonly createForTask: (
     taskId: TaskId,
@@ -62,19 +70,26 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
     taskId: TaskId,
     input: CreateTaskSessionInput
   ): Promise<TaskSession> {
+    const now = new Date();
+    const claimedAt = input.claimedAt === undefined ? now : input.claimedAt;
     const row = await this.db
       .insertInto("task_sessions")
       .values({
-        created_at: new Date().toISOString(),
+        action_id: input.actionId ?? null,
+        claimed_at: nullableIsoDate(claimedAt),
+        created_at: now.toISOString(),
         id: randomUUID(),
         local_path: input.localPath ?? "",
+        metadata_json: serializeMetadata(input.metadata),
         model: input.model ?? null,
         plan_mode: input.planMode === true ? 1 : 0,
         provider: input.provider,
+        provider_id: input.providerId ?? null,
         status: "idle",
         task_id: taskId,
         title: normalizeSessionTitle(input.title),
-        updated_at: new Date().toISOString()
+        transcript_path: input.transcriptPath ?? null,
+        updated_at: now.toISOString()
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -106,6 +121,7 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
       .selectFrom("task_sessions")
       .selectAll()
       .where("task_id", "=", taskId)
+      .where("claimed_at", "is not", null)
       .orderBy("created_at", "asc")
       .execute();
 
@@ -210,19 +226,37 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
 
 function toTaskSession(row: TaskSessionRow): TaskSession {
   return {
+    actionId: row.action_id,
+    claimedAt: row.claimed_at == null ? null : new Date(row.claimed_at),
     createdAt: new Date(row.created_at),
     id: row.id,
     lastMessageAt: row.last_message_at == null ? null : new Date(row.last_message_at),
     lastTurnOutcome: row.last_turn_outcome as TaskSession["lastTurnOutcome"],
     localPath: row.local_path,
+    metadata: parseMetadata(row.metadata_json),
     model: row.model,
     pendingForkSessionToken: row.pending_fork_session_token,
     planMode: row.plan_mode === 1,
     provider: row.provider as AgentProvider,
+    providerId: row.provider_id,
     sessionToken: row.session_token,
     status: row.status as TaskSession["status"],
     taskId: row.task_id,
     title: row.title,
+    transcriptPath: row.transcript_path,
     updatedAt: new Date(row.updated_at)
   };
+}
+
+function parseMetadata(value: string | null): Record<string, unknown> | null {
+  if (value == null) {
+    return null;
+  }
+
+  const parsed = JSON.parse(value) as unknown;
+  if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return null;
+  }
+
+  return parsed as Record<string, unknown>;
 }

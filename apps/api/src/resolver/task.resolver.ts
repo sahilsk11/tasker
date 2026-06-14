@@ -1,10 +1,19 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import type {
+  ClaimTaskSessionInput,
+  CreateTaskSessionInput,
+  TaskSessionMetadata
+} from "../domain/task-session.js";
 import type { UpdateTaskInput } from "../domain/task.js";
 import type { TaskService } from "../service/task.service.js";
 
 const taskIdParamsSchema = z.object({
   id: z.string().min(1)
+});
+
+const sessionIdParamsSchema = z.object({
+  sessionId: z.string().min(1)
 });
 
 const createTaskSchema = z.object({
@@ -26,8 +35,20 @@ const createArtifactSchema = z.object({
 });
 
 const createSessionSchema = z.object({
-  provider: z.enum(["codex", "cursor", "opencode"])
+  actionId: z.string().min(1).nullable().optional(),
+  claimed: z.boolean().default(true),
+  metadata: z.record(z.unknown()).nullable().optional(),
+  provider: z.string().min(1),
+  providerId: z.string().min(1).nullable().optional(),
+  transcriptPath: z.string().min(1).nullable().optional()
 });
+
+const claimSessionSchema = z.object({
+  metadata: z.record(z.unknown()).nullable().optional(),
+  provider: z.string().min(1).nullable().optional(),
+  providerId: z.string().min(1).nullable().optional(),
+  transcriptPath: z.string().min(1).nullable().optional()
+}).passthrough();
 
 const createTicketSchema = z.object({
   externalId: z.string().min(1),
@@ -98,9 +119,18 @@ export function registerTaskResolver(
     const { id } = taskIdParamsSchema.parse(request.params);
     const session = await taskService.addSession(
       id,
-      createSessionSchema.parse(request.body)
+      parseCreateSessionInput(request.body)
     );
     return reply.code(201).send({ session });
+  });
+
+  server.post("/sessions/:sessionId/claim", async (request) => {
+    const { sessionId } = sessionIdParamsSchema.parse(request.params);
+    const session = await taskService.claimSession(
+      sessionId,
+      parseClaimSessionInput(request.body)
+    );
+    return { session };
   });
 
   server.get("/tasks/:id/tickets", async (request) => {
@@ -113,6 +143,57 @@ export function registerTaskResolver(
     const ticket = await taskService.addTicket(id, createTicketSchema.parse(request.body));
     return reply.code(201).send({ ticket });
   });
+}
+
+function parseCreateSessionInput(body: unknown): CreateTaskSessionInput {
+  const parsed = createSessionSchema.parse(body);
+  return {
+    ...(parsed.actionId !== undefined ? { actionId: parsed.actionId } : {}),
+    ...(parsed.claimed ? {} : { claimedAt: null }),
+    ...(parsed.metadata !== undefined ? { metadata: parsed.metadata } : {}),
+    provider: parsed.provider,
+    ...(parsed.providerId !== undefined ? { providerId: parsed.providerId } : {}),
+    ...(parsed.transcriptPath !== undefined
+      ? { transcriptPath: parsed.transcriptPath }
+      : {})
+  };
+}
+
+function parseClaimSessionInput(body: unknown): ClaimTaskSessionInput {
+  const parsed = claimSessionSchema.parse(body);
+  const metadata = mergeClaimMetadata(parsed);
+
+  return {
+    ...(metadata !== undefined ? { metadata } : {}),
+    ...(parsed.provider !== undefined ? { provider: parsed.provider } : {}),
+    ...(parsed.providerId !== undefined ? { providerId: parsed.providerId } : {}),
+    ...(parsed.transcriptPath !== undefined
+      ? { transcriptPath: parsed.transcriptPath }
+      : {})
+  };
+}
+
+function mergeClaimMetadata(
+  parsed: z.infer<typeof claimSessionSchema>
+): TaskSessionMetadata | null | undefined {
+  const extraMetadata = getExtraClaimMetadata(parsed);
+  if (parsed.metadata === undefined) {
+    return Object.keys(extraMetadata).length === 0 ? undefined : extraMetadata;
+  }
+
+  return {
+    ...(parsed.metadata ?? {}),
+    ...extraMetadata
+  };
+}
+
+function getExtraClaimMetadata(
+  parsed: z.infer<typeof claimSessionSchema>
+): TaskSessionMetadata {
+  const reservedKeys = new Set(["metadata", "provider", "providerId", "transcriptPath"]);
+  return Object.fromEntries(
+    Object.entries(parsed).filter(([key]) => !reservedKeys.has(key))
+  );
 }
 
 function parseUpdateTaskInput(body: unknown): UpdateTaskInput {

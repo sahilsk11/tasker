@@ -1,6 +1,10 @@
 import type { TaskAction } from "../domain/task-action.js";
 import type { CreateTaskArtifactInput, TaskArtifact } from "../domain/task-artifact.js";
-import type { CreateTaskSessionInput, TaskSession } from "../domain/task-session.js";
+import type {
+  ClaimTaskSessionInput,
+  CreateTaskSessionInput,
+  TaskSession
+} from "../domain/task-session.js";
 import type { CreateTaskTicketInput, TaskTicket } from "../domain/task-ticket.js";
 import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../domain/task.js";
 import type { TaskArtifactRepository } from "../repository/task-artifact.repository.js";
@@ -37,6 +41,18 @@ export class TaskService {
   ): Promise<TaskSession> {
     await this.requireTask(taskId);
     return this.sessions.createForTask(taskId, input);
+  }
+
+  public async claimSession(
+    sessionId: string,
+    input: ClaimTaskSessionInput
+  ): Promise<TaskSession> {
+    const session = await this.sessions.claim(sessionId, input);
+    if (session == null) {
+      throw new NotFoundError(`Task session ${sessionId} not found`);
+    }
+
+    return session;
   }
 
   public async addTicket(

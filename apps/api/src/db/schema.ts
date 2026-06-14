@@ -45,12 +45,17 @@ export type TaskSessionsTable = {
 
 export type TaskSessionTranscriptEntriesTable = {
   readonly created_at: number;
+  readonly display: string | null;
   readonly hidden: Generated<number>;
   readonly id: string;
+  readonly item_id: string | null;
   readonly kind: string;
+  readonly lifecycle: string | null;
   readonly message_id: string | null;
   readonly payload_json: string;
+  readonly sequence: number | null;
   readonly task_session_id: string;
+  readonly turn_id: string | null;
 };
 
 export type TaskTicketsTable = {

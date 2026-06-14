@@ -48,6 +48,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { isApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { TaskActionRow, TaskActionsDialog } from "./TaskActions";
 
 type ResourceKind = "ticket" | "session" | "artifact" | "worktree" | "pr" | "subtask";
 
@@ -149,6 +150,7 @@ function TaskGrid({
 function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Element {
   const groupedResources = groupResources(getResourcesForBundle(bundle));
   const [selectedKind, setSelectedKind] = useState<ResourceKind | null>(null);
+  const [showAllActions, setShowAllActions] = useState(false);
   const selectedGroup =
     groupedResources.find((group) => group.kind === selectedKind) ?? null;
   const description = bundle.task.description ?? "No description provided.";
@@ -167,24 +169,36 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
         </CardHeader>
 
         <CardContent>
-          <div className="min-w-0">
-            <div className="mb-4 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-              <GitBranch className="size-3.5" />
-              Resources
+          <div className="grid min-w-0 gap-6">
+            <div>
+              <div className="mb-4 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                <GitBranch className="size-3.5" />
+                Resources
+              </div>
+              <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+                {groupedResources.map((group) => (
+                  <ResourceGroup
+                    key={group.kind}
+                    group={group}
+                    onOpen={() => setSelectedKind(group.kind)}
+                  />
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
-              {groupedResources.map((group) => (
-                <ResourceGroup
-                  key={group.kind}
-                  group={group}
-                  onOpen={() => setSelectedKind(group.kind)}
-                />
-              ))}
-            </div>
+            <TaskActionRow
+              actions={bundle.actions}
+              onViewAll={() => setShowAllActions(true)}
+            />
           </div>
         </CardContent>
       </Card>
 
+      <TaskActionsDialog
+        actions={bundle.actions}
+        onOpenChange={setShowAllActions}
+        open={showAllActions}
+        taskTitle={bundle.task.title}
+      />
       <ResourceTableDialog
         group={selectedGroup}
         taskTitle={bundle.task.title}

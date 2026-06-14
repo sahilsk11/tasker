@@ -4,6 +4,10 @@ import type { NormalizedToolCall } from "./tool-call.js";
 
 export type TranscriptEntryId = string;
 
+export type TranscriptEntryLifecycle = "completed" | "started" | "updated";
+
+export type TranscriptEntryDisplay = "collapsed" | "hidden" | "visible";
+
 export type McpServerInfo = {
   readonly error?: string;
   readonly name: string;
@@ -22,8 +26,13 @@ export type TranscriptEntryBase = {
   readonly _id: TranscriptEntryId;
   readonly createdAt: number;
   readonly debugRaw?: string;
+  readonly display?: TranscriptEntryDisplay;
   readonly hidden?: boolean;
+  readonly itemId?: string;
+  readonly lifecycle?: TranscriptEntryLifecycle;
   readonly messageId?: string;
+  readonly sequence?: number;
+  readonly turnId?: string;
 };
 
 export type UserPromptEntry = TranscriptEntryBase & {
@@ -50,6 +59,11 @@ export type AccountInfoEntry = TranscriptEntryBase & {
 
 export type AssistantTextEntry = TranscriptEntryBase & {
   readonly kind: "assistant_text";
+  readonly text: string;
+};
+
+export type ReasoningEntry = TranscriptEntryBase & {
+  readonly kind: "reasoning";
   readonly text: string;
 };
 
@@ -137,6 +151,7 @@ export type TranscriptEntry =
   | ContextClearedEntry
   | ContextWindowUpdatedEntry
   | InterruptedEntry
+  | ReasoningEntry
   | ResultEntry
   | StatusEntry
   | SystemInitEntry

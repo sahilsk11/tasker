@@ -1,3 +1,4 @@
+import type { TaskAction } from "../domain/task-action.js";
 import type { CreateTaskArtifactInput, TaskArtifact } from "../domain/task-artifact.js";
 import type {
   CreateTaskSessionInput,
@@ -81,6 +82,11 @@ export class TaskService {
     return { artifacts, sessions, tickets };
   }
 
+  public async listActions(taskId: TaskId): Promise<readonly TaskAction[]> {
+    await this.requireTask(taskId);
+    return defaultTaskActions;
+  }
+
   public async getTask(taskId: TaskId): Promise<Task> {
     return this.requireTask(taskId);
   }
@@ -147,3 +153,48 @@ export class TaskService {
     return session;
   }
 }
+
+const defaultTaskActions = [
+  {
+    description: "Inspect the task and produce a concise recommendation.",
+    id: "investigate",
+    isRecommended: true,
+    label: "Investigate",
+    prompt: "Investigate this task and summarize what should happen next."
+  },
+  {
+    description: "Turn the task into a concrete plan before implementation.",
+    id: "plan",
+    isRecommended: true,
+    label: "Plan",
+    prompt: "Create a practical implementation plan for this task."
+  },
+  {
+    description: "Break the task into smaller child tasks or a dependency outline.",
+    id: "breakdown",
+    isRecommended: false,
+    label: "Break down",
+    prompt: "Break this task down into smaller subtasks and dependencies."
+  },
+  {
+    description: "Start implementing the task from the available context.",
+    id: "implement",
+    isRecommended: false,
+    label: "Implement",
+    prompt: "Implement this task using the current repository context."
+  },
+  {
+    description: "Review the current work and identify issues or missing tests.",
+    id: "code_review",
+    isRecommended: false,
+    label: "Code review",
+    prompt: "Review the work attached to this task and call out concrete issues."
+  },
+  {
+    description: "Open a general-purpose agent session attached to this task.",
+    id: "new_session",
+    isRecommended: false,
+    label: "New session",
+    prompt: "Start a new session for this task."
+  }
+] satisfies readonly TaskAction[];

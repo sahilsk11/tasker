@@ -387,12 +387,13 @@ function toolCallEntry(
 function codexSystemInitEntry(model: string): Omit<SystemInitEntry, "_id" | "createdAt"> {
   return {
     agents: [],
+    debugRaw: "Codex SDK does not expose configured MCP servers, slash commands, or a complete tool inventory.",
     kind: "system_init",
     mcpServers: [],
     model,
     provider: "codex",
     slashCommands: [],
-    tools: ["bash", "file_change", "mcp_tool_call", "todo_write", "web_search"]
+    tools: ["Codex SDK"]
   };
 }
 

@@ -11,6 +11,7 @@ import {
   Workflow
 } from "lucide-react";
 import { type SyntheticEvent, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createTask,
@@ -111,7 +112,15 @@ export function HomePage(): React.JSX.Element {
               Tasker
             </h1>
           </div>
-          <NewTaskDialog />
+          <div className="flex shrink-0 gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/chat">
+                <MessageSquareText className="size-4" />
+                Chat
+              </Link>
+            </Button>
+            <NewTaskDialog />
+          </div>
         </header>
 
         {tasksQuery.isLoading ? <TaskGridSkeleton /> : null}

@@ -23,7 +23,7 @@ export type ProviderTurnContext = {
   readonly content: string;
   readonly effort?: string;
   readonly localPath: string;
-  readonly model: string;
+  readonly model?: string;
   readonly onToolRequest: (request: HarnessToolRequest) => Promise<unknown>;
   readonly pendingForkSessionToken: string | null;
   readonly planMode: boolean;
@@ -93,5 +93,6 @@ export type ProviderAdapter = {
   readonly shouldSkipAccountInfo?: (sessionId: string) => boolean;
   readonly startTurn: (context: ProviderTurnContext) => Promise<ProviderTurnResult>;
   readonly stopAll: () => void;
+  readonly stopChat: (sessionId: string) => void;
   readonly stopSession: (sessionId: string) => void;
 };

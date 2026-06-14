@@ -48,7 +48,7 @@ export type SendMessageOptions = {
 
 export type ProviderSettings = {
   readonly effort?: string;
-  readonly model: string;
+  readonly model?: string;
   readonly planMode: boolean;
   readonly serviceTier?: ServiceTier;
 };

@@ -1,8 +1,12 @@
 import { GitBranch } from "lucide-react";
-import { useState } from "react";
-import type { TaskBundle } from "@/api/tasks";
+import { useEffect, useState } from "react";
+import type { ApiTaskAction, TaskBundle } from "@/api/tasks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TaskActionRow, TaskActionsDialog } from "./TaskActions";
+import {
+  TaskActionPromptDialog,
+  TaskActionRow,
+  TaskActionsDialog
+} from "./TaskActions";
 import { ResourceGroup, ResourceTableDialog } from "./TaskResources";
 import {
   getResourceGroupsForBundle,
@@ -46,11 +50,31 @@ export function TaskGridSkeleton(): React.JSX.Element {
 
 function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Element {
   const groupedResources = getResourceGroupsForBundle(bundle);
+  const [pendingAction, setPendingAction] = useState<ApiTaskAction | null>(null);
   const [selectedKind, setSelectedKind] = useState<ResourceKind | null>(null);
+  const [selectedAction, setSelectedAction] = useState<ApiTaskAction | null>(null);
   const [showAllActions, setShowAllActions] = useState(false);
   const selectedGroup =
     groupedResources.find((group) => group.kind === selectedKind) ?? null;
   const description = bundle.task.description ?? "No description provided.";
+
+  useEffect(() => {
+    if (showAllActions || pendingAction == null) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setSelectedAction(pendingAction);
+      setPendingAction(null);
+    }, 100);
+
+    return () => window.clearTimeout(timeout);
+  }, [pendingAction, showAllActions]);
+
+  function selectAction(action: ApiTaskAction): void {
+    setPendingAction(action);
+    setShowAllActions(false);
+  }
 
   return (
     <>
@@ -84,6 +108,7 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
             </div>
             <TaskActionRow
               actions={bundle.actions}
+              onSelectAction={selectAction}
               onViewAll={() => setShowAllActions(true)}
             />
           </div>
@@ -93,7 +118,17 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
       <TaskActionsDialog
         actions={bundle.actions}
         onOpenChange={setShowAllActions}
+        onSelectAction={selectAction}
         open={showAllActions}
+        taskTitle={bundle.task.title}
+      />
+      <TaskActionPromptDialog
+        action={selectedAction}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setSelectedAction(null);
+          }
+        }}
         taskTitle={bundle.task.title}
       />
       <ResourceTableDialog

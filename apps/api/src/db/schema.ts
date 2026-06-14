@@ -2,7 +2,6 @@ import type { Generated, Selectable } from "kysely";
 
 export type Database = {
   readonly task_artifacts: TaskArtifactsTable;
-  readonly task_sessions: TaskSessionsTable;
   readonly task_tickets: TaskTicketsTable;
   readonly tasks: TasksTable;
 };
@@ -25,13 +24,6 @@ export type TaskArtifactsTable = {
   readonly uri: string;
 };
 
-export type TaskSessionsTable = {
-  readonly created_at: Generated<string>;
-  readonly id: string;
-  readonly provider: string;
-  readonly task_id: string;
-};
-
 export type TaskTicketsTable = {
   readonly created_at: Generated<string>;
   readonly external_id: string;
@@ -42,5 +34,4 @@ export type TaskTicketsTable = {
 
 export type TaskArtifactRow = Selectable<TaskArtifactsTable>;
 export type TaskRow = Selectable<TasksTable>;
-export type TaskSessionRow = Selectable<TaskSessionsTable>;
 export type TaskTicketRow = Selectable<TaskTicketsTable>;

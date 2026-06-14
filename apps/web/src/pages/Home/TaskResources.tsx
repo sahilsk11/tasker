@@ -2,7 +2,6 @@ import {
   FileText,
   FolderGit2,
   GitPullRequest,
-  MessageSquareText,
   MoreHorizontal,
   Ticket,
   Workflow
@@ -31,7 +30,6 @@ import type { ResourceGroupView, ResourceKind } from "./task-resource-groups";
 const resourceLabels: Record<ResourceKind, string> = {
   artifact: "Artifacts",
   pr: "PRs",
-  session: "Sessions",
   subtask: "Subtasks",
   ticket: "Tickets",
   worktree: "Worktrees"
@@ -40,7 +38,6 @@ const resourceLabels: Record<ResourceKind, string> = {
 const resourceDetailLabels: Record<ResourceKind, string> = {
   artifact: "Format",
   pr: "Host",
-  session: "Provider",
   subtask: "Task",
   ticket: "Source",
   worktree: "Location"
@@ -49,7 +46,6 @@ const resourceDetailLabels: Record<ResourceKind, string> = {
 const resourceIcons: Record<ResourceKind, LucideIcon> = {
   artifact: FileText,
   pr: GitPullRequest,
-  session: MessageSquareText,
   subtask: Workflow,
   ticket: Ticket,
   worktree: FolderGit2

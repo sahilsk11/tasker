@@ -20,15 +20,6 @@ CREATE TABLE task_artifacts (
 
 CREATE INDEX task_artifacts_task_id_idx ON task_artifacts(task_id);
 
-CREATE TABLE task_sessions (
-  id text PRIMARY KEY,
-  task_id text NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  provider text NOT NULL,
-  created_at text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);
-
-CREATE INDEX task_sessions_task_id_idx ON task_sessions(task_id);
-
 CREATE TABLE task_tickets (
   id text PRIMARY KEY,
   task_id text NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,

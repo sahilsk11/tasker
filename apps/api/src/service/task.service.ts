@@ -1,17 +1,14 @@
 import type { TaskAction } from "../domain/task-action.js";
 import type { CreateTaskArtifactInput, TaskArtifact } from "../domain/task-artifact.js";
-import type { CreateTaskSessionInput, TaskSession } from "../domain/task-session.js";
 import type { CreateTaskTicketInput, TaskTicket } from "../domain/task-ticket.js";
 import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../domain/task.js";
 import type { TaskArtifactRepository } from "../repository/task-artifact.repository.js";
-import type { TaskSessionRepository } from "../repository/task-session.repository.js";
 import type { TaskTicketRepository } from "../repository/task-ticket.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 import { NotFoundError } from "./errors.js";
 
 export type TaskResources = {
   readonly artifacts: readonly TaskArtifact[];
-  readonly sessions: readonly TaskSession[];
   readonly tickets: readonly TaskTicket[];
 };
 
@@ -19,7 +16,6 @@ export class TaskService {
   public constructor(
     private readonly tasks: TaskRepository,
     private readonly artifacts: TaskArtifactRepository,
-    private readonly sessions: TaskSessionRepository,
     private readonly tickets: TaskTicketRepository
   ) {}
 
@@ -29,14 +25,6 @@ export class TaskService {
   ): Promise<TaskArtifact> {
     await this.requireTask(taskId);
     return this.artifacts.createForTask(taskId, input);
-  }
-
-  public async addSession(
-    taskId: TaskId,
-    input: CreateTaskSessionInput
-  ): Promise<TaskSession> {
-    await this.requireTask(taskId);
-    return this.sessions.createForTask(taskId, input);
   }
 
   public async addTicket(
@@ -58,13 +46,12 @@ export class TaskService {
   public async getResources(taskId: TaskId): Promise<TaskResources> {
     await this.requireTask(taskId);
 
-    const [artifacts, sessions, tickets] = await Promise.all([
+    const [artifacts, tickets] = await Promise.all([
       this.artifacts.listByTaskId(taskId),
-      this.sessions.listByTaskId(taskId),
       this.tickets.listByTaskId(taskId)
     ]);
 
-    return { artifacts, sessions, tickets };
+    return { artifacts, tickets };
   }
 
   public async listActions(taskId: TaskId): Promise<readonly TaskAction[]> {
@@ -84,11 +71,6 @@ export class TaskService {
   public async listChildren(taskId: TaskId): Promise<readonly Task[]> {
     await this.requireTask(taskId);
     return this.tasks.findChildren(taskId);
-  }
-
-  public async listSessions(taskId: TaskId): Promise<readonly TaskSession[]> {
-    await this.requireTask(taskId);
-    return this.sessions.listByTaskId(taskId);
   }
 
   public async listTasks(): Promise<readonly Task[]> {
@@ -159,11 +141,4 @@ const defaultTaskActions = [
     label: "Code review",
     prompt: "Review the work attached to this task and call out concrete issues."
   },
-  {
-    description: "Open a general-purpose agent session attached to this task.",
-    id: "new_session",
-    isRecommended: false,
-    label: "New session",
-    prompt: "Start a new session for this task."
-  }
 ] satisfies readonly TaskAction[];

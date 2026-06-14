@@ -3,7 +3,6 @@ export type TaskActionId =
   | "code_review"
   | "implement"
   | "investigate"
-  | "new_session"
   | "plan";
 
 export type TaskAction = {

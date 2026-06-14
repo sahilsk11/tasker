@@ -3,7 +3,6 @@ import { ZodError } from "zod";
 import { createDb } from "./db/client.js";
 import { migrate } from "./db/migrate.js";
 import { SqliteTaskArtifactRepository } from "./repository/task-artifact.repository.js";
-import { SqliteTaskSessionRepository } from "./repository/task-session.repository.js";
 import { SqliteTaskTicketRepository } from "./repository/task-ticket.repository.js";
 import { SqliteTaskRepository } from "./repository/task.repository.js";
 import { registerLinearResolver } from "./resolver/linear.resolver.js";
@@ -24,7 +23,6 @@ export async function createApp(options: CreateAppOptions) {
   const taskService = new TaskService(
     new SqliteTaskRepository(db),
     new SqliteTaskArtifactRepository(db),
-    new SqliteTaskSessionRepository(db),
     new SqliteTaskTicketRepository(db)
   );
   const linearService = new LinearService(options.linearApiKey);

@@ -3,7 +3,6 @@ import {
   Code2,
   ListTree,
   MapIcon,
-  MessageSquareText,
   MoreHorizontal,
   Search,
   Workflow
@@ -26,7 +25,6 @@ const taskActionIcons: Record<string, LucideIcon> = {
   code_review: ClipboardCheck,
   implement: Code2,
   investigate: Search,
-  new_session: MessageSquareText,
   plan: MapIcon
 };
 
@@ -83,7 +81,7 @@ export function TaskActionsDialog({
           </div>
           <DialogTitle>Task actions</DialogTitle>
           <DialogDescription>
-            Suggested prompts for {taskTitle}. Starting sessions is not wired yet.
+            Suggested prompts for {taskTitle}.
           </DialogDescription>
         </DialogHeader>
         <div className="grid min-h-0 gap-2 overflow-y-auto border-t border-border p-5">

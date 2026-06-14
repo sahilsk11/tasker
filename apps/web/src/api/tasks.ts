@@ -18,13 +18,6 @@ export type ApiArtifact = {
   readonly uri: string;
 };
 
-export type ApiSession = {
-  readonly createdAt: string;
-  readonly id: string;
-  readonly provider: "codex" | "cursor" | "opencode";
-  readonly taskId: string;
-};
-
 export type ApiTicket = {
   readonly createdAt: string;
   readonly externalId: string;
@@ -43,7 +36,6 @@ export type ApiTaskAction = {
 
 export type TaskResources = {
   readonly artifacts: readonly ApiArtifact[];
-  readonly sessions: readonly ApiSession[];
   readonly tickets: readonly ApiTicket[];
 };
 

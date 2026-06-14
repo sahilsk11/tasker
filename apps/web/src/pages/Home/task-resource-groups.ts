@@ -2,7 +2,6 @@ import type { ApiArtifact, TaskBundle } from "@/api/tasks";
 
 export type ResourceKind =
   | "ticket"
-  | "session"
   | "artifact"
   | "worktree"
   | "pr"
@@ -23,7 +22,6 @@ export type ResourceGroupView = {
 
 const resourceOrder: readonly ResourceKind[] = [
   "ticket",
-  "session",
   "artifact",
   "worktree",
   "pr",
@@ -56,15 +54,6 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
         ticket.url == null ? "Ticket" : getUrlHost(ticket.url),
         ticket.url == null ? "Unlinked" : "Linked",
         formatDate(ticket.createdAt)
-      )
-    ),
-    ...bundle.resources.sessions.map((session) =>
-      resource(
-        "session",
-        session.provider,
-        capitalize(session.provider),
-        "Created",
-        formatDate(session.createdAt)
       )
     ),
     ...bundle.resources.artifacts.map(resourceFromArtifact),
@@ -132,8 +121,4 @@ function formatDate(value: string): string {
     day: "numeric",
     month: "short"
   }).format(date);
-}
-
-function capitalize(value: string): string {
-  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 }

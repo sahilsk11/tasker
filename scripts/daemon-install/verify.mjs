@@ -2,13 +2,16 @@ import { request } from "node:http";
 import { run } from "./exec.mjs";
 
 export async function verifyInstall(choices, options) {
-  const url = `http://127.0.0.1:${String(choices.port)}/health`;
+  const internalUrl = `http://127.0.0.1:${String(choices.port)}/health`;
+  const accessUrl = `${getAccessUrl(choices)}/health`;
   if (options.dryRun) {
-    console.info(`dry-run: verify ${url}`);
+    console.info(`dry-run: verify ${internalUrl}`);
+    console.info(`dry-run: verify ${accessUrl}`);
     return;
   }
 
-  await waitForHealth(url);
+  await waitForHealth(internalUrl);
+  await waitForHealth(accessUrl);
 }
 
 export async function openTasker(choices, options) {
@@ -16,16 +19,21 @@ export async function openTasker(choices, options) {
     return;
   }
 
-  const url =
-    choices.access === "pretty"
-      ? "http://tasker.localhost"
-      : `http://tasker.localhost:${String(choices.port)}`;
+  const url = getAccessUrl(choices);
 
   if (process.platform === "darwin") {
     await run("open", [url]);
   } else if (process.platform === "linux") {
-    await run("xdg-open", [url]).catch(() => undefined);
+    await run("xdg-open", [url]).catch((error) => {
+      console.warn(`Could not open ${url}: ${getErrorMessage(error)}`);
+    });
   }
+}
+
+function getAccessUrl(choices) {
+  return choices.access === "pretty"
+    ? "http://tasker.localhost"
+    : `http://tasker.localhost:${String(choices.port)}`;
 }
 
 async function waitForHealth(url) {
@@ -62,4 +70,8 @@ async function getStatus(url) {
     req.on("error", reject);
     req.end();
   });
+}
+
+function getErrorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
 }

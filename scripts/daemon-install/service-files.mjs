@@ -26,7 +26,8 @@ export function createProxyService(paths, choices) {
         destination: "/etc/systemd/system/tasker-proxy.service",
         reload: [
           ["sudo", "systemctl", "daemon-reload"],
-          ["sudo", "systemctl", "enable", "--now", "tasker-proxy.service"]
+          ["sudo", "systemctl", "enable", "--now", "tasker-proxy.service"],
+          ["sudo", "systemctl", "restart", "tasker-proxy.service"]
         ],
         source: join(paths.root, "tasker-proxy.service"),
         text: createSystemdProxy(paths, choices)
@@ -94,16 +95,16 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=${process.execPath} ${join(paths.appDir, "dist", "index.js")}
+ExecStart=${systemdQuote(process.execPath)} ${systemdQuote(join(paths.appDir, "dist", "index.js"))}
 Restart=always
 RestartSec=2
-Environment=HOST=127.0.0.1
-Environment=PORT=${String(choices.port)}
-Environment=DATABASE_PATH=${paths.databasePath}
-Environment=TASKER_WEB_DIST_DIR=${join(paths.appDir, "web")}
-Environment=TASKER_MIGRATIONS_DIR=${join(paths.appDir, "migrations")}
-StandardOutput=append:${join(paths.logsDir, "tasker.log")}
-StandardError=append:${join(paths.logsDir, "tasker.err.log")}
+Environment=${systemdQuote("HOST=127.0.0.1")}
+Environment=${systemdQuote(`PORT=${String(choices.port)}`)}
+Environment=${systemdQuote(`DATABASE_PATH=${paths.databasePath}`)}
+Environment=${systemdQuote(`TASKER_WEB_DIST_DIR=${join(paths.appDir, "web")}`)}
+Environment=${systemdQuote(`TASKER_MIGRATIONS_DIR=${join(paths.appDir, "migrations")}`)}
+StandardOutput=append:${systemdEscapePath(join(paths.logsDir, "tasker.log"))}
+StandardError=append:${systemdEscapePath(join(paths.logsDir, "tasker.err.log"))}
 
 [Install]
 WantedBy=default.target
@@ -117,7 +118,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=${process.execPath} ${join(paths.appDir, "dist", "port-proxy.js")} --listen-port 80 --target-port ${String(choices.port)}
+ExecStart=${systemdQuote(process.execPath)} ${systemdQuote(join(paths.appDir, "dist", "port-proxy.js"))} --listen-port 80 --target-port ${String(choices.port)}
 Restart=always
 RestartSec=2
 
@@ -150,4 +151,23 @@ function escapeXml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&apos;");
+}
+
+function systemdQuote(value) {
+  return `"${value
+    .replaceAll("\\", "\\\\")
+    .replaceAll("\"", "\\\"")
+    .replaceAll("$", "$$")}"`;
+}
+
+function systemdEscapePath(value) {
+  return Array.from(value, (character) => {
+    if (/^[A-Za-z0-9_./-]$/u.test(character)) {
+      return character;
+    }
+
+    return Array.from(Buffer.from(character), (byte) =>
+      `\\x${byte.toString(16).padStart(2, "0")}`
+    ).join("");
+  }).join("");
 }

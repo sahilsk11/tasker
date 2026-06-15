@@ -32,6 +32,7 @@ async function startUserService(paths, options) {
 
   await run("systemctl", ["--user", "daemon-reload"], options);
   await run("systemctl", ["--user", "enable", "--now", "tasker.service"], options);
+  await run("systemctl", ["--user", "restart", "tasker.service"], options);
 }
 
 async function installProxyService(paths, choices, options) {

@@ -13,6 +13,7 @@ import { LinearService } from "./service/linear.service.js";
 import { TaskService } from "./service/task.service.js";
 
 export type CreateAppOptions = {
+  readonly codexSessionsRoot?: string;
   readonly databasePath: string;
   readonly linearApiKey: string | null;
 };
@@ -25,7 +26,8 @@ export async function createApp(options: CreateAppOptions) {
     new SqliteTaskRepository(db),
     new SqliteTaskArtifactRepository(db),
     new SqliteTaskSessionRepository(db),
-    new SqliteTaskTicketRepository(db)
+    new SqliteTaskTicketRepository(db),
+    options.codexSessionsRoot
   );
   const linearService = new LinearService(options.linearApiKey);
 

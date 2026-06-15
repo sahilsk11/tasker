@@ -62,6 +62,7 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
       .updateTable("task_sessions")
       .set(values)
       .where("id", "=", sessionId)
+      .where("claimed_at", "is", null)
       .returningAll()
       .executeTakeFirst();
 

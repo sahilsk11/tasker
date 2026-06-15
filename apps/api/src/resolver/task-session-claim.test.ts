@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -8,7 +8,9 @@ import { createApp } from "../app.js";
 
 void test("external task sessions can be claimed with flexible metadata", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-session-claim-"));
+  const codexSessionsRoot = join(dir, "codex", "sessions");
   const app = await createApp({
+    codexSessionsRoot,
     databasePath: join(dir, "tasker.sqlite"),
     linearApiKey: null
   });
@@ -55,17 +57,35 @@ void test("external task sessions can be claimed with flexible metadata", async 
     assert.equal(unclaimedListResponse.statusCode, 200);
     assert.deepEqual(readSessionIds(unclaimedListResponse.body), []);
 
-    const transcriptPath = join(dir, "codex-transcript.jsonl");
+    const providerId = "019ec7cb-aeb4-7a02-b7c0-c48a5a49d342";
+    const transcriptDir = join(codexSessionsRoot, "2026", "06", "14");
+    const transcriptPath = join(
+      transcriptDir,
+      `rollout-2026-06-14T22-32-22-${providerId}.jsonl`
+    );
+    await mkdir(transcriptDir, { recursive: true });
+    await writeFile(
+      transcriptPath,
+      `${JSON.stringify({
+        payload: {
+          cwd: "/home/sahil/projects/tasker",
+          id: providerId,
+          source: "exec"
+        },
+        type: "session_meta"
+      })}\n`
+    );
+
     const claimResponse = await app.inject({
       method: "POST",
       payload: {
+        provider: "codex",
         harness: "codex_exec",
         metadata: {
           codexCliVersion: "0.139.0"
         },
-        providerId: "019ec7cb-aeb4-7a02-b7c0-c48a5a49d342",
-        reportedCwd: "/home/sahil/projects/tasker",
-        transcriptPath
+        providerId,
+        reportedCwd: "/home/sahil/projects/tasker"
       },
       url: `/sessions/${createdSession.id}/claim`
     });
@@ -83,7 +103,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
     assert.equal(claimedSession.provider, "codex");
     assert.equal(
       claimedSession.providerId,
-      "019ec7cb-aeb4-7a02-b7c0-c48a5a49d342"
+      providerId
     );
     assert.equal(claimedSession.transcriptPath, transcriptPath);
     assert.deepEqual(claimedSession.metadata, {
@@ -107,6 +127,15 @@ void test("external task sessions can be claimed with flexible metadata", async 
       url: `/sessions/${randomUUID()}/claim`
     });
     assert.equal(missingSessionResponse.statusCode, 404);
+
+    const alreadyClaimedResponse = await app.inject({
+      method: "POST",
+      payload: {
+        providerId: randomUUID()
+      },
+      url: `/sessions/${createdSession.id}/claim`
+    });
+    assert.equal(alreadyClaimedResponse.statusCode, 404);
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });

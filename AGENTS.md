@@ -9,6 +9,7 @@ How to operate in this repo. Read once, internalize, then go.
 - Run the code. Hit the endpoint. Open the page. Watch the log.
 - For anything non-trivial, spin up a subagent to test it in isolation: stub auth where needed, call the real API, assert the real behavior, report back. Subagent runs are cheap; a false "done" the user finds later is not.
 - Type-checks and unit tests verify _correctness_, not _feature behavior_. UI changes need a browser. Backend changes need a wire. Lint rule changes need a file that violates the rule.
+- For browser testing, use the `agent-browser` CLI unless the user explicitly asks for a different browser tool.
 - If you genuinely can't test something (no creds, no hardware, no env), say so explicitly. Do not ship hope.
 
 The cost of one extra verification step is minutes. The cost of a false "done" is the user finding it broken later.

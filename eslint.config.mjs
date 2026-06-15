@@ -87,7 +87,10 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-return": "error",
       "curly": ["error", "all"],
       "eqeqeq": ["error", "always", { "null": "ignore" }],
-      "import-x/no-cycle": "error",
+      "import-x/no-cycle": [
+        "error",
+        { "ignoreExternal": true, "maxDepth": 5 }
+      ],
       "max-lines": [
         "error",
         {

@@ -12,6 +12,10 @@ export type TaskArtifactRepository = {
     taskId: TaskId,
     input: CreateTaskArtifactInput
   ) => Promise<TaskArtifact>;
+  readonly findByTaskIdAndId: (
+    taskId: TaskId,
+    artifactId: string
+  ) => Promise<TaskArtifact | null>;
   readonly listByTaskId: (taskId: TaskId) => Promise<readonly TaskArtifact[]>;
 };
 
@@ -47,6 +51,20 @@ export class SqliteTaskArtifactRepository implements TaskArtifactRepository {
       .execute();
 
     return rows.map(toTaskArtifact);
+  }
+
+  public async findByTaskIdAndId(
+    taskId: TaskId,
+    artifactId: string
+  ): Promise<TaskArtifact | null> {
+    const row = await this.db
+      .selectFrom("task_artifacts")
+      .selectAll()
+      .where("task_id", "=", taskId)
+      .where("id", "=", artifactId)
+      .executeTakeFirst();
+
+    return row == null ? null : toTaskArtifact(row);
   }
 }
 

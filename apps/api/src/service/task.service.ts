@@ -1,3 +1,6 @@
+import { stat, readFile } from "node:fs/promises";
+import { basename, extname, isAbsolute } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { TaskAction } from "../domain/task-action.js";
 import type { CreateTaskArtifactInput, TaskArtifact } from "../domain/task-artifact.js";
 import type {
@@ -15,7 +18,7 @@ import {
   defaultCodexSessionsRoot,
   resolveCodexTranscriptPath
 } from "./codex-transcript.js";
-import { NotFoundError } from "./errors.js";
+import { BadRequestError, NotFoundError } from "./errors.js";
 
 export type TaskResources = {
   readonly artifacts: readonly TaskArtifact[];
@@ -35,6 +38,21 @@ export type ClaimTaskSessionResult = {
   readonly taskOverview: TaskOverview;
   readonly session: TaskSession;
 };
+
+export type ArtifactContentKind = "html" | "image" | "markdown" | "unsupported";
+
+export type ArtifactContent = {
+  readonly artifact: TaskArtifact;
+  readonly content: string | null;
+  readonly contentType: string;
+  readonly encoding: "base64" | "utf8" | null;
+  readonly fileName: string;
+  readonly kind: ArtifactContentKind;
+  readonly sizeBytes: number;
+};
+
+const maxTextArtifactBytes = 1024 * 1024;
+const maxBinaryArtifactBytes = 10 * 1024 * 1024;
 
 export class TaskService {
   public constructor(
@@ -110,6 +128,74 @@ export class TaskService {
     ]);
 
     return { artifacts, sessions, tickets };
+  }
+
+  public async getArtifact(
+    taskId: TaskId,
+    artifactId: string
+  ): Promise<TaskArtifact> {
+    await this.requireTask(taskId);
+    const artifact = await this.artifacts.findByTaskIdAndId(taskId, artifactId);
+    if (artifact == null) {
+      throw new NotFoundError(`Task artifact ${artifactId} not found`);
+    }
+
+    return artifact;
+  }
+
+  public async getArtifactContent(
+    taskId: TaskId,
+    artifactId: string
+  ): Promise<ArtifactContent> {
+    const artifact = await this.getArtifact(taskId, artifactId);
+    const filePath = getLocalArtifactPath(artifact.uri);
+    const fileStat = await stat(filePath).catch((error: unknown) => {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        throw new NotFoundError(`Artifact file not found: ${artifact.uri}`);
+      }
+
+      throw error;
+    });
+
+    if (!fileStat.isFile()) {
+      throw new BadRequestError("Artifact URI must reference a file");
+    }
+
+    const fileName = basename(filePath);
+    const fileKind = getArtifactContentKind(fileName);
+    const contentType = getArtifactContentType(fileName);
+
+    if (fileKind === "unsupported") {
+      return {
+        artifact,
+        content: null,
+        contentType,
+        encoding: null,
+        fileName,
+        kind: fileKind,
+        sizeBytes: fileStat.size
+      };
+    }
+
+    const maxBytes = fileKind === "image" ? maxBinaryArtifactBytes : maxTextArtifactBytes;
+    if (fileStat.size > maxBytes) {
+      throw new BadRequestError(
+        `Artifact file is too large to render (${String(fileStat.size)} bytes)`
+      );
+    }
+
+    const buffer = await readFile(filePath);
+    const encoding = fileKind === "image" ? "base64" : "utf8";
+
+    return {
+      artifact,
+      content: buffer.toString(encoding),
+      contentType,
+      encoding,
+      fileName,
+      kind: fileKind,
+      sizeBytes: fileStat.size
+    };
   }
 
   public async listActions(taskId: TaskId): Promise<readonly TaskAction[]> {
@@ -211,6 +297,57 @@ export class TaskService {
 
     return transcriptPath == null ? input : { ...input, transcriptPath };
   }
+}
+
+function getLocalArtifactPath(uri: string): string {
+  if (uri.startsWith("file://")) {
+    return fileURLToPath(uri);
+  }
+
+  if (isAbsolute(uri)) {
+    return uri;
+  }
+
+  throw new BadRequestError("Only local artifact file paths can be rendered");
+}
+
+function getArtifactContentKind(fileName: string): ArtifactContentKind {
+  const extension = extname(fileName).toLowerCase();
+  if (extension === ".md" || extension === ".markdown") {
+    return "markdown";
+  }
+
+  if (extension === ".html" || extension === ".htm") {
+    return "html";
+  }
+
+  if ([".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"].includes(extension)) {
+    return "image";
+  }
+
+  return "unsupported";
+}
+
+function getArtifactContentType(fileName: string): string {
+  const extension = extname(fileName).toLowerCase();
+  const contentTypes: Record<string, string> = {
+    ".gif": "image/gif",
+    ".htm": "text/html; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".markdown": "text/markdown; charset=utf-8",
+    ".md": "text/markdown; charset=utf-8",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".webp": "image/webp"
+  };
+
+  return contentTypes[extension] ?? "application/octet-stream";
+}
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
 }
 
 function latestDate(values: readonly Date[]): Date {

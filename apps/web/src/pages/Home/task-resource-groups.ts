@@ -10,9 +10,13 @@ export type ResourceKind =
 
 export type Resource = {
   readonly detail: string;
+  readonly href: string | null;
+  readonly id: string;
+  readonly key: string;
   readonly kind: ResourceKind;
   readonly label: string;
   readonly state: string;
+  readonly taskId: string;
   readonly updatedAt: string;
 };
 
@@ -55,7 +59,12 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
         ticket.externalId,
         ticket.url == null ? "Ticket" : getUrlHost(ticket.url),
         ticket.url == null ? "Unlinked" : "Linked",
-        formatDate(ticket.createdAt)
+        formatDate(ticket.createdAt),
+        {
+          href: ticket.url,
+          id: ticket.id,
+          taskId: ticket.taskId
+        }
       )
     ),
     ...bundle.resources.sessions.map((session) =>
@@ -64,7 +73,12 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
         session.providerId ?? capitalize(session.provider),
         capitalize(session.provider),
         "Claimed",
-        formatDate(session.claimedAt ?? session.createdAt)
+        formatDate(session.claimedAt ?? session.createdAt),
+        {
+          href: null,
+          id: session.id,
+          taskId: session.taskId
+        }
       )
     ),
     ...bundle.resources.artifacts.map(resourceFromArtifact),
@@ -74,7 +88,12 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
         child.title,
         child.id.slice(0, 8),
         "Open",
-        formatDate(child.createdAt)
+        formatDate(child.createdAt),
+        {
+          href: null,
+          id: child.id,
+          taskId: child.id
+        }
       )
     )
   ];
@@ -87,7 +106,12 @@ function resourceFromArtifact(artifact: ApiArtifact): Resource {
     artifact.label,
     kind === "artifact" ? artifact.kind : artifact.uri,
     "Ready",
-    formatDate(artifact.createdAt)
+    formatDate(artifact.createdAt),
+    {
+      href: kind === "pr" ? artifact.uri : null,
+      id: artifact.id,
+      taskId: artifact.taskId
+    }
   );
 }
 
@@ -109,9 +133,24 @@ function resource(
   label: string,
   detail: string,
   state: string,
-  updatedAt: string
+  updatedAt: string,
+  options: {
+    readonly href: string | null;
+    readonly id: string;
+    readonly taskId: string;
+  }
 ): Resource {
-  return { detail, kind, label, state, updatedAt };
+  return {
+    detail,
+    href: options.href,
+    id: options.id,
+    key: `${kind}-${options.taskId}-${options.id}`,
+    kind,
+    label,
+    state,
+    taskId: options.taskId,
+    updatedAt
+  };
 }
 
 function getUrlHost(value: string): string {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { createTaskSession } from "@/api/tasks";
 import type { ApiSession, ApiTaskAction, TaskBundle } from "@/api/tasks";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import {
 import { ResourceColumnGrid, ResourceTableDialog } from "./TaskResources";
 import {
   getResourceGroupsForBundle,
+  type Resource,
   type ResourceKind
 } from "./task-resource-groups";
 
@@ -50,6 +52,7 @@ export function TaskGridSkeleton(): React.JSX.Element {
 }
 
 function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Element {
+  const navigate = useNavigate();
   const groupedResources = getResourceGroupsForBundle(bundle);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
@@ -90,6 +93,17 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
     }, delayMs);
   }
 
+  function openResource(resource: Resource): void {
+    if (resource.kind === "artifact") {
+      void navigate(`/tasks/${resource.taskId}/artifacts/${resource.id}`);
+      return;
+    }
+
+    if (resource.kind === "pr" && resource.href != null) {
+      window.open(resource.href, "_blank", "noopener,noreferrer");
+    }
+  }
+
   return (
     <>
       <Card className="flex h-full flex-col overflow-hidden transition-colors hover:border-border/80 hover:bg-card/95">
@@ -114,6 +128,7 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
               <ResourceColumnGrid
                 groups={groupedResources}
                 onOpen={setSelectedKind}
+                onOpenResource={openResource}
               />
             </div>
             <TaskActionRow
@@ -153,6 +168,7 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
       />
       <ResourceTableDialog
         group={selectedGroup}
+        onOpenResource={openResource}
         taskTitle={bundle.task.title}
         onOpenChange={(isOpen) => {
           if (!isOpen) {

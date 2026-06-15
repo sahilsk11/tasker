@@ -140,10 +140,18 @@ export function TaskActionPromptDialog({
   const artifactCommand =
     action == null || session == null
       ? ""
-      : buildCodexArtifactCommand({
+      : buildCodexHandoffResourceCommand({
           action,
           apiUrl: localApiBaseUrl,
           artifactPath,
+          taskId
+        });
+  const pullRequestCommand =
+    action == null
+      ? ""
+      : buildCodexPullRequestResourceCommand({
+          action,
+          apiUrl: localApiBaseUrl,
           taskId
         });
   const prompt =
@@ -154,6 +162,7 @@ export function TaskActionPromptDialog({
           artifactCommand,
           artifactPath,
           claimCommand,
+          pullRequestCommand,
           taskDescription,
           taskTitle
         });
@@ -208,6 +217,7 @@ export function TaskActionPromptDialog({
               artifactCommand={artifactCommand}
               artifactPath={artifactPath}
               claimCommand={claimCommand}
+              pullRequestCommand={pullRequestCommand}
               taskDescription={taskDescription}
               taskTitle={taskTitle}
             />
@@ -223,6 +233,7 @@ function CodexPromptPreview({
   artifactCommand,
   artifactPath,
   claimCommand,
+  pullRequestCommand,
   taskDescription,
   taskTitle
 }: {
@@ -230,6 +241,7 @@ function CodexPromptPreview({
   readonly artifactCommand: string;
   readonly artifactPath: string;
   readonly claimCommand: string;
+  readonly pullRequestCommand: string;
   readonly taskDescription: string | null;
   readonly taskTitle: string;
 }): React.JSX.Element {
@@ -254,11 +266,24 @@ function CodexPromptPreview({
           <h4 className="font-medium text-foreground">Tasker artifact handoff</h4>
           <p className="text-muted-foreground">
             Before finishing, write durable findings to {artifactPath} and register
-            that file with Tasker.
+            that file as a Tasker resource.
           </p>
         </div>
         <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-secondary/40 p-4 font-mono text-xs leading-5 text-foreground">
           {artifactCommand}
+        </pre>
+      </section>
+
+      <section className="grid gap-3 border-b border-border pb-4">
+        <div className="grid gap-1">
+          <h4 className="font-medium text-foreground">Optional pull request</h4>
+          <p className="text-muted-foreground">
+            If this session opens a pull request, register the PR URL as a Tasker
+            resource before finishing.
+          </p>
+        </div>
+        <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-secondary/40 p-4 font-mono text-xs leading-5 text-foreground">
+          {pullRequestCommand}
         </pre>
       </section>
 
@@ -283,6 +308,7 @@ function buildCodexActionPrompt({
   artifactCommand,
   artifactPath,
   claimCommand,
+  pullRequestCommand,
   taskDescription,
   taskTitle
 }: {
@@ -290,6 +316,7 @@ function buildCodexActionPrompt({
   readonly artifactCommand: string;
   readonly artifactPath: string;
   readonly claimCommand: string;
+  readonly pullRequestCommand: string;
   readonly taskDescription: string | null;
   readonly taskTitle: string;
 }): string {
@@ -333,7 +360,20 @@ After writing the artifact, register it with Tasker:
 ${artifactCommand}
 \`\`\`
 
-If artifact registration fails, still finish the task and report the failure.`;
+If artifact registration fails, still finish the task and report the failure.
+
+## Optional pull request resource
+
+If this task does not need a pull request, skip this section.
+
+If you open a pull request while working on this Tasker session, register the PR
+URL before finishing:
+
+\`\`\`bash
+${pullRequestCommand}
+\`\`\`
+
+If PR registration fails, still finish the task and report the failure.`;
 }
 
 function buildCodexClaimCommand(apiUrl: string, sessionId: string): string {
@@ -356,7 +396,7 @@ function buildSessionArtifactPath(taskId: string, sessionId: string): string {
   return `$HOME/.tasker/artifacts/${taskId}/${sessionId}/handoff.md`;
 }
 
-function buildCodexArtifactCommand({
+function buildCodexHandoffResourceCommand({
   action,
   apiUrl,
   artifactPath,
@@ -367,7 +407,7 @@ function buildCodexArtifactCommand({
   readonly artifactPath: string;
   readonly taskId: string;
 }): string {
-  const artifactUrl = `${apiUrl}/tasks/${taskId}/artifacts`;
+  const resourceUrl = `${apiUrl}/tasks/${taskId}/resources`;
   const artifactLabel = `${action.label} handoff`;
 
   return `artifact_path="${artifactPath}"
@@ -386,13 +426,38 @@ cat > "$artifact_path" <<'TASKER_ARTIFACT'
 ## Remaining risks
 TASKER_ARTIFACT
 
-curl -sS -X POST "${artifactUrl}" \\
+curl -sS -X POST "${resourceUrl}" \\
   -H "Content-Type: application/json" \\
   --data-binary @- <<EOF
 {
   "kind": "handoff",
   "label": ${JSON.stringify(artifactLabel)},
   "uri": "$artifact_path"
+}
+EOF`;
+}
+
+function buildCodexPullRequestResourceCommand({
+  action,
+  apiUrl,
+  taskId
+}: {
+  readonly action: ApiTaskAction;
+  readonly apiUrl: string;
+  readonly taskId: string;
+}): string {
+  const resourceUrl = `${apiUrl}/tasks/${taskId}/resources`;
+  const resourceLabel = `${action.label} pull request`;
+
+  return `pr_url="https://github.com/OWNER/REPO/pull/NUMBER"
+
+curl -sS -X POST "${resourceUrl}" \\
+  -H "Content-Type: application/json" \\
+  --data-binary @- <<EOF
+{
+  "kind": "pr",
+  "label": ${JSON.stringify(resourceLabel)},
+  "uri": "$pr_url"
 }
 EOF`;
 }

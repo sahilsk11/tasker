@@ -19,6 +19,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
     const taskResponse = await app.inject({
       method: "POST",
       payload: {
+        description: "Context that should reach the claiming agent.",
         title: "Claimable session"
       },
       url: "/tasks"
@@ -49,6 +50,37 @@ void test("external task sessions can be claimed with flexible metadata", async 
     assert.equal(createdSession.actionId, "investigate");
     assert.equal(createdSession.claimedAt, null);
     assert.equal(createdSession.provider, "codex");
+
+    const resourceResponse = await app.inject({
+      method: "POST",
+      payload: {
+        kind: "summary",
+        label: "Previous notes",
+        uri: "/tmp/previous-notes.md"
+      },
+      url: `/tasks/${task.id}/resources`
+    });
+    assert.equal(resourceResponse.statusCode, 201);
+
+    const childTaskResponse = await app.inject({
+      method: "POST",
+      payload: {
+        parentTaskId: task.id,
+        title: "Child task"
+      },
+      url: "/tasks"
+    });
+    assert.equal(childTaskResponse.statusCode, 201);
+
+    const ticketResponse = await app.inject({
+      method: "POST",
+      payload: {
+        externalId: "TASK-123",
+        url: "https://linear.app/example/issue/TASK-123"
+      },
+      url: `/tasks/${task.id}/tickets`
+    });
+    assert.equal(ticketResponse.statusCode, 201);
 
     const unclaimedListResponse = await app.inject({
       method: "GET",
@@ -90,7 +122,29 @@ void test("external task sessions can be claimed with flexible metadata", async 
       url: `/sessions/${createdSession.id}/claim`
     });
     assert.equal(claimResponse.statusCode, 200);
-    const claimedSession = (readJson(claimResponse.body) as {
+    const claimBody = readJson(claimResponse.body) as {
+      readonly taskOverview: {
+        readonly action: {
+          readonly id: string;
+          readonly prompt: string;
+        } | null;
+        readonly children: ReadonlyArray<{ readonly title: string }>;
+        readonly latestTaskActivityAt: string;
+        readonly resources: {
+          readonly artifacts: ReadonlyArray<{
+            readonly kind: string;
+            readonly label: string;
+            readonly uri: string;
+          }>;
+          readonly sessions: ReadonlyArray<{ readonly id: string }>;
+          readonly tickets: ReadonlyArray<{ readonly externalId: string }>;
+        };
+        readonly task: {
+          readonly description: string | null;
+          readonly id: string;
+          readonly title: string;
+        };
+      };
       readonly session: {
         readonly claimedAt: string | null;
         readonly metadata: Record<string, unknown> | null;
@@ -98,7 +152,8 @@ void test("external task sessions can be claimed with flexible metadata", async 
         readonly providerId: string | null;
         readonly transcriptPath: string | null;
       };
-    }).session;
+    };
+    const { taskOverview, session: claimedSession } = claimBody;
     assert.equal(typeof claimedSession.claimedAt, "string");
     assert.equal(claimedSession.provider, "codex");
     assert.equal(
@@ -111,6 +166,45 @@ void test("external task sessions can be claimed with flexible metadata", async 
       harness: "codex_exec",
       reportedCwd: "/home/sahil/projects/tasker"
     });
+    assert.equal(taskOverview.task.id, task.id);
+    assert.equal(taskOverview.task.title, "Claimable session");
+    assert.equal(
+      taskOverview.task.description,
+      "Context that should reach the claiming agent."
+    );
+    assert.ok(taskOverview.action);
+    assert.equal(taskOverview.action.id, "investigate");
+    assert.equal(
+      taskOverview.action.prompt,
+      "Investigate this task and summarize what should happen next."
+    );
+    assert.deepEqual(
+      taskOverview.resources.artifacts.map((artifact) => ({
+        kind: artifact.kind,
+        label: artifact.label,
+        uri: artifact.uri
+      })),
+      [
+        {
+          kind: "summary",
+          label: "Previous notes",
+          uri: "/tmp/previous-notes.md"
+        }
+      ]
+    );
+    assert.deepEqual(
+      taskOverview.resources.sessions.map((session) => session.id),
+      [createdSession.id]
+    );
+    assert.deepEqual(
+      taskOverview.resources.tickets.map((ticket) => ticket.externalId),
+      ["TASK-123"]
+    );
+    assert.deepEqual(
+      taskOverview.children.map((child) => child.title),
+      ["Child task"]
+    );
+    assert.equal(taskOverview.latestTaskActivityAt, claimedSession.claimedAt);
 
     const claimedListResponse = await app.inject({
       method: "GET",

@@ -135,15 +135,15 @@ export function TaskActionPromptDialog({
 
   const claimCommand =
     session == null ? "" : buildCodexClaimCommand(localApiBaseUrl, session.id);
-  const artifactPath =
-    session == null ? "" : buildSessionArtifactPath(taskId, session.id);
-  const artifactCommand =
+  const taskNotesPath =
+    session == null ? "" : buildSessionTaskNotesPath(taskId, session.id);
+  const taskNotesCommand =
     action == null || session == null
       ? ""
-      : buildCodexHandoffResourceCommand({
+      : buildCodexTaskNotesResourceCommand({
           action,
           apiUrl: localApiBaseUrl,
-          artifactPath,
+          taskNotesPath,
           taskId
         });
   const pullRequestCommand =
@@ -159,10 +159,10 @@ export function TaskActionPromptDialog({
       ? ""
       : buildCodexActionPrompt({
           action,
-          artifactCommand,
-          artifactPath,
           claimCommand,
           pullRequestCommand,
+          taskNotesCommand,
+          taskNotesPath,
           taskDescription,
           taskTitle
         });
@@ -214,10 +214,10 @@ export function TaskActionPromptDialog({
           {action == null || session == null ? null : (
             <CodexPromptPreview
               action={action}
-              artifactCommand={artifactCommand}
-              artifactPath={artifactPath}
               claimCommand={claimCommand}
               pullRequestCommand={pullRequestCommand}
+              taskNotesCommand={taskNotesCommand}
+              taskNotesPath={taskNotesPath}
               taskDescription={taskDescription}
               taskTitle={taskTitle}
             />
@@ -230,18 +230,18 @@ export function TaskActionPromptDialog({
 
 function CodexPromptPreview({
   action,
-  artifactCommand,
-  artifactPath,
   claimCommand,
   pullRequestCommand,
+  taskNotesCommand,
+  taskNotesPath,
   taskDescription,
   taskTitle
 }: {
   readonly action: ApiTaskAction;
-  readonly artifactCommand: string;
-  readonly artifactPath: string;
   readonly claimCommand: string;
   readonly pullRequestCommand: string;
+  readonly taskNotesCommand: string;
+  readonly taskNotesPath: string;
   readonly taskDescription: string | null;
   readonly taskTitle: string;
 }): React.JSX.Element {
@@ -263,14 +263,14 @@ function CodexPromptPreview({
 
       <section className="grid gap-3 border-b border-border pb-4">
         <div className="grid gap-1">
-          <h4 className="font-medium text-foreground">Tasker artifact handoff</h4>
+          <h4 className="font-medium text-foreground">Tasker task notes</h4>
           <p className="text-muted-foreground">
-            Before finishing, write durable findings to {artifactPath} and register
+            Before finishing, write durable findings to {taskNotesPath} and register
             that file as a Tasker resource.
           </p>
         </div>
         <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-secondary/40 p-4 font-mono text-xs leading-5 text-foreground">
-          {artifactCommand}
+          {taskNotesCommand}
         </pre>
       </section>
 
@@ -291,8 +291,8 @@ function CodexPromptPreview({
         <div className="grid gap-1">
           <h4 className="font-medium text-foreground">Tasker session claim</h4>
           <p className="text-muted-foreground">
-            Before doing the task, claim this Tasker session. If CODEX_THREAD_ID
-            is not set, continue with the task and report that claim failed.
+            Before doing the task, claim this Tasker session and use the returned
+            task overview to understand existing resources and recent activity.
           </p>
         </div>
         <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-secondary/40 p-4 font-mono text-xs leading-5 text-foreground">
@@ -305,18 +305,18 @@ function CodexPromptPreview({
 
 function buildCodexActionPrompt({
   action,
-  artifactCommand,
-  artifactPath,
   claimCommand,
   pullRequestCommand,
+  taskNotesCommand,
+  taskNotesPath,
   taskDescription,
   taskTitle
 }: {
   readonly action: ApiTaskAction;
-  readonly artifactCommand: string;
-  readonly artifactPath: string;
   readonly claimCommand: string;
   readonly pullRequestCommand: string;
+  readonly taskNotesCommand: string;
+  readonly taskNotesPath: string;
   readonly taskDescription: string | null;
   readonly taskTitle: string;
 }): string {
@@ -345,11 +345,15 @@ ${claimCommand}
 
 If CODEX_THREAD_ID is not set, still continue with the task and report that claim failed.
 
-## Tasker artifact handoff
+The claim response includes a \`taskOverview\` object with the current task,
+selected action, existing resources, child tasks, and \`latestTaskActivityAt\`.
+Use that returned overview before deciding what to inspect or change.
+
+## Tasker task notes
 
 Before finishing, write durable findings and next-step context to:
 
-\`${artifactPath}\`
+\`${taskNotesPath}\`
 
 Keep the artifact concise and useful for the next agent. Include decisions made,
 files inspected or changed, verification performed, and any remaining risks.
@@ -357,7 +361,7 @@ files inspected or changed, verification performed, and any remaining risks.
 After writing the artifact, register it with Tasker:
 
 \`\`\`bash
-${artifactCommand}
+${taskNotesCommand}
 \`\`\`
 
 If artifact registration fails, still finish the task and report the failure.
@@ -392,30 +396,30 @@ function buildCodexClaimCommand(apiUrl: string, sessionId: string): string {
 EOF`;
 }
 
-function buildSessionArtifactPath(taskId: string, sessionId: string): string {
-  return `$HOME/.tasker/artifacts/${taskId}/${sessionId}/handoff.md`;
+function buildSessionTaskNotesPath(taskId: string, sessionId: string): string {
+  return `$HOME/.tasker/artifacts/${taskId}/${sessionId}/notes.md`;
 }
 
-function buildCodexHandoffResourceCommand({
+function buildCodexTaskNotesResourceCommand({
   action,
   apiUrl,
-  artifactPath,
+  taskNotesPath,
   taskId
 }: {
   readonly action: ApiTaskAction;
   readonly apiUrl: string;
-  readonly artifactPath: string;
+  readonly taskNotesPath: string;
   readonly taskId: string;
 }): string {
   const resourceUrl = `${apiUrl}/tasks/${taskId}/resources`;
-  const artifactLabel = `${action.label} handoff`;
+  const resourceLabel = `${action.label} notes`;
 
-  return `artifact_path="${artifactPath}"
-mkdir -p "$(dirname "$artifact_path")"
+  return `notes_path="${taskNotesPath}"
+mkdir -p "$(dirname "$notes_path")"
 
 # Replace this template with the durable context you discovered.
-cat > "$artifact_path" <<'TASKER_ARTIFACT'
-# ${artifactLabel}
+cat > "$notes_path" <<'TASKER_NOTES'
+# ${resourceLabel}
 
 ## Summary
 
@@ -424,15 +428,15 @@ cat > "$artifact_path" <<'TASKER_ARTIFACT'
 ## Verification
 
 ## Remaining risks
-TASKER_ARTIFACT
+TASKER_NOTES
 
 curl -sS -X POST "${resourceUrl}" \\
   -H "Content-Type: application/json" \\
   --data-binary @- <<EOF
 {
-  "kind": "handoff",
-  "label": ${JSON.stringify(artifactLabel)},
-  "uri": "$artifact_path"
+  "kind": "summary",
+  "label": ${JSON.stringify(resourceLabel)},
+  "uri": "$notes_path"
 }
 EOF`;
 }

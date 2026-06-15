@@ -1,14 +1,14 @@
-import { GitBranch } from "lucide-react";
 import { useState } from "react";
 import { createTaskSession } from "@/api/tasks";
 import type { ApiSession, ApiTaskAction, TaskBundle } from "@/api/tasks";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   TaskActionPromptDialog,
   TaskActionRow,
   TaskActionsDialog
 } from "./TaskActions";
-import { ResourceGroup, ResourceTableDialog } from "./TaskResources";
+import { ResourceColumnGrid, ResourceTableDialog } from "./TaskResources";
 import {
   getResourceGroupsForBundle,
   type ResourceKind
@@ -92,33 +92,29 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
 
   return (
     <>
-      <Card className="overflow-hidden transition-colors hover:border-border/80 hover:bg-card/95">
+      <Card className="flex h-full flex-col overflow-hidden transition-colors hover:border-border/80 hover:bg-card/95">
         <CardHeader className="pb-5">
-          <CardTitle className="min-w-0 overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] text-xl leading-7">
-            {bundle.task.title}
-          </CardTitle>
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-2.5">
+              <CardTitle className="min-w-0 overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] text-xl leading-7">
+                {bundle.task.title}
+              </CardTitle>
+            </div>
+            <TicketBadge bundle={bundle} />
+          </div>
           <p className="mt-3 min-h-12 overflow-hidden text-sm leading-6 text-muted-foreground [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
             {description}
           </p>
           <div className="mt-5 h-px bg-border/70" />
         </CardHeader>
 
-        <CardContent>
-          <div className="grid min-w-0 gap-6">
-            <div>
-              <div className="mb-4 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                <GitBranch className="size-3.5" />
-                Resources
-              </div>
-              <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
-                {groupedResources.map((group) => (
-                  <ResourceGroup
-                    key={group.kind}
-                    group={group}
-                    onOpen={() => setSelectedKind(group.kind)}
-                  />
-                ))}
-              </div>
+        <CardContent className="flex flex-1 flex-col">
+          <div className="flex min-w-0 flex-1 flex-col gap-6">
+            <div className="min-w-0 flex-1">
+              <ResourceColumnGrid
+                groups={groupedResources}
+                onOpen={setSelectedKind}
+              />
             </div>
             <TaskActionRow
               actions={bundle.actions}
@@ -165,5 +161,41 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
         }}
       />
     </>
+  );
+}
+
+function TicketBadge({
+  bundle
+}: {
+  readonly bundle: TaskBundle;
+}): React.JSX.Element | null {
+  const ticket = bundle.resources.tickets[0];
+  if (ticket == null) {
+    return null;
+  }
+
+  if (ticket.url == null) {
+    return (
+      <Badge variant="outline" className="shrink-0">
+        {ticket.externalId}
+      </Badge>
+    );
+  }
+
+  return (
+    <a
+      href={ticket.url}
+      target="_blank"
+      rel="noreferrer"
+      className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      title={`Open ${ticket.externalId}`}
+    >
+      <Badge
+        variant="outline"
+        className="cursor-pointer transition-colors hover:border-border hover:text-foreground"
+      >
+        {ticket.externalId}
+      </Badge>
+    </a>
   );
 }

@@ -93,6 +93,91 @@ export function ResourceGroup({
   );
 }
 
+export function ResourceColumnGrid({
+  groups,
+  onOpen
+}: {
+  readonly groups: readonly ResourceGroupView[];
+  readonly onOpen: (kind: ResourceKind) => void;
+}): React.JSX.Element {
+  const visibleKinds: readonly ResourceKind[] = ["session", "artifact", "pr"];
+
+  return (
+    <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-3">
+      {visibleKinds.map((kind) => {
+        const group = groups.find((candidate) => candidate.kind === kind) ?? {
+          items: [],
+          kind
+        };
+
+        return (
+          <ResourceColumn key={kind} group={group} onOpen={() => onOpen(kind)} />
+        );
+      })}
+    </div>
+  );
+}
+
+function ResourceColumn({
+  group,
+  onOpen
+}: {
+  readonly group: ResourceGroupView;
+  readonly onOpen: () => void;
+}): React.JSX.Element {
+  const Icon = resourceIcons[group.kind];
+
+  return (
+    <section className="min-w-0 rounded-lg border border-border/70 bg-secondary/20">
+      <button
+        type="button"
+        onClick={onOpen}
+        className={cn(
+          "flex min-h-11 w-full items-center justify-between gap-3 px-3 text-left",
+          group.items.length > 0 ? "border-b border-border/70" : "",
+          "transition-colors hover:bg-secondary/60",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        )}
+        aria-label={`Open ${resourceLabels[group.kind]} resources`}
+      >
+        <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
+          <Icon className="size-4 shrink-0 text-muted-foreground" />
+          <span className="truncate">{resourceLabels[group.kind]}</span>
+        </span>
+        <Badge variant={group.items.length > 0 ? "secondary" : "outline"}>
+          {group.items.length}
+        </Badge>
+      </button>
+
+      {group.items.length > 0 ? (
+        <div className="grid max-h-40 min-w-0 gap-2 overflow-y-auto p-2">
+          {group.items.map((resource) => (
+            <button
+              key={`${resource.kind}-${resource.label}`}
+              type="button"
+              onClick={onOpen}
+              className={cn(
+                "grid min-w-0 gap-1 rounded-md border border-border/70 bg-card px-2.5 py-2 text-left",
+                "transition-colors hover:border-border hover:bg-card/90",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              )}
+            >
+              <span className="truncate text-sm font-medium text-foreground">
+                {resource.label}
+              </span>
+              <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                <span className="truncate">{resource.detail}</span>
+                <span aria-hidden="true">·</span>
+                <span className="shrink-0">{resource.updatedAt}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export function ResourceTableDialog({
   group,
   onOpenChange,

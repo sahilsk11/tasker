@@ -46,8 +46,8 @@ export function TaskActionRow({
   const recommendedActions = actions.filter((action) => action.isRecommended).slice(0, 2);
 
   return (
-    <div className="min-w-0 border-t border-border/70 pt-4">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className="mt-auto min-w-0 border-t border-border/70 pt-4">
+      <div className="flex flex-wrap justify-center gap-2">
         {recommendedActions.map((action) => (
           <TaskActionButton
             key={action.id}
@@ -59,7 +59,7 @@ export function TaskActionRow({
           type="button"
           variant="outline"
           size="sm"
-          className="col-span-2 min-w-0 justify-center sm:col-span-1"
+          className="h-8 w-36 min-w-0 px-3"
           onClick={onViewAll}
         >
           <MoreHorizontal className="size-4" />
@@ -489,7 +489,7 @@ function TaskActionButton({
       type="button"
       variant="default"
       size="sm"
-      className="min-w-0 justify-center"
+      className="h-8 w-36 min-w-0 px-3"
       onClick={onSelect}
     >
       <Icon className="size-4" />

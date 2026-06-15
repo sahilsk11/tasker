@@ -23,7 +23,7 @@ export type TaskResources = {
   readonly tickets: readonly TaskTicket[];
 };
 
-export type TaskSessionHandoff = {
+export type TaskOverview = {
   readonly action: TaskAction | null;
   readonly children: readonly Task[];
   readonly latestTaskActivityAt: Date;
@@ -31,8 +31,8 @@ export type TaskSessionHandoff = {
   readonly task: Task;
 };
 
-export type ClaimedTaskSession = {
-  readonly handoff: TaskSessionHandoff;
+export type ClaimTaskSessionResult = {
+  readonly taskOverview: TaskOverview;
   readonly session: TaskSession;
 };
 
@@ -71,7 +71,7 @@ export class TaskService {
   public async claimSession(
     sessionId: string,
     input: ClaimTaskSessionInput
-  ): Promise<ClaimedTaskSession> {
+  ): Promise<ClaimTaskSessionResult> {
     const claimInput = await this.withDiscoveredTranscript(input);
     const session = await this.sessions.claim(sessionId, claimInput);
     if (session == null) {
@@ -79,7 +79,7 @@ export class TaskService {
     }
 
     return {
-      handoff: await this.getSessionHandoff(session),
+      taskOverview: await this.getTaskOverview(session),
       session
     };
   }
@@ -167,7 +167,7 @@ export class TaskService {
     return task;
   }
 
-  private async getSessionHandoff(session: TaskSession): Promise<TaskSessionHandoff> {
+  private async getTaskOverview(session: TaskSession): Promise<TaskOverview> {
     const [task, resources, children] = await Promise.all([
       this.requireTask(session.taskId),
       this.getResources(session.taskId),

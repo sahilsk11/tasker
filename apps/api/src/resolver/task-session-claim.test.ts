@@ -54,9 +54,9 @@ void test("external task sessions can be claimed with flexible metadata", async 
     const resourceResponse = await app.inject({
       method: "POST",
       payload: {
-        kind: "handoff",
-        label: "Previous handoff",
-        uri: "/tmp/previous-handoff.md"
+        kind: "summary",
+        label: "Previous notes",
+        uri: "/tmp/previous-notes.md"
       },
       url: `/tasks/${task.id}/resources`
     });
@@ -123,7 +123,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
     });
     assert.equal(claimResponse.statusCode, 200);
     const claimBody = readJson(claimResponse.body) as {
-      readonly handoff: {
+      readonly taskOverview: {
         readonly action: {
           readonly id: string;
           readonly prompt: string;
@@ -153,7 +153,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
         readonly transcriptPath: string | null;
       };
     };
-    const { handoff, session: claimedSession } = claimBody;
+    const { taskOverview, session: claimedSession } = claimBody;
     assert.equal(typeof claimedSession.claimedAt, "string");
     assert.equal(claimedSession.provider, "codex");
     assert.equal(
@@ -166,45 +166,45 @@ void test("external task sessions can be claimed with flexible metadata", async 
       harness: "codex_exec",
       reportedCwd: "/home/sahil/projects/tasker"
     });
-    assert.equal(handoff.task.id, task.id);
-    assert.equal(handoff.task.title, "Claimable session");
+    assert.equal(taskOverview.task.id, task.id);
+    assert.equal(taskOverview.task.title, "Claimable session");
     assert.equal(
-      handoff.task.description,
+      taskOverview.task.description,
       "Context that should reach the claiming agent."
     );
-    assert.ok(handoff.action);
-    assert.equal(handoff.action.id, "investigate");
+    assert.ok(taskOverview.action);
+    assert.equal(taskOverview.action.id, "investigate");
     assert.equal(
-      handoff.action.prompt,
+      taskOverview.action.prompt,
       "Investigate this task and summarize what should happen next."
     );
     assert.deepEqual(
-      handoff.resources.artifacts.map((artifact) => ({
+      taskOverview.resources.artifacts.map((artifact) => ({
         kind: artifact.kind,
         label: artifact.label,
         uri: artifact.uri
       })),
       [
         {
-          kind: "handoff",
-          label: "Previous handoff",
-          uri: "/tmp/previous-handoff.md"
+          kind: "summary",
+          label: "Previous notes",
+          uri: "/tmp/previous-notes.md"
         }
       ]
     );
     assert.deepEqual(
-      handoff.resources.sessions.map((session) => session.id),
+      taskOverview.resources.sessions.map((session) => session.id),
       [createdSession.id]
     );
     assert.deepEqual(
-      handoff.resources.tickets.map((ticket) => ticket.externalId),
+      taskOverview.resources.tickets.map((ticket) => ticket.externalId),
       ["TASK-123"]
     );
     assert.deepEqual(
-      handoff.children.map((child) => child.title),
+      taskOverview.children.map((child) => child.title),
       ["Child task"]
     );
-    assert.equal(handoff.latestTaskActivityAt, claimedSession.claimedAt);
+    assert.equal(taskOverview.latestTaskActivityAt, claimedSession.claimedAt);
 
     const claimedListResponse = await app.inject({
       method: "GET",

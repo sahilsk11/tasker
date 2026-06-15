@@ -55,7 +55,8 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
 
       assert.deepEqual(appliedVersions, [
         "000001_initial",
-        "000004_task_session_tracking_metadata"
+        "000004_task_session_tracking_metadata",
+        "000005_resource_attribution_and_dedupe"
       ]);
     } finally {
       database.close();

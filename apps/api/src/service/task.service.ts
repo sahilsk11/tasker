@@ -36,6 +36,13 @@ export class TaskService {
     taskId: TaskId,
     input: CreateTaskArtifactInput
   ): Promise<TaskArtifact> {
+    return this.addResource(taskId, input);
+  }
+
+  public async addResource(
+    taskId: TaskId,
+    input: CreateTaskArtifactInput
+  ): Promise<TaskArtifact> {
     await this.requireTask(taskId);
     return this.artifacts.createForTask(taskId, input);
   }

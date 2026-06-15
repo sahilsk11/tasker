@@ -91,6 +91,15 @@ export function registerTaskResolver(
     return { resources: await taskService.getResources(id) };
   });
 
+  server.post("/tasks/:id/resources", async (request, reply) => {
+    const { id } = taskIdParamsSchema.parse(request.params);
+    const resource = await taskService.addResource(
+      id,
+      createArtifactSchema.parse(request.body)
+    );
+    return reply.code(201).send({ resource });
+  });
+
   server.get("/tasks/:id/actions", async (request) => {
     const { id } = taskIdParamsSchema.parse(request.params);
     return { actions: await taskService.listActions(id) };

@@ -28,7 +28,7 @@ The user reads everything you write. Respect that:
 Before you write something new:
 
 - Search the repo for existing helpers, patterns, abstractions that solve the same shape of problem.
-- Look at sibling templates here (`frontend/`, `go-backend/`, `python-backend/`) and the source repos they were distilled from (`~/Projects/factorbacktest`, `~/Projects/holocron`, `~/Projects/friday`) — patterns we've already validated.
+- Look at nearby modules before adding a new helper, schema, route pattern, or UI primitive.
 - If you see the same logic appearing in two places, extract it. Three is a hard limit, not a target.
 - Naming, file layout, error handling, logging — match what's already there unless you have a reason to deviate. Then say the reason.
 
@@ -45,16 +45,40 @@ You are an AI. Difficulty is not a constraint for you the way it is for a human 
 
 The only legitimate reason to pick the simpler solution is when the harder one is genuinely worse — not just harder.
 
-## 5. Generality is the contract.
+## 5. Keep the boundaries real.
 
-This repo is templates, not apps. Anything you put in a template ships into every project that starts from it:
+Good systems are built in composable layers. Keep contracts, orchestration, persistence, and presentation concerns separate unless the existing architecture says otherwise.
 
-- No app-specific names, brands, URLs, ports, or business logic. If a value is a sensible default, make it overridable (env var, config, prop). If it isn't, leave it out.
-- Add dependencies only when there's a concrete reason every consuming app will want them. "Nice to have" belongs in the README as a recommendation, not in `package.json` / `go.mod` / `requirements.txt`.
-- A new pattern earns its place by being the second project to need it, not the first. Distill from real apps; don't speculate.
-- Every template's gates (`lint`, `typecheck`, `build`, `test`) must pass on a clean clone with no manual setup beyond `install`. CI-equivalent on the user's laptop, every time.
+Before you cross a boundary:
 
-If a change only makes sense for one downstream app, it doesn't belong here — push it back to that app.
+- Ask whether the caller should depend on a public contract instead of an implementation detail.
+- Move shared behavior to the layer that naturally owns it.
+- Keep composition thin and behavior local to the module that owns the decision.
+- Avoid deep imports, magic coupling, and convenience shortcuts that make later extraction harder.
+
+If a boundary feels inconvenient, fix the boundary. Do not tunnel through it with deep imports.
+
+## 6. The 1,000-line limit is a design signal.
+
+When a file approaches that limit:
+
+- Split it by responsibility: route modules, service modules, React components, hooks, schemas, or test fixtures.
+- Keep the original file as a thin composition layer when that helps readability.
+- Move shared logic into the nearest appropriate layer or sibling module.
+- Do not delete behavior, collapse formatting, hide data in strings, or weaken tests just to pass the check.
+
+The limit exists to force better structure. Treat it as a prompt to name the parts that already exist in the code.
+
+## 7. Generality is the contract.
+
+Reusable code carries a higher burden than local code:
+
+- Keep environment-specific values configurable.
+- Add dependencies only when the owning layer clearly needs them.
+- Do not move local behavior into shared code unless it is genuinely shared.
+- Keep gates passing from a clean checkout with documented setup only.
+
+If a change only makes sense for one surface, keep it at that surface.
 
 ---
 

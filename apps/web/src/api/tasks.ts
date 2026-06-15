@@ -95,6 +95,19 @@ export type LinearStateOption = {
   readonly type: string;
 };
 
+export type LinearIssueStatus = {
+  readonly id: string;
+  readonly identifier: string;
+  readonly state: LinearStateOption & {
+    readonly team: {
+      readonly id: string;
+      readonly key: string;
+      readonly name: string;
+    };
+  };
+  readonly url: string;
+};
+
 export type LinearTeamOption = {
   readonly id: string;
   readonly key: string;
@@ -191,6 +204,20 @@ export async function getLinearOptions(): Promise<LinearOptions> {
     "/linear/options"
   );
   return linear;
+}
+
+export async function listLinearIssueStatuses(
+  identifiers: readonly string[]
+): Promise<readonly LinearIssueStatus[]> {
+  const uniqueIdentifiers = Array.from(new Set(identifiers));
+  if (uniqueIdentifiers.length === 0) {
+    return [];
+  }
+
+  const { issues } = await apiClient.post<{
+    readonly issues: readonly LinearIssueStatus[];
+  }>("/linear/issues/statuses", { identifiers: uniqueIdentifiers });
+  return issues;
 }
 
 export async function createLinearTaskTicket(

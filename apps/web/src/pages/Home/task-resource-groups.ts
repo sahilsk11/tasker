@@ -15,6 +15,7 @@ export type Resource = {
   readonly key: string;
   readonly kind: ResourceKind;
   readonly label: string;
+  readonly pullRequestNumber: number | null;
   readonly state: string;
   readonly taskId: string;
   readonly updatedAt: string;
@@ -147,6 +148,9 @@ function resource(
     key: `${kind}-${options.taskId}-${options.id}`,
     kind,
     label,
+    pullRequestNumber: kind === "pr" && options.href != null
+      ? getPullRequestNumber(options.href)
+      : null,
     state,
     taskId: options.taskId,
     updatedAt
@@ -158,6 +162,21 @@ function getUrlHost(value: string): string {
     return new URL(value).host;
   } catch {
     return "URL";
+  }
+}
+
+function getPullRequestNumber(value: string): number | null {
+  try {
+    const url = new URL(value);
+    const [owner, repo, pull, numberValue] = url.pathname.split("/").filter(Boolean);
+    const number = Number.parseInt(numberValue ?? "", 10);
+    if (owner == null || repo == null || pull !== "pull" || !Number.isInteger(number)) {
+      return null;
+    }
+
+    return number;
+  } catch {
+    return null;
   }
 }
 

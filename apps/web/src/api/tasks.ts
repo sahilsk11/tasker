@@ -18,6 +18,18 @@ export type ApiArtifact = {
   readonly uri: string;
 };
 
+export type ArtifactContentKind = "html" | "image" | "markdown" | "unsupported";
+
+export type ApiArtifactContent = {
+  readonly artifact: ApiArtifact;
+  readonly content: string | null;
+  readonly contentType: string;
+  readonly encoding: "base64" | "utf8" | null;
+  readonly fileName: string;
+  readonly kind: ArtifactContentKind;
+  readonly sizeBytes: number;
+};
+
 export type ApiSession = {
   readonly actionId: string | null;
   readonly claimedAt: string | null;
@@ -151,6 +163,26 @@ export async function createTaskTicket(
     input
   );
   return ticket;
+}
+
+export async function getTaskArtifact(
+  taskId: string,
+  artifactId: string
+): Promise<ApiArtifact> {
+  const { artifact } = await apiClient.get<{ readonly artifact: ApiArtifact }>(
+    `/tasks/${taskId}/artifacts/${artifactId}`
+  );
+  return artifact;
+}
+
+export async function getTaskArtifactContent(
+  taskId: string,
+  artifactId: string
+): Promise<ApiArtifactContent> {
+  const { content } = await apiClient.get<{
+    readonly content: ApiArtifactContent;
+  }>(`/tasks/${taskId}/artifacts/${artifactId}/content`);
+  return content;
 }
 
 export async function getLinearOptions(): Promise<LinearOptions> {

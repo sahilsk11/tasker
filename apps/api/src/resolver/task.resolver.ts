@@ -12,6 +12,10 @@ const taskIdParamsSchema = z.object({
   id: z.string().min(1)
 });
 
+const artifactIdParamsSchema = taskIdParamsSchema.extend({
+  artifactId: z.string().min(1)
+});
+
 const sessionIdParamsSchema = z.object({
   sessionId: z.string().min(1)
 });
@@ -108,6 +112,16 @@ export function registerTaskResolver(
   server.get("/tasks/:id/artifacts", async (request) => {
     const { id } = taskIdParamsSchema.parse(request.params);
     return { artifacts: await taskService.listArtifacts(id) };
+  });
+
+  server.get("/tasks/:id/artifacts/:artifactId", async (request) => {
+    const { artifactId, id } = artifactIdParamsSchema.parse(request.params);
+    return { artifact: await taskService.getArtifact(id, artifactId) };
+  });
+
+  server.get("/tasks/:id/artifacts/:artifactId/content", async (request) => {
+    const { artifactId, id } = artifactIdParamsSchema.parse(request.params);
+    return { content: await taskService.getArtifactContent(id, artifactId) };
   });
 
   server.post("/tasks/:id/artifacts", async (request, reply) => {

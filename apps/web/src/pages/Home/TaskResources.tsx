@@ -26,7 +26,7 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import type { ResourceGroupView, ResourceKind } from "./task-resource-groups";
+import type { Resource, ResourceGroupView, ResourceKind } from "./task-resource-groups";
 
 const resourceLabels: Record<ResourceKind, string> = {
   artifact: "Artifacts",
@@ -83,7 +83,7 @@ export function ResourceGroup({
       <div className="flex min-h-7 min-w-0 flex-wrap gap-2">
         {group.items.length > 0
           ? group.items.map((resource) => (
-              <Badge key={`${resource.kind}-${resource.label}`} variant="outline">
+              <Badge key={resource.key} variant="outline">
                 {resource.label}
               </Badge>
             ))
@@ -95,10 +95,12 @@ export function ResourceGroup({
 
 export function ResourceColumnGrid({
   groups,
-  onOpen
+  onOpen,
+  onOpenResource
 }: {
   readonly groups: readonly ResourceGroupView[];
   readonly onOpen: (kind: ResourceKind) => void;
+  readonly onOpenResource: (resource: Resource) => void;
 }): React.JSX.Element {
   const visibleKinds: readonly ResourceKind[] = ["session", "artifact", "pr"];
 
@@ -111,7 +113,12 @@ export function ResourceColumnGrid({
         };
 
         return (
-          <ResourceColumn key={kind} group={group} onOpen={() => onOpen(kind)} />
+          <ResourceColumn
+            key={kind}
+            group={group}
+            onOpen={() => onOpen(kind)}
+            onOpenResource={onOpenResource}
+          />
         );
       })}
     </div>
@@ -120,10 +127,12 @@ export function ResourceColumnGrid({
 
 function ResourceColumn({
   group,
-  onOpen
+  onOpen,
+  onOpenResource
 }: {
   readonly group: ResourceGroupView;
   readonly onOpen: () => void;
+  readonly onOpenResource: (resource: Resource) => void;
 }): React.JSX.Element {
   const Icon = resourceIcons[group.kind];
 
@@ -153,9 +162,9 @@ function ResourceColumn({
         <div className="grid max-h-40 min-w-0 gap-2 overflow-y-auto p-2">
           {group.items.map((resource) => (
             <button
-              key={`${resource.kind}-${resource.label}`}
+              key={resource.key}
               type="button"
-              onClick={onOpen}
+              onClick={() => onOpenResource(resource)}
               className={cn(
                 "grid min-w-0 gap-1 rounded-md border border-border/70 bg-card px-2.5 py-2 text-left",
                 "transition-colors hover:border-border hover:bg-card/90",
@@ -180,10 +189,12 @@ function ResourceColumn({
 
 export function ResourceTableDialog({
   group,
+  onOpenResource,
   onOpenChange,
   taskTitle
 }: {
   readonly group: ResourceGroupView | null;
+  readonly onOpenResource: (resource: Resource) => void;
   readonly onOpenChange: (isOpen: boolean) => void;
   readonly taskTitle: string;
 }): React.JSX.Element {
@@ -208,7 +219,7 @@ export function ResourceTableDialog({
         </DialogHeader>
 
         <div className="border-t border-border">
-          <ResourceTable group={group} />
+          <ResourceTable group={group} onOpenResource={onOpenResource} />
         </div>
       </DialogContent>
     </Dialog>
@@ -216,9 +227,11 @@ export function ResourceTableDialog({
 }
 
 function ResourceTable({
-  group
+  group,
+  onOpenResource
 }: {
   readonly group: ResourceGroupView | null;
+  readonly onOpenResource: (resource: Resource) => void;
 }): React.JSX.Element {
   if (group == null || group.items.length === 0) {
     return (
@@ -241,7 +254,7 @@ function ResourceTable({
       </TableHeader>
       <TableBody>
         {group.items.map((resource) => (
-          <TableRow key={`${resource.kind}-${resource.label}`}>
+          <TableRow key={resource.key}>
             <TableCell className="font-medium text-foreground">{resource.label}</TableCell>
             <TableCell className="text-muted-foreground">{resource.detail}</TableCell>
             <TableCell>
@@ -250,7 +263,11 @@ function ResourceTable({
             <TableCell className="text-muted-foreground">{resource.updatedAt}</TableCell>
             <TableCell>
               <div className="flex justify-end gap-1">
-                <Button variant="ghost" size="sm">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onOpenResource(resource)}
+                >
                   Open
                 </Button>
                 <Button

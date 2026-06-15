@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Code2, Eye, Pencil } from "lucide-react";
+import { ArrowLeft, Code2, Pencil, Save } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -127,22 +127,17 @@ function MarkdownArtifact({ content }: { readonly content: string }): React.JSX.
   return (
     <div className="flex h-full min-h-[calc(100vh-9rem)] flex-col">
       <div className="flex items-center justify-end gap-2 border-b border-border px-3 py-2">
-        <Button
-          variant={mode === "view" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => setMode("view")}
-        >
-          <Eye className="size-4" />
-          View
-        </Button>
-        <Button
-          variant={mode === "edit" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => setMode("edit")}
-        >
-          <Pencil className="size-4" />
-          Edit
-        </Button>
+        {mode === "view" ? (
+          <Button variant="ghost" size="sm" onClick={() => setMode("edit")}>
+            <Pencil className="size-4" />
+            Edit
+          </Button>
+        ) : (
+          <Button variant="default" size="sm" onClick={() => setMode("view")}>
+            <Save className="size-4" />
+            Save
+          </Button>
+        )}
       </div>
       {mode === "edit" ? (
         <Textarea

@@ -167,7 +167,7 @@ function renderMarkdownBlocks(content: string): ReactNode {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let paragraph: string[] = [];
-  let list: string[] = [];
+  let list: { readonly kind: "ol" | "ul"; readonly items: string[] } | null = null;
   let code: string[] | null = null;
 
   function flushParagraph(): void {
@@ -184,21 +184,24 @@ function renderMarkdownBlocks(content: string): ReactNode {
   }
 
   function flushList(): void {
-    if (list.length === 0) {
+    if (list == null || list.items.length === 0) {
       return;
     }
 
+    const Tag = list.kind;
+    const className =
+      list.kind === "ul"
+        ? "mb-4 list-disc space-y-1 pl-6"
+        : "mb-4 list-decimal space-y-1 pl-6";
+
     blocks.push(
-      <ul
-        key={`ul-${String(blocks.length)}`}
-        className="mb-4 list-disc space-y-1 pl-6"
-      >
-        {list.map((item, index) => (
+      <Tag key={`${list.kind}-${String(blocks.length)}`} className={className}>
+        {list.items.map((item, index) => (
           <li key={`${String(index)}-${item}`}>{item}</li>
         ))}
-      </ul>
+      </Tag>
     );
-    list = [];
+    list = null;
   }
 
   for (const line of lines) {
@@ -237,12 +240,31 @@ function renderMarkdownBlocks(content: string): ReactNode {
       continue;
     }
 
-    const listItem = /^[-*]\s+(.+)$/.exec(line);
-    const listItemText = listItem?.[1];
+    const listItem = /^([-*]|\d+[.)])\s+(.+)$/.exec(line);
+    const listMarker = listItem?.[1];
+    const listItemText = listItem?.[2];
     if (listItemText != null) {
       flushParagraph();
-      list.push(listItemText);
+      const listKind = listMarker === "-" || listMarker === "*" ? "ul" : "ol";
+      if (list != null && list.kind !== listKind) {
+        flushList();
+      }
+
+      list ??= { items: [], kind: listKind };
+
+      list.items.push(listItemText);
       continue;
+    }
+
+    const listContinuation = /^(?: {2,}|\t)(.+)$/.exec(line);
+    const listContinuationText = listContinuation?.[1]?.trim();
+    if (list != null && listContinuationText != null) {
+      const lastIndex = list.items.length - 1;
+      const previous = list.items[lastIndex];
+      if (previous != null) {
+        list.items[lastIndex] = `${previous} ${listContinuationText}`;
+        continue;
+      }
     }
 
     paragraph.push(line.trim());

@@ -152,6 +152,7 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
         }}
         session={selectedSession}
         taskDescription={bundle.task.description}
+        taskId={bundle.task.id}
         taskTitle={bundle.task.title}
       />
       <ResourceTableDialog

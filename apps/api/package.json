@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm",
     "dev": "tsx watch src/index.ts",
+    "smoke:migrations": "tsx --test src/db/migrate.test.ts",
     "start": "node dist/index.js",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"

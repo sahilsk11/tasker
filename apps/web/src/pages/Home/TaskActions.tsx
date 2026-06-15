@@ -89,7 +89,7 @@ export function TaskActionsDialog({
 }): React.JSX.Element {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl grid-rows-[auto_minmax(0,1fr)]">
+      <DialogContent className="max-w-4xl grid-rows-[auto_minmax(0,1fr)]">
         <DialogHeader>
           <div className="flex items-center gap-2 text-muted-foreground">
             <Workflow className="size-4" />
@@ -102,7 +102,7 @@ export function TaskActionsDialog({
             Suggested prompts for {taskTitle}. Starting sessions is not wired yet.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid min-h-0 gap-2 overflow-y-auto border-t border-border p-5">
+        <div className="grid min-h-0 gap-2 overflow-y-auto border-t border-border p-5 md:grid-cols-2">
           {actions.map((action) => (
             <TaskActionListItem
               key={action.id}
@@ -650,9 +650,6 @@ function TaskActionListItem({
         {action.isRecommended ? <Badge variant="secondary">Recommended</Badge> : null}
       </div>
       <p className="text-sm leading-5 text-muted-foreground">{action.description}</p>
-      <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
-        {action.prompt}
-      </p>
     </button>
   );
 }

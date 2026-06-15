@@ -75,6 +75,7 @@ export class TaskService {
     input: CreateTaskArtifactInput
   ): Promise<TaskArtifact> {
     await this.requireTask(taskId);
+    await this.requireSessionForTask(taskId, input.createdBySessionId);
     return this.artifacts.createForTask(taskId, input);
   }
 
@@ -251,6 +252,20 @@ export class TaskService {
     }
 
     return task;
+  }
+
+  private async requireSessionForTask(
+    taskId: TaskId,
+    sessionId: string | null | undefined
+  ): Promise<void> {
+    if (sessionId == null) {
+      return;
+    }
+
+    const session = await this.sessions.findById(sessionId);
+    if (session?.taskId !== taskId) {
+      throw new BadRequestError(`Task session ${sessionId} does not belong to task ${taskId}`);
+    }
   }
 
   private async getTaskOverview(session: TaskSession): Promise<TaskOverview> {

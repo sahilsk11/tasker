@@ -31,8 +31,13 @@ export class SqliteTaskTicketRepository implements TaskTicketRepository {
         task_id: taskId,
         url: input.url
       })
+      .onConflict((oc) => oc.columns(["task_id", "external_id"]).doNothing())
       .returningAll()
-      .executeTakeFirstOrThrow();
+      .executeTakeFirst();
+
+    if (row == null) {
+      return this.findByTaskIdAndExternalId(taskId, input.externalId);
+    }
 
     return toTaskTicket(row);
   }
@@ -46,6 +51,20 @@ export class SqliteTaskTicketRepository implements TaskTicketRepository {
       .execute();
 
     return rows.map(toTaskTicket);
+  }
+
+  private async findByTaskIdAndExternalId(
+    taskId: TaskId,
+    externalId: string
+  ): Promise<TaskTicket> {
+    const row = await this.db
+      .selectFrom("task_tickets")
+      .selectAll()
+      .where("task_id", "=", taskId)
+      .where("external_id", "=", externalId)
+      .executeTakeFirstOrThrow();
+
+    return toTaskTicket(row);
   }
 }
 

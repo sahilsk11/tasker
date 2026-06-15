@@ -179,8 +179,128 @@ void test("task artifacts expose renderable local file content", async () => {
   }
 });
 
+void test("task resources dedupe repeated registrations and track session attribution", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-resource-dedupe-"));
+  const app = await createApp({
+    databasePath: join(dir, "tasker.sqlite"),
+    linearApiKey: null
+  });
+
+  try {
+    const task = await createTask(app, "Dedupe resources");
+    const otherTask = await createTask(app, "Other task");
+    const session = await createSession(app, task.id);
+    const otherSession = await createSession(app, otherTask.id);
+
+    const artifactPayload = {
+      createdBySessionId: session.id,
+      kind: "summary",
+      label: "Implement notes",
+      uri: "/tmp/tasker-notes.md"
+    };
+    const firstArtifactResponse = await app.inject({
+      method: "POST",
+      payload: artifactPayload,
+      url: `/tasks/${task.id}/resources`
+    });
+    assert.equal(firstArtifactResponse.statusCode, 201);
+    const firstArtifact = (readJson(firstArtifactResponse.body) as {
+      readonly resource: {
+        readonly createdBySessionId: string | null;
+        readonly id: string;
+        readonly label: string;
+      };
+    }).resource;
+    assert.equal(firstArtifact.createdBySessionId, session.id);
+
+    const duplicateArtifactResponse = await app.inject({
+      method: "POST",
+      payload: { ...artifactPayload, label: "Duplicate notes" },
+      url: `/tasks/${task.id}/resources`
+    });
+    assert.equal(duplicateArtifactResponse.statusCode, 201);
+    const duplicateArtifact = (readJson(duplicateArtifactResponse.body) as {
+      readonly resource: {
+        readonly createdBySessionId: string | null;
+        readonly id: string;
+        readonly label: string;
+      };
+    }).resource;
+    assert.equal(duplicateArtifact.id, firstArtifact.id);
+    assert.equal(duplicateArtifact.label, "Implement notes");
+    assert.equal(duplicateArtifact.createdBySessionId, session.id);
+
+    const ticketPayload = {
+      externalId: "SAS-58",
+      url: "https://linear.app/example/issue/SAS-58"
+    };
+    const firstTicketResponse = await app.inject({
+      method: "POST",
+      payload: ticketPayload,
+      url: `/tasks/${task.id}/tickets`
+    });
+    assert.equal(firstTicketResponse.statusCode, 201);
+    const firstTicket = (readJson(firstTicketResponse.body) as {
+      readonly ticket: { readonly id: string };
+    }).ticket;
+
+    const duplicateTicketResponse = await app.inject({
+      method: "POST",
+      payload: { ...ticketPayload, url: null },
+      url: `/tasks/${task.id}/tickets`
+    });
+    assert.equal(duplicateTicketResponse.statusCode, 201);
+    const duplicateTicket = (readJson(duplicateTicketResponse.body) as {
+      readonly ticket: { readonly id: string };
+    }).ticket;
+    assert.equal(duplicateTicket.id, firstTicket.id);
+
+    const resourcesResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/resources`
+    });
+    assert.equal(resourcesResponse.statusCode, 200);
+    const resources = (readJson(resourcesResponse.body) as {
+      readonly resources: {
+        readonly artifacts: ReadonlyArray<{ readonly id: string }>;
+        readonly tickets: ReadonlyArray<{ readonly id: string }>;
+      };
+    }).resources;
+    assert.equal(resources.artifacts.length, 1);
+    assert.equal(resources.tickets.length, 1);
+
+    const wrongSessionResponse = await app.inject({
+      method: "POST",
+      payload: {
+        createdBySessionId: otherSession.id,
+        kind: "summary",
+        label: "Wrong session",
+        uri: "/tmp/wrong-session.md"
+      },
+      url: `/tasks/${task.id}/resources`
+    });
+    assert.equal(wrongSessionResponse.statusCode, 400);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 function readJson(body: string): unknown {
   return JSON.parse(body) as unknown;
+}
+
+async function createTask(
+  app: Awaited<ReturnType<typeof createApp>>,
+  title: string
+): Promise<{ readonly id: string }> {
+  const response = await app.inject({
+    method: "POST",
+    payload: { title },
+    url: "/tasks"
+  });
+  assert.equal(response.statusCode, 201);
+  return (readJson(response.body) as { readonly task: { readonly id: string } }).task;
 }
 
 async function createArtifact(
@@ -196,6 +316,22 @@ async function createArtifact(
   assert.equal(response.statusCode, 201);
   return (readJson(response.body) as { readonly artifact: { readonly id: string } })
     .artifact;
+}
+
+async function createSession(
+  app: Awaited<ReturnType<typeof createApp>>,
+  taskId: string
+): Promise<{ readonly id: string }> {
+  const response = await app.inject({
+    method: "POST",
+    payload: {
+      provider: "codex"
+    },
+    url: `/tasks/${taskId}/sessions`
+  });
+  assert.equal(response.statusCode, 201);
+  return (readJson(response.body) as { readonly session: { readonly id: string } })
+    .session;
 }
 
 function readContent(body: string): {

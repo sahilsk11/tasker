@@ -5,6 +5,8 @@ import type {
   CreateTaskSessionInput,
   TaskSessionMetadata
 } from "../domain/task-session.js";
+import type { CreateTaskArtifactInput } from "../domain/task-artifact.js";
+import type { CreateTaskTicketInput } from "../domain/task-ticket.js";
 import type { UpdateTaskInput } from "../domain/task.js";
 import type { TaskService } from "../service/task.service.js";
 
@@ -33,6 +35,7 @@ const updateTaskSchema = z.object({
 });
 
 const createArtifactSchema = z.object({
+  createdBySessionId: z.string().min(1).nullable().optional(),
   kind: z.string().min(1),
   label: z.string().min(1),
   uri: z.string().min(1)
@@ -99,7 +102,7 @@ export function registerTaskResolver(
     const { id } = taskIdParamsSchema.parse(request.params);
     const resource = await taskService.addResource(
       id,
-      createArtifactSchema.parse(request.body)
+      parseCreateArtifactInput(request.body)
     );
     return reply.code(201).send({ resource });
   });
@@ -128,7 +131,7 @@ export function registerTaskResolver(
     const { id } = taskIdParamsSchema.parse(request.params);
     const artifact = await taskService.addArtifact(
       id,
-      createArtifactSchema.parse(request.body)
+      parseCreateArtifactInput(request.body)
     );
     return reply.code(201).send({ artifact });
   });
@@ -163,9 +166,21 @@ export function registerTaskResolver(
 
   server.post("/tasks/:id/tickets", async (request, reply) => {
     const { id } = taskIdParamsSchema.parse(request.params);
-    const ticket = await taskService.addTicket(id, createTicketSchema.parse(request.body));
+    const ticket = await taskService.addTicket(id, parseCreateTicketInput(request.body));
     return reply.code(201).send({ ticket });
   });
+}
+
+function parseCreateArtifactInput(body: unknown): CreateTaskArtifactInput {
+  const parsed = createArtifactSchema.parse(body);
+  return {
+    ...(parsed.createdBySessionId !== undefined
+      ? { createdBySessionId: parsed.createdBySessionId }
+      : {}),
+    kind: parsed.kind,
+    label: parsed.label,
+    uri: parsed.uri
+  };
 }
 
 function parseCreateSessionInput(body: unknown): CreateTaskSessionInput {
@@ -179,6 +194,14 @@ function parseCreateSessionInput(body: unknown): CreateTaskSessionInput {
     ...(parsed.transcriptPath !== undefined
       ? { transcriptPath: parsed.transcriptPath }
       : {})
+  };
+}
+
+function parseCreateTicketInput(body: unknown): CreateTaskTicketInput {
+  const parsed = createTicketSchema.parse(body);
+  return {
+    externalId: parsed.externalId,
+    url: parsed.url
   };
 }
 

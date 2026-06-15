@@ -4,6 +4,7 @@ export type TaskArtifactId = string;
 
 export type TaskArtifact = {
   readonly createdAt: Date;
+  readonly createdBySessionId: string | null;
   readonly id: TaskArtifactId;
   readonly kind: string;
   readonly label: string;
@@ -12,6 +13,7 @@ export type TaskArtifact = {
 };
 
 export type CreateTaskArtifactInput = {
+  readonly createdBySessionId?: string | null;
   readonly kind: string;
   readonly label: string;
   readonly uri: string;

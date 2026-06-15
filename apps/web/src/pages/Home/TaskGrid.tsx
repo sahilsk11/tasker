@@ -4,6 +4,7 @@ import { createTaskSession } from "@/api/tasks";
 import type { ApiSession, ApiTaskAction, TaskBundle } from "@/api/tasks";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { PullRequestStatusMap } from "./use-pull-request-statuses";
 import {
   TaskActionPromptDialog,
   TaskActionRow,
@@ -17,9 +18,11 @@ import {
 } from "./task-resource-groups";
 
 export function TaskGrid({
-  bundles
+  bundles,
+  pullRequestStatuses
 }: {
   readonly bundles: readonly TaskBundle[];
+  readonly pullRequestStatuses: PullRequestStatusMap;
 }): React.JSX.Element {
   if (bundles.length === 0) {
     return (
@@ -35,7 +38,11 @@ export function TaskGrid({
       aria-label="Tasks"
     >
       {bundles.map((bundle) => (
-        <TaskCard key={bundle.task.id} bundle={bundle} />
+        <TaskCard
+          key={bundle.task.id}
+          bundle={bundle}
+          pullRequestStatuses={pullRequestStatuses}
+        />
       ))}
     </section>
   );
@@ -51,7 +58,13 @@ export function TaskGridSkeleton(): React.JSX.Element {
   );
 }
 
-function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Element {
+function TaskCard({
+  bundle,
+  pullRequestStatuses
+}: {
+  readonly bundle: TaskBundle;
+  readonly pullRequestStatuses: PullRequestStatusMap;
+}): React.JSX.Element {
   const navigate = useNavigate();
   const groupedResources = getResourceGroupsForBundle(bundle);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -140,6 +153,7 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
                 groups={groupedResources}
                 onOpen={setSelectedKind}
                 onOpenResource={openResource}
+                pullRequestStatuses={pullRequestStatuses}
               />
             </div>
             <TaskActionRow
@@ -187,6 +201,7 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
       <ResourceTableDialog
         group={selectedGroup}
         onOpenResource={openResource}
+        pullRequestStatuses={pullRequestStatuses}
         taskTitle={bundle.task.title}
         onOpenChange={(isOpen) => {
           if (!isOpen) {

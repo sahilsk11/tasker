@@ -60,6 +60,29 @@ const createIssueSchema = z.object({
   })
 });
 
+const linearIssuesSchema = z.object({
+  issues: z.object({
+    nodes: z.array(
+      z.object({
+        id: z.string(),
+        identifier: z.string(),
+        state: z.object({
+          id: z.string(),
+          name: z.string(),
+          position: z.number(),
+          team: z.object({
+            id: z.string(),
+            key: z.string(),
+            name: z.string()
+          }),
+          type: z.string()
+        }),
+        url: z.string().url()
+      })
+    )
+  })
+});
+
 type GraphqlResponse<T> = {
   readonly data?: T;
   readonly errors?: ReadonlyArray<{ readonly message?: string }>;
@@ -99,14 +122,38 @@ export type CreateLinearIssueInput = {
   readonly title: string;
 };
 
+export type LinearServiceOptions = {
+  readonly fetchImpl?: typeof fetch;
+};
+
 export type LinearIssue = {
   readonly id: string;
   readonly identifier: string;
   readonly url: string;
 };
 
+export type LinearIssueStatus = {
+  readonly id: string;
+  readonly identifier: string;
+  readonly state: LinearStateOption & {
+    readonly team: {
+      readonly id: string;
+      readonly key: string;
+      readonly name: string;
+    };
+  };
+  readonly url: string;
+};
+
 export class LinearService {
-  public constructor(private readonly apiKey: string | null) {}
+  private readonly fetchImpl: typeof fetch;
+
+  public constructor(
+    private readonly apiKey: string | null,
+    options: LinearServiceOptions = {}
+  ) {
+    this.fetchImpl = options.fetchImpl ?? fetch;
+  }
 
   public async getOptions(): Promise<LinearOptions> {
     if (this.apiKey == null) {
@@ -212,12 +259,69 @@ export class LinearService {
     return parsed.issueCreate.issue;
   }
 
+  public async getIssueStatuses(
+    identifiers: readonly string[]
+  ): Promise<readonly LinearIssueStatus[]> {
+    if (this.apiKey == null) {
+      return [];
+    }
+
+    const issueRefs = Array.from(new Map(
+      identifiers
+        .map(parseIssueIdentifier)
+        .filter((ref): ref is LinearIssueRef => ref != null)
+        .map((ref) => [ref.identifier, ref])
+    ).values())
+      .slice(0, 100);
+    if (issueRefs.length === 0) {
+      return [];
+    }
+
+    const data = await this.request(
+      `query TaskerLinearIssueStatuses($filter: IssueFilter) {
+        issues(first: 100, filter: $filter) {
+          nodes {
+            id
+            identifier
+            url
+            state {
+              id
+              name
+              position
+              type
+              team {
+                id
+                key
+                name
+              }
+            }
+          }
+        }
+      }`,
+      { filter: getIssueFilter(issueRefs) }
+    );
+    const issues = linearIssuesSchema.parse(data).issues.nodes;
+
+    return issues.map((issue) => ({
+      id: issue.id,
+      identifier: issue.identifier,
+      state: {
+        id: issue.state.id,
+        name: issue.state.name,
+        position: issue.state.position,
+        team: issue.state.team,
+        type: issue.state.type
+      },
+      url: issue.url
+    }));
+  }
+
   private async request(query: string, variables?: object): Promise<unknown> {
     if (this.apiKey == null) {
       throw new BadRequestError("LINEAR_API_KEY is not configured.");
     }
 
-    const response = await fetch(linearGraphqlUrl, {
+    const response = await this.fetchImpl(linearGraphqlUrl, {
       body: JSON.stringify({ query, variables }),
       headers: {
         "Authorization": this.apiKey,
@@ -233,6 +337,47 @@ export class LinearService {
 
     return body.data;
   }
+}
+
+type LinearIssueRef = {
+  readonly identifier: string;
+  readonly number: number;
+  readonly teamKey: string;
+};
+
+function parseIssueIdentifier(identifier: string): LinearIssueRef | null {
+  const match = /^(?<teamKey>[A-Z][A-Z0-9]*)-(?<number>[0-9]+)$/u.exec(
+    identifier.trim().toUpperCase()
+  );
+  const teamKey = match?.groups?.["teamKey"];
+  const number = Number.parseInt(match?.groups?.["number"] ?? "", 10);
+  if (teamKey == null || !Number.isInteger(number)) {
+    return null;
+  }
+
+  return {
+    identifier: `${teamKey}-${String(number)}`,
+    number,
+    teamKey
+  };
+}
+
+function getIssueFilter(issueRefs: readonly LinearIssueRef[]): object {
+  const numbersByTeamKey = new Map<string, number[]>();
+  for (const ref of issueRefs) {
+    const numbers = numbersByTeamKey.get(ref.teamKey) ?? [];
+    numbers.push(ref.number);
+    numbersByTeamKey.set(ref.teamKey, numbers);
+  }
+
+  const filters = Array.from(numbersByTeamKey, ([teamKey, numbers]) => ({
+    and: [
+      { team: { key: { eq: teamKey } } },
+      { number: { in: numbers } }
+    ]
+  }));
+
+  return filters.length === 1 ? filters[0] ?? {} : { or: filters };
 }
 
 function groupStatesByTeamId(

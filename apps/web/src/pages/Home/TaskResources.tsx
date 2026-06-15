@@ -26,7 +26,10 @@ import {
   TableRow
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import type { PullRequestStatusResult } from "@/api/pull-requests";
+import { PullRequestStatusBadge } from "./PullRequestStatusBadge";
 import type { Resource, ResourceGroupView, ResourceKind } from "./task-resource-groups";
+import type { PullRequestStatusMap } from "./use-pull-request-statuses";
 
 const resourceLabels: Record<ResourceKind, string> = {
   artifact: "Artifacts",
@@ -96,11 +99,13 @@ export function ResourceGroup({
 export function ResourceColumnGrid({
   groups,
   onOpen,
-  onOpenResource
+  onOpenResource,
+  pullRequestStatuses
 }: {
   readonly groups: readonly ResourceGroupView[];
   readonly onOpen: (kind: ResourceKind) => void;
   readonly onOpenResource: (resource: Resource) => void;
+  readonly pullRequestStatuses: PullRequestStatusMap;
 }): React.JSX.Element {
   const visibleKinds: readonly ResourceKind[] = ["session", "artifact", "pr"];
 
@@ -118,6 +123,7 @@ export function ResourceColumnGrid({
             group={group}
             onOpen={() => onOpen(kind)}
             onOpenResource={onOpenResource}
+            pullRequestStatuses={pullRequestStatuses}
           />
         );
       })}
@@ -128,11 +134,13 @@ export function ResourceColumnGrid({
 function ResourceColumn({
   group,
   onOpen,
-  onOpenResource
+  onOpenResource,
+  pullRequestStatuses
 }: {
   readonly group: ResourceGroupView;
   readonly onOpen: () => void;
   readonly onOpenResource: (resource: Resource) => void;
+  readonly pullRequestStatuses: PullRequestStatusMap;
 }): React.JSX.Element {
   const Icon = resourceIcons[group.kind];
 
@@ -174,11 +182,10 @@ function ResourceColumn({
               <span className="truncate text-sm font-medium text-foreground">
                 {resource.label}
               </span>
-              <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                <span className="truncate">{resource.detail}</span>
-                <span aria-hidden="true">·</span>
-                <span className="shrink-0">{resource.updatedAt}</span>
-              </span>
+              <ResourceSummary
+                pullRequestStatuses={pullRequestStatuses}
+                resource={resource}
+              />
             </button>
           ))}
         </div>
@@ -191,11 +198,13 @@ export function ResourceTableDialog({
   group,
   onOpenResource,
   onOpenChange,
+  pullRequestStatuses,
   taskTitle
 }: {
   readonly group: ResourceGroupView | null;
   readonly onOpenResource: (resource: Resource) => void;
   readonly onOpenChange: (isOpen: boolean) => void;
+  readonly pullRequestStatuses: PullRequestStatusMap;
   readonly taskTitle: string;
 }): React.JSX.Element {
   const kind = group?.kind ?? "ticket";
@@ -219,7 +228,11 @@ export function ResourceTableDialog({
         </DialogHeader>
 
         <div className="border-t border-border">
-          <ResourceTable group={group} onOpenResource={onOpenResource} />
+          <ResourceTable
+            group={group}
+            onOpenResource={onOpenResource}
+            pullRequestStatuses={pullRequestStatuses}
+          />
         </div>
       </DialogContent>
     </Dialog>
@@ -228,10 +241,12 @@ export function ResourceTableDialog({
 
 function ResourceTable({
   group,
-  onOpenResource
+  onOpenResource,
+  pullRequestStatuses
 }: {
   readonly group: ResourceGroupView | null;
   readonly onOpenResource: (resource: Resource) => void;
+  readonly pullRequestStatuses: PullRequestStatusMap;
 }): React.JSX.Element {
   if (group == null || group.items.length === 0) {
     return (
@@ -258,9 +273,19 @@ function ResourceTable({
             <TableCell className="font-medium text-foreground">{resource.label}</TableCell>
             <TableCell className="text-muted-foreground">{resource.detail}</TableCell>
             <TableCell>
-              <Badge variant="secondary">{resource.state}</Badge>
+              {resource.kind === "pr" ? (
+                <PullRequestStatusBadge
+                  status={getPullRequestStatus(resource, pullRequestStatuses)}
+                />
+              ) : (
+                <Badge variant="secondary">{resource.state}</Badge>
+              )}
             </TableCell>
-            <TableCell className="text-muted-foreground">{resource.updatedAt}</TableCell>
+            <TableCell className="text-muted-foreground">
+              {resource.kind === "pr"
+                ? formatPullRequestNumber(resource)
+                : resource.updatedAt}
+            </TableCell>
             <TableCell>
               <div className="flex justify-end gap-1">
                 <Button
@@ -284,4 +309,46 @@ function ResourceTable({
       </TableBody>
     </Table>
   );
+}
+
+function ResourceSummary({
+  pullRequestStatuses,
+  resource
+}: {
+  readonly pullRequestStatuses: PullRequestStatusMap;
+  readonly resource: Resource;
+}): React.JSX.Element {
+  if (resource.kind === "pr") {
+    return (
+      <span className="flex min-w-0 items-center justify-between gap-2">
+        <PullRequestStatusBadge
+          status={getPullRequestStatus(resource, pullRequestStatuses)}
+        />
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {formatPullRequestNumber(resource)}
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+      <span className="truncate">{resource.detail}</span>
+      <span aria-hidden="true">·</span>
+      <span className="shrink-0">{resource.updatedAt}</span>
+    </span>
+  );
+}
+
+function getPullRequestStatus(
+  resource: Resource,
+  pullRequestStatuses: PullRequestStatusMap
+): PullRequestStatusResult | null {
+  return resource.href == null ? null : pullRequestStatuses.get(resource.href) ?? null;
+}
+
+function formatPullRequestNumber(resource: Resource): string {
+  return resource.pullRequestNumber == null
+    ? "#"
+    : `#${String(resource.pullRequestNumber)}`;
 }

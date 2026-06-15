@@ -6,15 +6,19 @@ import { SqliteTaskArtifactRepository } from "./repository/task-artifact.reposit
 import { SqliteTaskSessionRepository } from "./repository/task-session.repository.js";
 import { SqliteTaskTicketRepository } from "./repository/task-ticket.repository.js";
 import { SqliteTaskRepository } from "./repository/task.repository.js";
+import { registerGitHubResolver } from "./resolver/github.resolver.js";
 import { registerLinearResolver } from "./resolver/linear.resolver.js";
 import { registerTaskResolver } from "./resolver/task.resolver.js";
 import { BadRequestError, NotFoundError } from "./service/errors.js";
-import { LinearService } from "./service/linear.service.js";
+import { GitHubService, type GitHubServiceOptions } from "./service/github.service.js";
+import { LinearService, type LinearServiceOptions } from "./service/linear.service.js";
 import { TaskService } from "./service/task.service.js";
 
 export type CreateAppOptions = {
   readonly codexSessionsRoot?: string;
   readonly databasePath: string;
+  readonly github?: GitHubServiceOptions;
+  readonly linear?: LinearServiceOptions;
   readonly linearApiKey: string | null;
 };
 
@@ -29,7 +33,8 @@ export async function createApp(options: CreateAppOptions) {
     new SqliteTaskTicketRepository(db),
     options.codexSessionsRoot
   );
-  const linearService = new LinearService(options.linearApiKey);
+  const linearService = new LinearService(options.linearApiKey, options.linear);
+  const githubService = new GitHubService(options.github);
 
   const server = Fastify({ logger: true });
 
@@ -54,6 +59,7 @@ export async function createApp(options: CreateAppOptions) {
 
   registerTaskResolver(server, taskService);
   registerLinearResolver(server, taskService, linearService);
+  registerGitHubResolver(server, githubService);
 
   server.addHook("onClose", async () => {
     await db.destroy();

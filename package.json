@@ -19,6 +19,7 @@
     "dev:api": "pnpm --filter @tasker/api dev",
     "dev:web": "pnpm --filter @tasker/web dev",
     "dev:worker": "pnpm --filter @tasker/worker dev",
+    "install-daemon": "node scripts/install-daemon.mjs",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint --max-warnings 0 && node scripts/check-file-lines.mjs",
     "smoke:migrations": "pnpm --filter @tasker/api smoke:migrations",
     "test": "pnpm -r --if-present test",

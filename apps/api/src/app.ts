@@ -20,10 +20,17 @@ export type CreateAppOptions = {
   readonly github?: GitHubServiceOptions;
   readonly linear?: LinearServiceOptions;
   readonly linearApiKey: string | null;
+  readonly migrationsDirectory?: string;
+  readonly routePrefix?: string;
 };
 
 export async function createApp(options: CreateAppOptions) {
-  migrate({ databasePath: options.databasePath });
+  migrate({
+    databasePath: options.databasePath,
+    ...(options.migrationsDirectory === undefined
+      ? {}
+      : { migrationsDirectory: options.migrationsDirectory })
+  });
 
   const db = createDb({ path: options.databasePath });
   const taskService = new TaskService(
@@ -57,9 +64,15 @@ export async function createApp(options: CreateAppOptions) {
     void reply.send(error);
   });
 
-  registerTaskResolver(server, taskService);
-  registerLinearResolver(server, taskService, linearService);
-  registerGitHubResolver(server, githubService);
+  await server.register(
+    (api, _options, done) => {
+      registerTaskResolver(api, taskService);
+      registerLinearResolver(api, taskService, linearService);
+      registerGitHubResolver(api, githubService);
+      done();
+    },
+    { prefix: options.routePrefix ?? "" }
+  );
 
   server.addHook("onClose", async () => {
     await db.destroy();

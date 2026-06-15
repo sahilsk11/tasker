@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Code2, Pencil, Save } from "lucide-react";
+import { ArrowLeft, Pencil, Save } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { useNavigate, useParams } from "react-router";
+import remarkGfm from "remark-gfm";
 import { getTaskArtifactContent } from "@/api/tasks";
 import type { ApiArtifactContent } from "@/api/tasks";
 import { Badge } from "@/components/ui/badge";
@@ -157,155 +159,84 @@ function MarkdownPreview({ content }: { readonly content: string }): React.JSX.E
   return (
     <div className="min-h-0 flex-1 overflow-auto px-5 py-6">
       <div className="mx-auto w-full max-w-4xl text-sm leading-7 text-foreground">
-        {renderMarkdownBlocks(content)}
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            a: ({ children, ...props }) => (
+              <a
+                {...props}
+                className="font-medium text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
+                rel="noreferrer"
+                target="_blank"
+              >
+                {children}
+              </a>
+            ),
+            blockquote: ({ children }) => (
+              <blockquote className="mb-4 border-l-2 border-border pl-4 text-muted-foreground">
+                {children}
+              </blockquote>
+            ),
+            code: ({ children, className }) => (
+              <code className={className ?? "rounded bg-secondary px-1.5 py-0.5 font-mono text-[0.9em]"}>
+                {children}
+              </code>
+            ),
+            h1: ({ children }) => (
+              <h1 className="mb-4 text-3xl font-semibold leading-tight">
+                {children}
+              </h1>
+            ),
+            h2: ({ children }) => (
+              <h2 className="mb-3 mt-6 text-2xl font-semibold leading-tight">
+                {children}
+              </h2>
+            ),
+            h3: ({ children }) => (
+              <h3 className="mb-2 mt-5 text-lg font-semibold leading-snug">
+                {children}
+              </h3>
+            ),
+            hr: () => <hr className="my-6 border-border" />,
+            li: ({ children }) => <li>{children}</li>,
+            ol: ({ children }) => (
+              <ol className="mb-4 list-decimal space-y-1 pl-6">{children}</ol>
+            ),
+            p: ({ children }) => (
+              <p className="mb-4 text-muted-foreground">{children}</p>
+            ),
+            pre: ({ children }) => (
+              <pre className="mb-4 overflow-auto rounded-md border border-border bg-background p-4 text-sm leading-6 text-foreground">
+                {children}
+              </pre>
+            ),
+            table: ({ children }) => (
+              <div className="mb-4 overflow-auto rounded-md border border-border">
+                <table className="w-full border-collapse text-left">{children}</table>
+              </div>
+            ),
+            tbody: ({ children }) => <tbody>{children}</tbody>,
+            td: ({ children }) => (
+              <td className="border-t border-border px-3 py-2 align-top text-muted-foreground">
+                {children}
+              </td>
+            ),
+            th: ({ children }) => (
+              <th className="border-b border-border bg-secondary/50 px-3 py-2 font-medium">
+                {children}
+              </th>
+            ),
+            thead: ({ children }) => <thead>{children}</thead>,
+            tr: ({ children }) => <tr>{children}</tr>,
+            ul: ({ children }) => (
+              <ul className="mb-4 list-disc space-y-1 pl-6">{children}</ul>
+            )
+          }}
+        >
+          {content}
+        </ReactMarkdown>
       </div>
     </div>
-  );
-}
-
-function renderMarkdownBlocks(content: string): ReactNode {
-  const lines = content.replace(/\r\n/g, "\n").split("\n");
-  const blocks: ReactNode[] = [];
-  let paragraph: string[] = [];
-  let list: string[] = [];
-  let code: string[] | null = null;
-
-  function flushParagraph(): void {
-    if (paragraph.length === 0) {
-      return;
-    }
-
-    blocks.push(
-      <p key={`p-${String(blocks.length)}`} className="mb-4 text-muted-foreground">
-        {paragraph.join(" ")}
-      </p>
-    );
-    paragraph = [];
-  }
-
-  function flushList(): void {
-    if (list.length === 0) {
-      return;
-    }
-
-    blocks.push(
-      <ul
-        key={`ul-${String(blocks.length)}`}
-        className="mb-4 list-disc space-y-1 pl-6"
-      >
-        {list.map((item, index) => (
-          <li key={`${String(index)}-${item}`}>{item}</li>
-        ))}
-      </ul>
-    );
-    list = [];
-  }
-
-  for (const line of lines) {
-    if (line.startsWith("```")) {
-      if (code == null) {
-        flushParagraph();
-        flushList();
-        code = [];
-      } else {
-        blocks.push(
-          <CodeBlock key={`code-${String(blocks.length)}`} content={code.join("\n")} />
-        );
-        code = null;
-      }
-      continue;
-    }
-
-    if (code != null) {
-      code.push(line);
-      continue;
-    }
-
-    if (line.trim().length === 0) {
-      flushParagraph();
-      flushList();
-      continue;
-    }
-
-    const heading = /^(#{1,3})\s+(.+)$/.exec(line);
-    const headingMarks = heading?.[1];
-    const headingText = heading?.[2];
-    if (headingMarks != null && headingText != null) {
-      flushParagraph();
-      flushList();
-      blocks.push(renderHeading(headingMarks.length, headingText, blocks.length));
-      continue;
-    }
-
-    const listItem = /^[-*]\s+(.+)$/.exec(line);
-    const listItemText = listItem?.[1];
-    if (listItemText != null) {
-      flushParagraph();
-      list.push(listItemText);
-      continue;
-    }
-
-    paragraph.push(line.trim());
-  }
-
-  flushParagraph();
-  flushList();
-
-  if (code != null) {
-    blocks.push(
-      <CodeBlock key={`code-${String(blocks.length)}`} content={code.join("\n")} />
-    );
-  }
-
-  return blocks.length === 0 ? (
-    <p className="text-muted-foreground">This Markdown file is empty.</p>
-  ) : (
-    blocks
-  );
-}
-
-function renderHeading(
-  level: number,
-  text: string,
-  key: number
-): React.JSX.Element {
-  if (level === 1) {
-    return (
-      <h1 key={`h-${String(key)}`} className="mb-4 text-3xl font-semibold leading-tight">
-        {text}
-      </h1>
-    );
-  }
-
-  if (level === 2) {
-    return (
-      <h2
-        key={`h-${String(key)}`}
-        className="mb-3 mt-6 text-2xl font-semibold leading-tight"
-      >
-        {text}
-      </h2>
-    );
-  }
-
-  return (
-    <h3
-      key={`h-${String(key)}`}
-      className="mb-2 mt-5 text-lg font-semibold leading-snug"
-    >
-      {text}
-    </h3>
-  );
-}
-
-function CodeBlock({ content }: { readonly content: string }): React.JSX.Element {
-  return (
-    <pre className="mb-4 overflow-auto rounded-md border border-border bg-background p-4 text-sm leading-6 text-foreground">
-      <code>
-        <Code2 className="mb-2 size-4 text-muted-foreground" />
-        {content}
-      </code>
-    </pre>
   );
 }
 

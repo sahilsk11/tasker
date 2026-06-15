@@ -11,6 +11,7 @@ export type ApiTask = {
 
 export type ApiArtifact = {
   readonly createdAt: string;
+  readonly createdBySessionId: string | null;
   readonly id: string;
   readonly kind: string;
   readonly label: string;

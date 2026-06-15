@@ -18,6 +18,7 @@ export type TasksTable = {
 
 export type TaskArtifactsTable = {
   readonly created_at: Generated<string>;
+  readonly created_by_session_id: string | null;
   readonly id: string;
   readonly kind: string;
   readonly label: string;

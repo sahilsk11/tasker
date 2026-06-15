@@ -25,6 +25,7 @@ export type TaskSessionRepository = {
     taskId: TaskId,
     input: CreateTaskSessionInput
   ) => Promise<TaskSession>;
+  readonly findById: (sessionId: string) => Promise<TaskSession | null>;
   readonly listByTaskId: (taskId: TaskId) => Promise<readonly TaskSession[]>;
 };
 
@@ -92,6 +93,16 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
       .executeTakeFirstOrThrow();
 
     return toTaskSession(row);
+  }
+
+  public async findById(sessionId: string): Promise<TaskSession | null> {
+    const row = await this.db
+      .selectFrom("task_sessions")
+      .selectAll()
+      .where("id", "=", sessionId)
+      .executeTakeFirst();
+
+    return row == null ? null : toTaskSession(row);
   }
 
   public async listByTaskId(taskId: TaskId): Promise<readonly TaskSession[]> {

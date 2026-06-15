@@ -159,11 +159,12 @@ export function TaskActionPromptDialog({
       : buildCodexTaskNotesResourceCommand({
           action,
           apiUrl: localApiBaseUrl,
+          sessionId: session.id,
           taskNotesPath,
           taskId
         });
   const pullRequestCommand =
-    action == null
+    action == null || session == null
       ? ""
       : buildCodexPullRequestResourceCommand({
           action,
@@ -177,6 +178,7 @@ export function TaskActionPromptDialog({
           action,
           claimCommand,
           pullRequestCommand,
+          sessionId: session.id,
           taskNotesCommand,
           taskNotesPath,
           taskDescription,
@@ -260,6 +262,7 @@ export function TaskActionPromptDialog({
               action={action}
               claimCommand={claimCommand}
               pullRequestCommand={pullRequestCommand}
+              sessionId={session.id}
               taskNotesCommand={taskNotesCommand}
               taskNotesPath={taskNotesPath}
               taskDescription={taskDescription}
@@ -277,6 +280,7 @@ function CodexPromptPreview({
   action,
   claimCommand,
   pullRequestCommand,
+  sessionId,
   taskNotesCommand,
   taskNotesPath,
   taskDescription,
@@ -286,6 +290,7 @@ function CodexPromptPreview({
   readonly action: ApiTaskAction;
   readonly claimCommand: string;
   readonly pullRequestCommand: string;
+  readonly sessionId: string;
   readonly taskNotesCommand: string;
   readonly taskNotesPath: string;
   readonly taskDescription: string | null;
@@ -324,6 +329,10 @@ function CodexPromptPreview({
           <p className="text-muted-foreground">
             Before finishing, write durable findings to {taskNotesPath} and register
             that file as a Tasker resource.
+          </p>
+          <p className="text-muted-foreground">
+            When registering artifacts from this session, include createdBySessionId{" "}
+            {sessionId}. Tickets and PR resources do not use session attribution.
           </p>
         </div>
         <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-secondary/40 p-4 font-mono text-xs leading-5 text-foreground">
@@ -364,6 +373,7 @@ function buildCodexActionPrompt({
   action,
   claimCommand,
   pullRequestCommand,
+  sessionId,
   taskNotesCommand,
   taskNotesPath,
   taskDescription,
@@ -373,6 +383,7 @@ function buildCodexActionPrompt({
   readonly action: ApiTaskAction;
   readonly claimCommand: string;
   readonly pullRequestCommand: string;
+  readonly sessionId: string;
   readonly taskNotesCommand: string;
   readonly taskNotesPath: string;
   readonly taskDescription: string | null;
@@ -422,6 +433,12 @@ If CODEX_THREAD_ID is not set, still continue with the task and report that clai
 The claim response includes a \`taskOverview\` object with the current task,
 selected action, existing resources, child tasks, and \`latestTaskActivityAt\`.
 Use that returned overview before deciding what to inspect or change.
+
+## Tasker artifact attribution
+
+When registering artifacts created by this session, include \`"createdBySessionId": "${sessionId}"\`
+in the artifact resource payload. Tickets and PR resources do not use session
+attribution.
 
 ## Tasker task notes
 
@@ -506,11 +523,13 @@ function buildSessionTaskNotesPath(taskId: string, sessionId: string): string {
 function buildCodexTaskNotesResourceCommand({
   action,
   apiUrl,
+  sessionId,
   taskNotesPath,
   taskId
 }: {
   readonly action: ApiTaskAction;
   readonly apiUrl: string;
+  readonly sessionId: string;
   readonly taskNotesPath: string;
   readonly taskId: string;
 }): string {
@@ -537,6 +556,7 @@ curl -sS -X POST "${resourceUrl}" \\
   -H "Content-Type: application/json" \\
   --data-binary @- <<EOF
 {
+  "createdBySessionId": ${JSON.stringify(sessionId)},
   "kind": "summary",
   "label": ${JSON.stringify(resourceLabel)},
   "uri": "$notes_path"

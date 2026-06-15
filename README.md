@@ -20,9 +20,43 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm install-daemon
 pnpm dev:web
 pnpm dev:api
 pnpm dev:worker
+```
+
+## Daemon install
+
+`pnpm install-daemon` builds Tasker, copies a runtime snapshot into a per-user
+Tasker directory, installs a user service, verifies `/health`, and opens the app.
+
+Default install:
+
+```sh
+pnpm install-daemon --yes
+```
+
+Default URL:
+
+```text
+http://tasker.localhost:48273
+```
+
+Pretty URL mode keeps the app daemon as the current user and installs a small
+root-owned port-80 proxy:
+
+```sh
+pnpm install-daemon --access pretty
+```
+
+Pretty URL mode may prompt for a password.
+
+Install locations:
+
+```text
+macOS: ~/Library/Application Support/Tasker
+Linux: ~/.local/share/tasker
 ```
 
 ## Layout

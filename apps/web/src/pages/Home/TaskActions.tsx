@@ -22,8 +22,12 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { localApiBaseUrl } from "@/lib/env";
 import { cn } from "@/lib/utils";
+
+const defaultWorktreePath = "~/wt";
 
 const taskActionIcons: Record<string, LucideIcon> = {
   breakdown: ListTree,
@@ -128,13 +132,25 @@ export function TaskActionPromptDialog({
   readonly taskTitle: string;
 }): React.JSX.Element {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [createWorktree, setCreateWorktree] = useState(false);
+  const [worktreePath, setWorktreePath] = useState(defaultWorktreePath);
 
   useEffect(() => {
     setCopiedPrompt(false);
+  }, [action, createWorktree, session, worktreePath]);
+
+  useEffect(() => {
+    setCreateWorktree(false);
+    setWorktreePath(defaultWorktreePath);
   }, [action, session]);
 
   const claimCommand =
     session == null ? "" : buildCodexClaimCommand(localApiBaseUrl, session.id);
+  const worktreeOptions = buildWorktreePromptOptions({
+    action,
+    createWorktree,
+    worktreePath
+  });
   const taskNotesPath =
     session == null ? "" : buildSessionTaskNotesPath(taskId, session.id);
   const taskNotesCommand =
@@ -164,7 +180,8 @@ export function TaskActionPromptDialog({
           taskNotesCommand,
           taskNotesPath,
           taskDescription,
-          taskTitle
+          taskTitle,
+          worktreeOptions
         });
 
   async function copyPrompt(): Promise<void> {
@@ -198,6 +215,33 @@ export function TaskActionPromptDialog({
         </DialogHeader>
 
         <div className="grid min-h-0 gap-4 overflow-y-auto border-t border-border p-5">
+          {action?.id === "implement" ? (
+            <section className="grid gap-3 rounded-lg border border-border bg-secondary/30 p-4">
+              <label className="flex min-w-0 items-center gap-3 text-sm font-medium text-foreground">
+                <input
+                  type="checkbox"
+                  checked={createWorktree}
+                  onChange={(event) => setCreateWorktree(event.target.checked)}
+                  className={cn(
+                    "size-4 shrink-0 rounded border border-input bg-background accent-primary",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  )}
+                />
+                <span>Create a worktree</span>
+              </label>
+              <div className="grid gap-2">
+                <Label htmlFor="implement-worktree-path">Worktree location</Label>
+                <Input
+                  id="implement-worktree-path"
+                  value={worktreePath}
+                  disabled={!createWorktree}
+                  placeholder={defaultWorktreePath}
+                  onChange={(event) => setWorktreePath(event.target.value)}
+                />
+              </div>
+            </section>
+          ) : null}
+
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-medium">Prompt preview</span>
             <Button
@@ -220,6 +264,7 @@ export function TaskActionPromptDialog({
               taskNotesPath={taskNotesPath}
               taskDescription={taskDescription}
               taskTitle={taskTitle}
+              worktreeOptions={worktreeOptions}
             />
           )}
         </div>
@@ -235,7 +280,8 @@ function CodexPromptPreview({
   taskNotesCommand,
   taskNotesPath,
   taskDescription,
-  taskTitle
+  taskTitle,
+  worktreeOptions
 }: {
   readonly action: ApiTaskAction;
   readonly claimCommand: string;
@@ -244,6 +290,7 @@ function CodexPromptPreview({
   readonly taskNotesPath: string;
   readonly taskDescription: string | null;
   readonly taskTitle: string;
+  readonly worktreeOptions: WorktreePromptOptions;
 }): React.JSX.Element {
   const description = taskDescription?.trim();
 
@@ -260,6 +307,16 @@ function CodexPromptPreview({
         <h4 className="font-medium text-foreground">Action</h4>
         <p className="text-muted-foreground">{action.prompt}</p>
       </section>
+
+      {worktreeOptions.createWorktree ? (
+        <section className="grid gap-2 border-b border-border pb-4">
+          <h4 className="font-medium text-foreground">Worktree</h4>
+          <p className="text-muted-foreground">
+            Create an isolated git worktree at {worktreeOptions.path} before editing
+            files.
+          </p>
+        </section>
+      ) : null}
 
       <section className="grid gap-3 border-b border-border pb-4">
         <div className="grid gap-1">
@@ -310,7 +367,8 @@ function buildCodexActionPrompt({
   taskNotesCommand,
   taskNotesPath,
   taskDescription,
-  taskTitle
+  taskTitle,
+  worktreeOptions
 }: {
   readonly action: ApiTaskAction;
   readonly claimCommand: string;
@@ -319,6 +377,7 @@ function buildCodexActionPrompt({
   readonly taskNotesPath: string;
   readonly taskDescription: string | null;
   readonly taskTitle: string;
+  readonly worktreeOptions: WorktreePromptOptions;
 }): string {
   const description = taskDescription?.trim();
   const contextLines = [
@@ -330,8 +389,23 @@ function buildCodexActionPrompt({
     "## Action",
     action.prompt
   ];
+  const worktreeSection = worktreeOptions.createWorktree
+    ? `
+## Worktree
 
-  return `${contextLines.join("\n")}
+Before editing files, create an isolated git worktree for this implementation.
+Use this location unless it is unavailable:
+
+\`${worktreeOptions.path}\`
+
+Base the worktree on the latest fetched \`origin/main\` or \`origin/master\`, not on
+the current checkout's local branch. Leave existing uncommitted changes in the
+primary checkout untouched. Do all implementation, verification, commit, push,
+and pull request work from inside the worktree.
+`
+    : "";
+
+  return `${contextLines.join("\n")}${worktreeSection}
 
 ## Tasker session claim
 
@@ -378,6 +452,35 @@ ${pullRequestCommand}
 \`\`\`
 
 If PR registration fails, still finish the task and report the failure.`;
+}
+
+type WorktreePromptOptions = {
+  readonly createWorktree: boolean;
+  readonly path: string;
+};
+
+function buildWorktreePromptOptions({
+  action,
+  createWorktree,
+  worktreePath
+}: {
+  readonly action: ApiTaskAction | null;
+  readonly createWorktree: boolean;
+  readonly worktreePath: string;
+}): WorktreePromptOptions {
+  if (action?.id !== "implement" || !createWorktree) {
+    return {
+      createWorktree: false,
+      path: defaultWorktreePath
+    };
+  }
+
+  const trimmedPath = worktreePath.trim();
+
+  return {
+    createWorktree: true,
+    path: trimmedPath.length === 0 ? defaultWorktreePath : trimmedPath
+  };
 }
 
 function buildCodexClaimCommand(apiUrl: string, sessionId: string): string {

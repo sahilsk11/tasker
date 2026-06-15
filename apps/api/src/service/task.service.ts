@@ -23,6 +23,19 @@ export type TaskResources = {
   readonly tickets: readonly TaskTicket[];
 };
 
+export type TaskSessionHandoff = {
+  readonly action: TaskAction | null;
+  readonly children: readonly Task[];
+  readonly latestTaskActivityAt: Date;
+  readonly resources: TaskResources;
+  readonly task: Task;
+};
+
+export type ClaimedTaskSession = {
+  readonly handoff: TaskSessionHandoff;
+  readonly session: TaskSession;
+};
+
 export class TaskService {
   public constructor(
     private readonly tasks: TaskRepository,
@@ -58,14 +71,17 @@ export class TaskService {
   public async claimSession(
     sessionId: string,
     input: ClaimTaskSessionInput
-  ): Promise<TaskSession> {
+  ): Promise<ClaimedTaskSession> {
     const claimInput = await this.withDiscoveredTranscript(input);
     const session = await this.sessions.claim(sessionId, claimInput);
     if (session == null) {
       throw new NotFoundError(`Task session ${sessionId} not found`);
     }
 
-    return session;
+    return {
+      handoff: await this.getSessionHandoff(session),
+      session
+    };
   }
 
   public async addTicket(
@@ -151,6 +167,32 @@ export class TaskService {
     return task;
   }
 
+  private async getSessionHandoff(session: TaskSession): Promise<TaskSessionHandoff> {
+    const [task, resources, children] = await Promise.all([
+      this.requireTask(session.taskId),
+      this.getResources(session.taskId),
+      this.listChildren(session.taskId)
+    ]);
+    const action =
+      defaultTaskActions.find((candidate) => candidate.id === session.actionId) ?? null;
+
+    return {
+      action,
+      children,
+      latestTaskActivityAt: latestDate([
+        task.updatedAt,
+        ...children.map((child) => child.updatedAt),
+        ...resources.artifacts.map((artifact) => artifact.createdAt),
+        ...resources.sessions.map((resourceSession) =>
+          resourceSession.claimedAt ?? resourceSession.createdAt
+        ),
+        ...resources.tickets.map((ticket) => ticket.createdAt)
+      ]),
+      resources,
+      task
+    };
+  }
+
   private async withDiscoveredTranscript(
     input: ClaimTaskSessionInput
   ): Promise<ClaimTaskSessionInput> {
@@ -169,6 +211,12 @@ export class TaskService {
 
     return transcriptPath == null ? input : { ...input, transcriptPath };
   }
+}
+
+function latestDate(values: readonly Date[]): Date {
+  return values.reduce((latest, value) =>
+    value.getTime() > latest.getTime() ? value : latest
+  );
 }
 
 const defaultTaskActions = [

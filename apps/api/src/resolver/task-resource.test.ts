@@ -67,6 +67,7 @@ void test("task resources can register PR links", async () => {
     }).resources;
     assert.equal(resources.artifacts.length, 1);
     const artifact = resources.artifacts[0];
+    assert.ok(artifact);
     assert.equal(artifact.id, resource.id);
     assert.equal(artifact.kind, "pr");
     assert.equal(artifact.label, "Implementation PR");

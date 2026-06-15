@@ -135,11 +135,11 @@ export function registerTaskResolver(
 
   server.post("/sessions/:sessionId/claim", async (request) => {
     const { sessionId } = sessionIdParamsSchema.parse(request.params);
-    const session = await taskService.claimSession(
+    const claimedSession = await taskService.claimSession(
       sessionId,
       parseClaimSessionInput(request.body)
     );
-    return { session };
+    return claimedSession;
   });
 
   server.get("/tasks/:id/tickets", async (request) => {

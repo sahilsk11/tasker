@@ -291,8 +291,8 @@ function CodexPromptPreview({
         <div className="grid gap-1">
           <h4 className="font-medium text-foreground">Tasker session claim</h4>
           <p className="text-muted-foreground">
-            Before doing the task, claim this Tasker session. If CODEX_THREAD_ID
-            is not set, continue with the task and report that claim failed.
+            Before doing the task, claim this Tasker session and use the returned
+            handoff context to understand existing resources and recent activity.
           </p>
         </div>
         <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-secondary/40 p-4 font-mono text-xs leading-5 text-foreground">
@@ -344,6 +344,10 @@ ${claimCommand}
 \`\`\`
 
 If CODEX_THREAD_ID is not set, still continue with the task and report that claim failed.
+
+The claim response includes a \`handoff\` object with the current task, selected
+action, existing resources, child tasks, and \`latestTaskActivityAt\`. Use that
+returned context before deciding what to inspect or change.
 
 ## Tasker artifact handoff
 

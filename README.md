@@ -15,8 +15,10 @@ TypeScript frontend/backend for creating and viewing coding-agent tasks with per
 ```sh
 corepack enable
 pnpm install
+pnpm check:ci
 pnpm lint
 pnpm typecheck
+pnpm test
 pnpm build
 pnpm dev:web
 pnpm dev:api

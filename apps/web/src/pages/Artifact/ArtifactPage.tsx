@@ -2,14 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Pencil, Save } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import ReactMarkdown from "react-markdown";
 import { useNavigate, useParams } from "react-router";
-import remarkGfm from "remark-gfm";
 import { getTaskArtifactContent } from "@/api/tasks";
 import type { ApiArtifactContent } from "@/api/tasks";
+import { MarkdownDocument } from "@/components/MarkdownDocument";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 
 export function ArtifactPage(): React.JSX.Element {
   const navigate = useNavigate();
@@ -142,100 +140,20 @@ function MarkdownArtifact({ content }: { readonly content: string }): React.JSX.
         )}
       </div>
       {mode === "edit" ? (
-        <Textarea
+        <MarkdownDocument
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          spellCheck={false}
-          className="min-h-0 flex-1 resize-none rounded-none border-0 bg-background p-5 font-mono text-sm leading-6 focus-visible:ring-0"
+          onChange={setDraft}
+          mode="edit"
+          className="flex min-h-0 flex-1"
         />
       ) : (
-        <MarkdownPreview content={draft} />
+        <MarkdownDocument
+          value={draft}
+          onChange={setDraft}
+          mode="view"
+          className="flex min-h-0 flex-1"
+        />
       )}
-    </div>
-  );
-}
-
-function MarkdownPreview({ content }: { readonly content: string }): React.JSX.Element {
-  return (
-    <div className="min-h-0 flex-1 overflow-auto px-5 py-6">
-      <div className="mx-auto w-full max-w-4xl text-sm leading-7 text-foreground">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            a: ({ children, ...props }) => (
-              <a
-                {...props}
-                className="font-medium text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
-                rel="noreferrer"
-                target="_blank"
-              >
-                {children}
-              </a>
-            ),
-            blockquote: ({ children }) => (
-              <blockquote className="mb-4 border-l-2 border-border pl-4 text-muted-foreground">
-                {children}
-              </blockquote>
-            ),
-            code: ({ children, className }) => (
-              <code className={className ?? "rounded bg-secondary px-1.5 py-0.5 font-mono text-[0.9em]"}>
-                {children}
-              </code>
-            ),
-            h1: ({ children }) => (
-              <h1 className="mb-4 text-3xl font-semibold leading-tight">
-                {children}
-              </h1>
-            ),
-            h2: ({ children }) => (
-              <h2 className="mb-3 mt-6 text-2xl font-semibold leading-tight">
-                {children}
-              </h2>
-            ),
-            h3: ({ children }) => (
-              <h3 className="mb-2 mt-5 text-lg font-semibold leading-snug">
-                {children}
-              </h3>
-            ),
-            hr: () => <hr className="my-6 border-border" />,
-            li: ({ children }) => <li>{children}</li>,
-            ol: ({ children }) => (
-              <ol className="mb-4 list-decimal space-y-1 pl-6">{children}</ol>
-            ),
-            p: ({ children }) => (
-              <p className="mb-4 text-muted-foreground">{children}</p>
-            ),
-            pre: ({ children }) => (
-              <pre className="mb-4 overflow-auto rounded-md border border-border bg-background p-4 text-sm leading-6 text-foreground">
-                {children}
-              </pre>
-            ),
-            table: ({ children }) => (
-              <div className="mb-4 overflow-auto rounded-md border border-border">
-                <table className="w-full border-collapse text-left">{children}</table>
-              </div>
-            ),
-            tbody: ({ children }) => <tbody>{children}</tbody>,
-            td: ({ children }) => (
-              <td className="border-t border-border px-3 py-2 align-top text-muted-foreground">
-                {children}
-              </td>
-            ),
-            th: ({ children }) => (
-              <th className="border-b border-border bg-secondary/50 px-3 py-2 font-medium">
-                {children}
-              </th>
-            ),
-            thead: ({ children }) => <thead>{children}</thead>,
-            tr: ({ children }) => <tr>{children}</tr>,
-            ul: ({ children }) => (
-              <ul className="mb-4 list-disc space-y-1 pl-6">{children}</ul>
-            )
-          }}
-        >
-          {content}
-        </ReactMarkdown>
-      </div>
     </div>
   );
 }

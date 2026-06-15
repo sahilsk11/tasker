@@ -1,18 +1,23 @@
 import {
+  ArrowLeft,
   Check,
   ClipboardCheck,
   Copy,
   Code2,
+  LoaderCircle,
   ListTree,
   MapIcon,
   MessageSquareText,
   MoreHorizontal,
+  Pencil,
+  Save,
   Search,
   Workflow
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ApiSession, ApiTaskAction } from "@/api/tasks";
+import { MarkdownDocument } from "@/components/MarkdownDocument";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,12 +81,16 @@ export function TaskActionRow({
 
 export function TaskActionsDialog({
   actions,
+  error,
+  isPreparingPrompt,
   onOpenChange,
   onSelectAction,
   open,
   taskTitle
 }: {
   readonly actions: readonly ApiTaskAction[];
+  readonly error: string | null;
+  readonly isPreparingPrompt: boolean;
   readonly onOpenChange: (isOpen: boolean) => void;
   readonly onSelectAction: (action: ApiTaskAction) => void;
   readonly open: boolean;
@@ -101,12 +110,14 @@ export function TaskActionsDialog({
           <DialogDescription>
             Suggested prompts for {taskTitle}. Starting sessions is not wired yet.
           </DialogDescription>
+          <TaskActionDialogStatus error={error} isPreparingPrompt={isPreparingPrompt} />
         </DialogHeader>
         <div className="grid min-h-0 gap-2 overflow-y-auto border-t border-border p-5 md:grid-cols-2">
           {actions.map((action) => (
             <TaskActionListItem
               key={action.id}
               action={action}
+              disabled={isPreparingPrompt}
               onSelect={() => onSelectAction(action)}
             />
           ))}
@@ -118,6 +129,7 @@ export function TaskActionsDialog({
 
 export function TaskActionPromptDialog({
   action,
+  onBack,
   onOpenChange,
   session,
   taskDescription,
@@ -125,6 +137,7 @@ export function TaskActionPromptDialog({
   taskTitle
 }: {
   readonly action: ApiTaskAction | null;
+  readonly onBack: () => void;
   readonly onOpenChange: (isOpen: boolean) => void;
   readonly session: ApiSession | null;
   readonly taskDescription: string | null;
@@ -133,6 +146,8 @@ export function TaskActionPromptDialog({
 }): React.JSX.Element {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [createWorktree, setCreateWorktree] = useState(false);
+  const [markdownMode, setMarkdownMode] = useState<"edit" | "view">("view");
+  const [promptDraft, setPromptDraft] = useState("");
   const [worktreePath, setWorktreePath] = useState(defaultWorktreePath);
 
   useEffect(() => {
@@ -141,6 +156,7 @@ export function TaskActionPromptDialog({
 
   useEffect(() => {
     setCreateWorktree(false);
+    setMarkdownMode("view");
     setWorktreePath(defaultWorktreePath);
   }, [action, session]);
 
@@ -186,12 +202,16 @@ export function TaskActionPromptDialog({
           worktreeOptions
         });
 
+  useEffect(() => {
+    setPromptDraft(prompt);
+  }, [prompt]);
+
   async function copyPrompt(): Promise<void> {
-    if (prompt.length === 0) {
+    if (promptDraft.length === 0) {
       return;
     }
 
-    await copyPlainText(prompt);
+    await copyPlainText(promptDraft);
     setCopiedPrompt(true);
   }
 
@@ -200,20 +220,23 @@ export function TaskActionPromptDialog({
   return (
     <Dialog open={action != null && session != null} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden p-0">
-        <DialogHeader>
-          <div className="p-5 pb-0">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Icon className="size-4" />
-              <span className="text-xs font-medium uppercase tracking-[0.12em]">
-                Codex prompt
-              </span>
-            </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="absolute left-4 top-4 z-10"
+          onClick={onBack}
+          aria-label="Back to task actions"
+          title="Back to task actions"
+        >
+          <ArrowLeft className="size-4" />
+        </Button>
+        <DialogHeader className="gap-3 p-5 pb-5 pl-12 pr-12 pt-14">
+          <div className="flex min-w-0 items-center gap-2">
+            <Icon className="size-5 shrink-0 text-muted-foreground" />
             <DialogTitle>{action?.label ?? "Action prompt"}</DialogTitle>
-            <DialogDescription>
-              Copy this markdown prompt into Codex. The claim command uses the
-              local Tasker API, not this browser URL.
-            </DialogDescription>
           </div>
+          <DialogDescription className="mt-1">{action?.description}</DialogDescription>
         </DialogHeader>
 
         <div className="grid min-h-0 gap-4 overflow-y-auto border-t border-border p-5">
@@ -244,128 +267,59 @@ export function TaskActionPromptDialog({
             </section>
           ) : null}
 
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-medium">Prompt preview</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void copyPrompt()}
-              disabled={prompt.length === 0}
-            >
-              {copiedPrompt ? <Check className="size-4" /> : <Copy className="size-4" />}
-              <span>{copiedPrompt ? "Copied" : "Copy prompt"}</span>
-            </Button>
-          </div>
-          {action == null || session == null ? null : (
-            <CodexPromptPreview
-              action={action}
-              claimCommand={claimCommand}
-              pullRequestCommand={pullRequestCommand}
-              sessionId={session.id}
-              taskNotesCommand={taskNotesCommand}
-              taskNotesPath={taskNotesPath}
-              taskDescription={taskDescription}
-              taskTitle={taskTitle}
-              worktreeOptions={worktreeOptions}
+          <section className="flex h-[min(30rem,calc(100dvh-18rem))] min-h-80 flex-col overflow-hidden rounded-lg border border-border bg-card">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+              <span className="text-sm font-medium text-foreground">Prompt preview</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void copyPrompt()}
+                  disabled={promptDraft.length === 0}
+                >
+                  {copiedPrompt ? (
+                    <Check className="size-4" />
+                  ) : (
+                    <Copy className="size-4" />
+                  )}
+                  <span>{copiedPrompt ? "Copied" : "Copy"}</span>
+                </Button>
+                {markdownMode === "view" ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setMarkdownMode("edit")}
+                  >
+                    <Pencil className="size-4" />
+                    <span>Edit</span>
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    onClick={() => setMarkdownMode("view")}
+                  >
+                    <Save className="size-4" />
+                    <span>Save</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+            <MarkdownDocument
+              value={promptDraft}
+              onChange={setPromptDraft}
+              mode={markdownMode}
+              className="flex min-h-0 flex-1"
+              previewClassName="px-5 py-5"
+              textareaClassName="min-h-0"
             />
-          )}
+          </section>
         </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function CodexPromptPreview({
-  action,
-  claimCommand,
-  pullRequestCommand,
-  sessionId,
-  taskNotesCommand,
-  taskNotesPath,
-  taskDescription,
-  taskTitle,
-  worktreeOptions
-}: {
-  readonly action: ApiTaskAction;
-  readonly claimCommand: string;
-  readonly pullRequestCommand: string;
-  readonly sessionId: string;
-  readonly taskNotesCommand: string;
-  readonly taskNotesPath: string;
-  readonly taskDescription: string | null;
-  readonly taskTitle: string;
-  readonly worktreeOptions: WorktreePromptOptions;
-}): React.JSX.Element {
-  const description = taskDescription?.trim();
-
-  return (
-    <div className="grid gap-4 text-sm leading-6">
-      <section className="grid gap-2 border-b border-border pb-4">
-        <h3 className="text-base font-semibold text-foreground">{taskTitle}</h3>
-        {description == null || description.length === 0 ? null : (
-          <p className="text-muted-foreground">{description}</p>
-        )}
-      </section>
-
-      <section className="grid gap-2 border-b border-border pb-4">
-        <h4 className="font-medium text-foreground">Action</h4>
-        <p className="text-muted-foreground">{action.prompt}</p>
-      </section>
-
-      {worktreeOptions.createWorktree ? (
-        <section className="grid gap-2 border-b border-border pb-4">
-          <h4 className="font-medium text-foreground">Worktree</h4>
-          <p className="text-muted-foreground">
-            Create an isolated git worktree at {worktreeOptions.path} before editing
-            files.
-          </p>
-        </section>
-      ) : null}
-
-      <section className="grid gap-3 border-b border-border pb-4">
-        <div className="grid gap-1">
-          <h4 className="font-medium text-foreground">Tasker task notes</h4>
-          <p className="text-muted-foreground">
-            Before finishing, write durable findings to {taskNotesPath} and register
-            that file as a Tasker resource.
-          </p>
-          <p className="text-muted-foreground">
-            When registering artifacts from this session, include createdBySessionId{" "}
-            {sessionId}. Tickets and PR resources do not use session attribution.
-          </p>
-        </div>
-        <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-secondary/40 p-4 font-mono text-xs leading-5 text-foreground">
-          {taskNotesCommand}
-        </pre>
-      </section>
-
-      <section className="grid gap-3 border-b border-border pb-4">
-        <div className="grid gap-1">
-          <h4 className="font-medium text-foreground">Optional pull request</h4>
-          <p className="text-muted-foreground">
-            If this session opens a pull request, register the PR URL as a Tasker
-            resource before finishing.
-          </p>
-        </div>
-        <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-secondary/40 p-4 font-mono text-xs leading-5 text-foreground">
-          {pullRequestCommand}
-        </pre>
-      </section>
-
-      <section className="grid gap-3">
-        <div className="grid gap-1">
-          <h4 className="font-medium text-foreground">Tasker session claim</h4>
-          <p className="text-muted-foreground">
-            Before doing the task, claim this Tasker session and use the returned
-            task overview to understand existing resources and recent activity.
-          </p>
-        </div>
-        <pre className="max-h-72 overflow-auto rounded-lg border border-border bg-secondary/40 p-4 font-mono text-xs leading-5 text-foreground">
-          {claimCommand}
-        </pre>
-      </section>
-    </div>
   );
 }
 
@@ -625,11 +579,43 @@ function TaskActionButton({
   );
 }
 
+function TaskActionDialogStatus({
+  error,
+  isPreparingPrompt
+}: {
+  readonly error: string | null;
+  readonly isPreparingPrompt: boolean;
+}): React.JSX.Element | null {
+  if (error != null) {
+    return (
+      <p className="flex min-w-0 items-center gap-2 text-sm leading-6 text-destructive">
+        {error}
+      </p>
+    );
+  }
+
+  if (!isPreparingPrompt) {
+    return null;
+  }
+
+  return (
+    <p
+      className="flex min-w-0 items-center gap-2 text-sm leading-6 text-muted-foreground"
+      aria-live="polite"
+    >
+      <LoaderCircle className="size-4 shrink-0 animate-spin" />
+      <span>Preparing prompt...</span>
+    </p>
+  );
+}
+
 function TaskActionListItem({
   action,
+  disabled,
   onSelect
 }: {
   readonly action: ApiTaskAction;
+  readonly disabled: boolean;
   readonly onSelect: () => void;
 }): React.JSX.Element {
   const Icon = taskActionIcons[action.id] ?? Workflow;
@@ -640,8 +626,10 @@ function TaskActionListItem({
       className={cn(
         "grid min-w-0 gap-2 rounded-lg border border-border p-3 text-left",
         "transition-colors hover:bg-secondary/60",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "disabled:cursor-wait disabled:opacity-60 disabled:hover:bg-transparent"
       )}
+      disabled={disabled}
       onClick={onSelect}
     >
       <div className="flex min-w-0 items-center gap-2">

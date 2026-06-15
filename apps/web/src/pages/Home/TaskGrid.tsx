@@ -64,7 +64,14 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
     groupedResources.find((group) => group.kind === selectedKind) ?? null;
   const description = bundle.task.description ?? "No description provided.";
 
-  async function openActionPrompt(action: ApiTaskAction): Promise<void> {
+  async function openActionPrompt(
+    action: ApiTaskAction,
+    {
+      closeActionsWhenReady
+    }: {
+      readonly closeActionsWhenReady: boolean;
+    }
+  ): Promise<void> {
     setActionError(null);
     setIsCreatingPrompt(true);
 
@@ -76,6 +83,9 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
       });
       setSelectedSession(session);
       setSelectedAction(action);
+      if (closeActionsWhenReady) {
+        setShowAllActions(false);
+      }
     } catch (error) {
       setActionError(
         error instanceof Error ? error.message : "Failed to create task session."
@@ -86,11 +96,12 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
   }
 
   function selectAction(action: ApiTaskAction): void {
-    const delayMs = showAllActions ? 100 : 0;
-    setShowAllActions(false);
-    window.setTimeout(() => {
-      void openActionPrompt(action);
-    }, delayMs);
+    void openActionPrompt(action, { closeActionsWhenReady: showAllActions });
+  }
+
+  function openAllActions(): void {
+    setActionError(null);
+    setShowAllActions(true);
   }
 
   function openResource(resource: Resource): void {
@@ -134,12 +145,12 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
             <TaskActionRow
               actions={bundle.actions}
               onSelectAction={selectAction}
-              onViewAll={() => setShowAllActions(true)}
+              onViewAll={openAllActions}
             />
             {actionError == null ? null : (
               <p className="text-sm text-destructive">{actionError}</p>
             )}
-            {isCreatingPrompt ? (
+            {isCreatingPrompt && !showAllActions ? (
               <p className="text-sm text-muted-foreground">Preparing prompt...</p>
             ) : null}
           </div>
@@ -148,6 +159,8 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
 
       <TaskActionsDialog
         actions={bundle.actions}
+        error={actionError}
+        isPreparingPrompt={isCreatingPrompt}
         onOpenChange={setShowAllActions}
         onSelectAction={selectAction}
         open={showAllActions}
@@ -155,6 +168,11 @@ function TaskCard({ bundle }: { readonly bundle: TaskBundle }): React.JSX.Elemen
       />
       <TaskActionPromptDialog
         action={selectedAction}
+        onBack={() => {
+          setSelectedAction(null);
+          setSelectedSession(null);
+          setShowAllActions(true);
+        }}
         onOpenChange={(isOpen) => {
           if (!isOpen) {
             setSelectedAction(null);

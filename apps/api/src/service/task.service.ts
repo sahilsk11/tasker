@@ -18,6 +18,8 @@ import type { TaskArtifactRepository } from "../repository/task-artifact.reposit
 import type { TaskPullRequestRepository } from "../repository/task-pull-request.repository.js";
 import type { TaskSessionRepository } from "../repository/task-session.repository.js";
 import type { TaskTicketRepository } from "../repository/task-ticket.repository.js";
+import type { TaskActionRepository } from "../repository/task-action.repository.js";
+import { toTaskAction } from "../repository/task-action.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 import {
   defaultCodexSessionsRoot,
@@ -67,6 +69,7 @@ export class TaskService {
     private readonly pullRequests: TaskPullRequestRepository,
     private readonly sessions: TaskSessionRepository,
     private readonly tickets: TaskTicketRepository,
+    private readonly actions: TaskActionRepository,
     private readonly codexSessionsRoot = defaultCodexSessionsRoot()
   ) {}
 
@@ -96,6 +99,9 @@ export class TaskService {
     input: CreateTaskSessionInput
   ): Promise<TaskSession> {
     await this.requireTask(taskId);
+    if (input.actionId != null) {
+      await this.requireEnabledAction(input.actionId);
+    }
     return this.sessions.createForTask(taskId, input);
   }
 
@@ -214,7 +220,8 @@ export class TaskService {
 
   public async listActions(taskId: TaskId): Promise<readonly TaskAction[]> {
     await this.requireTask(taskId);
-    return defaultTaskActions;
+    const records = await this.actions.listEnabled();
+    return records.map(toTaskAction);
   }
 
   public async getTask(taskId: TaskId): Promise<Task> {
@@ -286,6 +293,13 @@ export class TaskService {
     }
   }
 
+  private async requireEnabledAction(actionId: string): Promise<void> {
+    const action = await this.actions.findById(actionId);
+    if (action == null) {
+      throw new BadRequestError(`Task action ${actionId} not found`);
+    }
+  }
+
   private async getTaskOverview(session: TaskSession): Promise<TaskOverview> {
     const [task, resources, children] = await Promise.all([
       this.requireTask(session.taskId),
@@ -293,10 +307,10 @@ export class TaskService {
       this.listChildren(session.taskId)
     ]);
     const action =
-      defaultTaskActions.find((candidate) => candidate.id === session.actionId) ?? null;
+      session.actionId == null ? null : await this.actions.findById(session.actionId);
 
     return {
-      action,
+      action: action == null ? null : toTaskAction(action),
       children,
       latestTaskActivityAt: latestDate([
         task.updatedAt,
@@ -400,48 +414,3 @@ function latestDate(values: readonly Date[]): Date {
     value.getTime() > latest.getTime() ? value : latest
   );
 }
-
-const defaultTaskActions = [
-  {
-    description: "Inspect the task and produce a concise recommendation.",
-    id: "investigate",
-    isRecommended: true,
-    label: "Investigate",
-    prompt: "Investigate this task and summarize what should happen next."
-  },
-  {
-    description: "Turn the task into a concrete plan before implementation.",
-    id: "plan",
-    isRecommended: true,
-    label: "Plan",
-    prompt: "Create a practical implementation plan for this task."
-  },
-  {
-    description: "Break the task into smaller child tasks or a dependency outline.",
-    id: "breakdown",
-    isRecommended: false,
-    label: "Break down",
-    prompt: "Break this task down into smaller subtasks and dependencies."
-  },
-  {
-    description: "Start implementing the task from the available context.",
-    id: "implement",
-    isRecommended: false,
-    label: "Implement",
-    prompt: "Implement this task using the current repository context."
-  },
-  {
-    description: "Review the current work and identify issues or missing tests.",
-    id: "code_review",
-    isRecommended: false,
-    label: "Code review",
-    prompt: "Review the work attached to this task and call out concrete issues."
-  },
-  {
-    description: "Open a general-purpose agent session attached to this task.",
-    id: "new_session",
-    isRecommended: false,
-    label: "New session",
-    prompt: "Start a new session for this task."
-  }
-] satisfies readonly TaskAction[];

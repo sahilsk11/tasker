@@ -1,5 +1,6 @@
 export type { CreateTaskArtifactInput, TaskArtifact, TaskArtifactId } from "./task-artifact.js";
-export type { TaskAction, TaskActionId } from "./task-action.js";
+export type { TaskAction, TaskActionPromptContext, TaskActionRecord } from "./task-action.js";
+export type { TaskActionOptions } from "./task-action-options.js";
 export type {
   CreateTaskPullRequestInput,
   TaskPullRequest,

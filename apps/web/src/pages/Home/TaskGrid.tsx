@@ -1,9 +1,20 @@
 import { useState } from "react";
+import {
+  CheckCircle2,
+  Circle,
+  Code2,
+  FileSearch,
+  GitMerge,
+  GitPullRequest,
+  ListChecks
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router";
 import { createTaskSession } from "@/api/tasks";
-import type { ApiSession, ApiTaskAction, TaskBundle } from "@/api/tasks";
+import type { ApiSession, ApiTaskAction, TaskBundle, TaskState } from "@/api/tasks";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import type { PullRequestStatusMap } from "./use-pull-request-statuses";
 import {
   TaskActionPromptDialog,
@@ -48,6 +59,54 @@ export function TaskGrid({
   );
 }
 
+type TaskStateMeta = {
+  readonly Icon: LucideIcon;
+  readonly iconClassName: string;
+  readonly label: string;
+};
+
+const taskStateMeta: Record<TaskState, TaskStateMeta> = {
+  code_review: {
+    Icon: GitPullRequest,
+    iconClassName: "border-info/30 bg-info/10 text-info",
+    label: "Code review"
+  },
+  done: {
+    Icon: CheckCircle2,
+    iconClassName: "border-success/30 bg-success/10 text-success",
+    label: "Done"
+  },
+  implement: {
+    Icon: Code2,
+    iconClassName: "border-accent/30 bg-accent/15 text-accent-foreground",
+    label: "Implement"
+  },
+  merged: {
+    Icon: GitMerge,
+    iconClassName: "border-accent/30 bg-accent/15 text-accent-foreground",
+    label: "Merged"
+  },
+  plan: {
+    Icon: ListChecks,
+    iconClassName: "border-warning/30 bg-warning/10 text-warning",
+    label: "Plan"
+  },
+  ready: {
+    Icon: Circle,
+    iconClassName: "border-border bg-secondary text-secondary-foreground",
+    label: "Ready"
+  },
+  research: {
+    Icon: FileSearch,
+    iconClassName: "border-info/30 bg-info/10 text-info",
+    label: "Research"
+  }
+};
+
+function getTaskStateMeta(state: TaskState | undefined): TaskStateMeta {
+  return state == null ? taskStateMeta.ready : taskStateMeta[state];
+}
+
 export function TaskGridSkeleton(): React.JSX.Element {
   return (
     <section className="mx-auto grid w-full max-w-[76rem] grid-cols-1 gap-4 md:grid-cols-2">
@@ -76,6 +135,8 @@ function TaskCard({
   const selectedGroup =
     groupedResources.find((group) => group.kind === selectedKind) ?? null;
   const description = bundle.task.description ?? "No description provided.";
+  const stateMeta = getTaskStateMeta(bundle.task.state);
+  const StateIcon = stateMeta.Icon;
 
   async function openActionPrompt(
     action: ApiTaskAction,
@@ -134,11 +195,22 @@ function TaskCard({
         <CardHeader className="pb-5">
           <div className="flex min-w-0 items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-2.5">
+              <span
+                className={cn(
+                  "mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md border",
+                  stateMeta.iconClassName
+                )}
+                title={`Task state: ${stateMeta.label}`}
+              >
+                <StateIcon className="size-4" />
+              </span>
               <CardTitle className="min-w-0 overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] text-xl leading-7">
                 {bundle.task.title}
               </CardTitle>
             </div>
-            <TicketBadge bundle={bundle} />
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <TicketBadge bundle={bundle} />
+            </div>
           </div>
           <p className="mt-3 min-h-12 overflow-hidden text-sm leading-6 text-muted-foreground [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
             {description}

@@ -4,6 +4,7 @@ import {
   type PullRequestStatusResult
 } from "@/api/pull-requests";
 import type { TaskBundle } from "@/api/tasks";
+import { getPullRequestsForBundle } from "./task-resource-groups";
 
 export type PullRequestStatusMap = ReadonlyMap<string, PullRequestStatusResult>;
 
@@ -23,7 +24,7 @@ export function usePullRequestStatuses(
 function getPullRequestUrls(bundles: readonly TaskBundle[]): readonly string[] {
   const urls = new Set<string>();
   for (const bundle of bundles) {
-    for (const pullRequest of bundle.resources.pullRequests) {
+    for (const pullRequest of getPullRequestsForBundle(bundle)) {
       urls.add(pullRequest.url);
     }
   }

@@ -1,4 +1,5 @@
 import type { LinearIssueStatus, TaskBundle } from "@/api/tasks";
+import { getPullRequestsForBundle } from "./task-resource-groups";
 
 export type TaskFilter = "all" | "has-pr" | "has-ticket" | "root" | "subtask";
 
@@ -55,7 +56,7 @@ function matchesLinearStatus(bundle: TaskBundle, options: TaskViewOptions): bool
 function matchesFilter(bundle: TaskBundle, filter: TaskFilter): boolean {
   switch (filter) {
     case "has-pr":
-      return bundle.resources.pullRequests.length > 0;
+      return getPullRequestsForBundle(bundle).length > 0;
     case "has-ticket":
       return bundle.resources.tickets.length > 0;
     case "root":

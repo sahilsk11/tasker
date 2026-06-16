@@ -41,6 +41,16 @@ export function getResourceGroupsForBundle(
   return groupResources(getResourcesForBundle(bundle));
 }
 
+export function getPullRequestsForBundle(
+  bundle: TaskBundle
+): readonly ApiPullRequest[] {
+  const resources = bundle.resources as Omit<TaskBundle["resources"], "pullRequests"> & {
+    readonly pullRequests?: readonly ApiPullRequest[];
+  };
+
+  return resources.pullRequests ?? [];
+}
+
 function groupResources(resources: readonly Resource[]): readonly ResourceGroupView[] {
   const groups = new Map<ResourceKind, Resource[]>();
   for (const resource of resources) {
@@ -83,7 +93,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
       )
     ),
     ...bundle.resources.artifacts.map(resourceFromArtifact),
-    ...bundle.resources.pullRequests.map(resourceFromPullRequest),
+    ...getPullRequestsForBundle(bundle).map(resourceFromPullRequest),
     ...bundle.children.map((child) =>
       resource(
         "subtask",

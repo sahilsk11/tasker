@@ -68,7 +68,6 @@ export type TaskActionPromptValues = {
 export type CreateTaskSessionInput = {
   readonly actionId: string;
   readonly claimed: boolean;
-  readonly options?: TaskActionPromptValues;
   readonly provider: string;
 };
 
@@ -221,11 +220,11 @@ export async function createTaskSession(
 export async function renderTaskSessionPrompt(
   taskId: string,
   sessionId: string,
-  options?: TaskActionPromptValues
+  promptOptions?: TaskActionPromptValues
 ): Promise<string> {
   const { prompt } = await apiClient.post<{ readonly prompt: string }>(
     `/tasks/${taskId}/sessions/${sessionId}/prompt`,
-    options == null ? {} : { options }
+    promptOptions == null ? {} : { promptOptions }
   );
   return prompt;
 }

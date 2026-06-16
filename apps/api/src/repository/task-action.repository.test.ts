@@ -104,7 +104,7 @@ void test("session create returns rendered prompt and options can re-render it",
     const promptResponse = await app.inject({
       method: "POST",
       payload: {
-        options: {
+        promptOptions: {
           worktree: {
             enabled: true,
             path: "~/custom-wt"

@@ -29,7 +29,7 @@ const taskSessionParamsSchema = taskIdParamsSchema.extend({
 });
 
 const renderSessionPromptSchema = z.object({
-  options: taskActionPromptValuesSchema.optional()
+  promptOptions: taskActionPromptValuesSchema.optional()
 });
 
 const createTaskSchema = z.object({
@@ -58,7 +58,6 @@ const createSessionSchema = z.object({
   actionId: z.string().min(1).nullable().optional(),
   claimed: z.boolean().default(true),
   metadata: z.record(z.unknown()).nullable().optional(),
-  options: taskActionPromptValuesSchema.optional(),
   provider: z.string().min(1),
   providerId: z.string().min(1).nullable().optional(),
   transcriptPath: z.string().min(1).nullable().optional()
@@ -172,7 +171,7 @@ export function registerTaskResolver(
     const prompt = await taskService.renderSessionPrompt(
       id,
       sessionId,
-      parsed.options
+      parsed.promptOptions
     );
     return { prompt };
   });
@@ -219,7 +218,6 @@ function parseCreateSessionInput(body: unknown): CreateTaskSessionInput {
     ...(parsed.actionId !== undefined ? { actionId: parsed.actionId } : {}),
     ...(parsed.claimed ? {} : { claimedAt: null }),
     ...(parsed.metadata !== undefined ? { metadata: parsed.metadata } : {}),
-    ...(parsed.options !== undefined ? { options: parsed.options } : {}),
     provider: parsed.provider,
     ...(parsed.providerId !== undefined ? { providerId: parsed.providerId } : {}),
     ...(parsed.transcriptPath !== undefined

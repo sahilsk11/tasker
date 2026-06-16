@@ -115,7 +115,7 @@ export class TaskService {
     const prompt =
       session.actionId == null
         ? null
-        : await this.renderSessionPrompt(taskId, session.id, input.options);
+        : await this.renderSessionPrompt(taskId, session.id);
 
     return { prompt, session };
   }

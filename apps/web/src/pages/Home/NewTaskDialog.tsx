@@ -1,11 +1,13 @@
-import { Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { type SyntheticEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createLinearTaskTicket,
   createTask,
   createTaskTicket,
-  getLinearOptions
+  getLinearOptions,
+  type LinearIssueDetails,
+  resolveLinearIssue
 } from "@/api/tasks";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,13 +34,16 @@ export function NewTaskDialog(): React.JSX.Element {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [ticket, setTicket] = useState("");
-  const [createInLinear, setCreateInLinear] = useState(false);
+  const [resolvedTicket, setResolvedTicket] = useState<LinearIssueDetails | null>(null);
+  const [ticketError, setTicketError] = useState<string | null>(null);
+  const [createTicket, setCreateTicket] = useState(false);
   const [linearTeamId, setLinearTeamId] = useState("");
   const [linearProjectId, setLinearProjectId] = useState("");
   const [linearStateId, setLinearStateId] = useState("");
   const queryClient = useQueryClient();
+  const hasExistingTicket = ticket.trim().length > 0;
   const linearOptionsQuery = useQuery({
-    enabled: createInLinear,
+    enabled: createTicket,
     queryFn: getLinearOptions,
     queryKey: ["linear-options"]
   });
@@ -54,20 +59,62 @@ export function NewTaskDialog(): React.JSX.Element {
   );
 
   useEffect(() => {
-    if (!createInLinear || linearTeamId.length > 0) {
+    if (!hasExistingTicket) {
+      setResolvedTicket(null);
+      setTicketError(null);
+      return;
+    }
+
+    const ticketValue = ticket.trim();
+    const timeout = window.setTimeout(() => {
+      void resolveLinearIssue(ticketValue)
+        .then((issue) => {
+          if (ticket.trim() !== ticketValue) {
+            return;
+          }
+
+          setResolvedTicket(issue);
+          setTicketError(null);
+          setTitle(issue.title);
+          setDescription(issue.description ?? "");
+        })
+        .catch((error: unknown) => {
+          if (ticket.trim() !== ticketValue) {
+            return;
+          }
+
+          setResolvedTicket(null);
+          setTicketError(getMutationErrorMessage(error));
+        });
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [hasExistingTicket, ticket]);
+
+  useEffect(() => {
+    if (!hasExistingTicket) {
+      return;
+    }
+
+    setCreateTicket(false);
+    setLinearTeamId("");
+    setLinearProjectId("");
+    setLinearStateId("");
+  }, [hasExistingTicket]);
+
+  useEffect(() => {
+    if (!createTicket || linearTeamId.length > 0) {
       return;
     }
 
     const firstTeam = linearOptions?.teams.at(0);
-    if (firstTeam == null) {
-      return;
+    if (firstTeam != null) {
+      setLinearTeamId(firstTeam.id);
     }
-
-    setLinearTeamId(firstTeam.id);
-  }, [createInLinear, linearOptions, linearTeamId]);
+  }, [createTicket, linearOptions, linearTeamId]);
 
   useEffect(() => {
-    if (!createInLinear || linearTeamId.length === 0) {
+    if (!createTicket || linearTeamId.length === 0) {
       return;
     }
 
@@ -82,7 +129,7 @@ export function NewTaskDialog(): React.JSX.Element {
     if (!stateStillAvailable) {
       setLinearStateId(firstState.id);
     }
-  }, [createInLinear, linearStateId, linearStateOptions, linearTeamId]);
+  }, [createTicket, linearStateId, linearStateOptions, linearTeamId]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -92,13 +139,10 @@ export function NewTaskDialog(): React.JSX.Element {
         title: title.trim()
       });
 
-      if (createInLinear) {
-        await createLinearTaskTicket(task.id, {
-          description: normalizeOptionalText(description),
-          projectId: normalizeOptionalText(linearProjectId),
-          stateId: linearStateId,
-          teamId: linearTeamId,
-          title: title.trim()
+      if (resolvedTicket != null) {
+        await createTaskTicket(task.id, {
+          externalId: resolvedTicket.identifier,
+          url: resolvedTicket.url
         });
         return;
       }
@@ -106,23 +150,28 @@ export function NewTaskDialog(): React.JSX.Element {
       const ticketInput = parseTicketInput(ticket);
       if (ticketInput != null) {
         await createTaskTicket(task.id, ticketInput);
+        return;
+      }
+
+      if (createTicket) {
+        await createLinearTaskTicket(task.id, {
+          description: normalizeOptionalText(description),
+          projectId: normalizeOptionalText(linearProjectId),
+          stateId: linearStateId,
+          teamId: linearTeamId,
+          title: title.trim()
+        });
       }
     },
     onSuccess: () => {
-      setTitle("");
-      setDescription("");
-      setTicket("");
-      setCreateInLinear(false);
-      setLinearTeamId("");
-      setLinearProjectId("");
-      setLinearStateId("");
+      resetForm();
       setOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
     }
   });
 
   const linearReady =
-    !createInLinear ||
+    !createTicket ||
     (linearOptions?.configured === true &&
       linearTeamId.length > 0 &&
       linearStateId.length > 0);
@@ -138,24 +187,64 @@ export function NewTaskDialog(): React.JSX.Element {
     await mutation.mutateAsync();
   }
 
+  function resetForm(): void {
+    setTitle("");
+    setDescription("");
+    setTicket("");
+    setResolvedTicket(null);
+    setTicketError(null);
+    setCreateTicket(false);
+    setLinearTeamId("");
+    setLinearProjectId("");
+    setLinearStateId("");
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+        if (!isOpen) {
+          resetForm();
+        }
+      }}
+    >
       <Button size="sm" className="shrink-0" onClick={() => setOpen(true)}>
         <Plus className="size-4" />
         New task
       </Button>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-xl grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0">
+      <DialogContent className="flex h-[min(582px,calc(100dvh-2rem))] max-w-xl flex-col gap-0 overflow-hidden p-0">
         <DialogHeader>
           <DialogTitle>New task</DialogTitle>
           <DialogDescription>
-            Create the task now. Ticket linkage is optional and can be filled in later.
+            Create a task, optionally linked to Linear.
           </DialogDescription>
         </DialogHeader>
         <form
-          className="flex min-h-0 flex-col overflow-hidden border-t border-border"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border"
           onSubmit={(event) => void handleSubmit(event)}
         >
-          <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-5">
+          <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-5">
+            <div className="grid gap-2">
+              <Label htmlFor="task-ticket" className="flex items-center gap-1.5">
+                Optional Linear ticket
+                <span className="inline-flex size-4 items-center justify-center">
+                  {resolvedTicket != null ? (
+                    <Check className="size-4 text-emerald-500" />
+                  ) : null}
+                </span>
+              </Label>
+              <Input
+                id="task-ticket"
+                value={ticket}
+                onChange={(event) => setTicket(event.target.value)}
+                placeholder="SAS-32 or https://linear.app/..."
+                autoFocus
+              />
+              {ticketError != null ? (
+                <p className="text-sm text-destructive">{ticketError}</p>
+              ) : null}
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="task-title">Name</Label>
               <Input
@@ -163,7 +252,6 @@ export function NewTaskDialog(): React.JSX.Element {
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="Add cursor support"
-                autoFocus
               />
             </div>
             <div className="grid gap-2">
@@ -175,40 +263,45 @@ export function NewTaskDialog(): React.JSX.Element {
                 placeholder="What should the agent do?"
               />
             </div>
-            <TicketFields
-              createInLinear={createInLinear}
-              errorMessage={
-                linearOptionsQuery.isError
-                  ? getMutationErrorMessage(linearOptionsQuery.error)
-                  : null
+            <label
+              className={
+                hasExistingTicket
+                  ? "flex items-center gap-2 text-sm font-medium text-muted-foreground"
+                  : "flex items-center gap-2 text-sm font-medium"
               }
-              isLoading={linearOptionsQuery.isLoading}
-              linearOptions={linearOptions}
-              onCreateInLinearChange={(isChecked) => {
-                setCreateInLinear(isChecked);
-                if (isChecked) {
-                  setTicket("");
-                } else {
-                  setLinearTeamId("");
+            >
+              <input
+                type="checkbox"
+                className="size-4 accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+                checked={createTicket}
+                disabled={hasExistingTicket}
+                onChange={(event) => setCreateTicket(event.target.checked)}
+              />
+              Create Linear ticket
+            </label>
+            {createTicket ? (
+              <TicketFields
+                errorMessage={
+                  linearOptionsQuery.isError
+                    ? getMutationErrorMessage(linearOptionsQuery.error)
+                    : null
+                }
+                isLoading={linearOptionsQuery.isLoading}
+                linearOptions={linearOptions}
+                onProjectChange={setLinearProjectId}
+                onStateChange={setLinearStateId}
+                onTeamChange={(teamId) => {
+                  setLinearTeamId(teamId);
                   setLinearProjectId("");
                   setLinearStateId("");
-                }
-              }}
-              onProjectChange={setLinearProjectId}
-              onStateChange={setLinearStateId}
-              onTeamChange={(teamId) => {
-                setLinearTeamId(teamId);
-                setLinearProjectId("");
-                setLinearStateId("");
-              }}
-              projectId={linearProjectId}
-              projectOptions={linearProjectOptions}
-              stateId={linearStateId}
-              stateOptions={linearStateOptions}
-              teamId={linearTeamId}
-              ticket={ticket}
-              onTicketChange={setTicket}
-            />
+                }}
+                projectId={linearProjectId}
+                projectOptions={linearProjectOptions}
+                stateId={linearStateId}
+                stateOptions={linearStateOptions}
+                teamId={linearTeamId}
+              />
+            ) : null}
             {errorMessage != null ? (
               <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {errorMessage}

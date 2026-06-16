@@ -4,95 +4,50 @@ import type {
   LinearProjectOption,
   LinearStateOption
 } from "@/api/tasks";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 export function TicketFields({
-  createInLinear,
   errorMessage,
   isLoading,
   linearOptions,
-  onCreateInLinearChange,
   onProjectChange,
   onStateChange,
   onTeamChange,
-  onTicketChange,
   projectId,
   projectOptions,
   stateId,
   stateOptions,
-  teamId,
-  ticket
+  teamId
 }: {
-  readonly createInLinear: boolean;
   readonly errorMessage: string | null;
   readonly isLoading: boolean;
   readonly linearOptions: LinearOptions | null;
-  readonly onCreateInLinearChange: (isChecked: boolean) => void;
   readonly onProjectChange: (projectId: string) => void;
   readonly onStateChange: (stateId: string) => void;
   readonly onTeamChange: (teamId: string) => void;
-  readonly onTicketChange: (ticket: string) => void;
   readonly projectId: string;
   readonly projectOptions: readonly LinearProjectOption[];
   readonly stateId: string;
   readonly stateOptions: readonly LinearStateOption[];
   readonly teamId: string;
-  readonly ticket: string;
 }): React.JSX.Element {
   return (
-    <div className="grid gap-2">
-      <Label htmlFor="task-ticket">Ticket ID or URL</Label>
-      <CreateInLinearCheckbox
-        checked={createInLinear}
-        onCheckedChange={onCreateInLinearChange}
+    <div className="grid gap-3 rounded-md border border-border bg-secondary/35 p-3">
+      <LinearIssueFields
+        errorMessage={errorMessage}
+        isLoading={isLoading}
+        linearOptions={linearOptions}
+        projectId={projectId}
+        projectOptions={projectOptions}
+        stateId={stateId}
+        stateOptions={stateOptions}
+        teamId={teamId}
+        onProjectChange={onProjectChange}
+        onStateChange={onStateChange}
+        onTeamChange={onTeamChange}
       />
-      {createInLinear ? (
-        <div className="grid gap-3 rounded-md border border-border bg-secondary/35 p-3">
-          <LinearIssueFields
-            errorMessage={errorMessage}
-            isLoading={isLoading}
-            linearOptions={linearOptions}
-            projectId={projectId}
-            projectOptions={projectOptions}
-            stateId={stateId}
-            stateOptions={stateOptions}
-            teamId={teamId}
-            onProjectChange={onProjectChange}
-            onStateChange={onStateChange}
-            onTeamChange={onTeamChange}
-          />
-        </div>
-      ) : (
-        <Input
-          id="task-ticket"
-          value={ticket}
-          onChange={(event) => onTicketChange(event.target.value)}
-          placeholder="SAS-32 or https://linear.app/..."
-        />
-      )}
     </div>
-  );
-}
-
-function CreateInLinearCheckbox({
-  checked,
-  onCheckedChange
-}: {
-  readonly checked: boolean;
-  readonly onCheckedChange: (checked: boolean) => void;
-}): React.JSX.Element {
-  return (
-    <label className="flex items-center gap-2 text-sm font-medium">
-      <input
-        type="checkbox"
-        className="size-4 accent-primary"
-        checked={checked}
-        onChange={(event) => onCheckedChange(event.target.checked)}
-      />
-      Create it for me
-    </label>
   );
 }
 

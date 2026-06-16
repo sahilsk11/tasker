@@ -59,12 +59,13 @@ void test("task actions are loaded from the database", async () => {
   }
 });
 
-void test("session prompt endpoint renders seeded templates", async () => {
+void test("session create returns rendered prompt and options can re-render it", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-prompt-"));
   const databasePath = join(dir, "tasker.sqlite");
   const app = await createApp({
     databasePath,
-    linearApiKey: null
+    linearApiKey: null,
+    publicApiBaseUrl: "http://127.0.0.1:3000"
   });
   await seedTaskActionDefaults(databasePath);
 
@@ -91,19 +92,30 @@ void test("session prompt endpoint renders seeded templates", async () => {
       url: `/tasks/${task.id}/sessions`
     });
     assert.equal(sessionResponse.statusCode, 201);
-    const session = (JSON.parse(sessionResponse.body) as {
+    const created = JSON.parse(sessionResponse.body) as {
+      readonly prompt: string;
       readonly session: { readonly id: string };
-    }).session;
+    };
+    assert.match(created.prompt, /Create a practical implementation plan/);
+    assert.match(created.prompt, /Prompt endpoint task/);
+    assert.match(created.prompt, /Prompt endpoint description/);
+    assert.match(created.prompt, /http:\/\/127\.0\.0\.1:3000/);
 
     const promptResponse = await app.inject({
-      method: "GET",
-      url: `/tasks/${task.id}/sessions/${session.id}/prompt?apiBaseUrl=${encodeURIComponent("http://127.0.0.1:3000")}`
+      method: "POST",
+      payload: {
+        options: {
+          worktree: {
+            enabled: true,
+            path: "~/custom-wt"
+          }
+        }
+      },
+      url: `/tasks/${task.id}/sessions/${created.session.id}/prompt`
     });
     assert.equal(promptResponse.statusCode, 200);
     const promptBody = JSON.parse(promptResponse.body) as { readonly prompt: string };
     assert.match(promptBody.prompt, /Create a practical implementation plan/);
-    assert.match(promptBody.prompt, /Prompt endpoint task/);
-    assert.match(promptBody.prompt, /Prompt endpoint description/);
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });

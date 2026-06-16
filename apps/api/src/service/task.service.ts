@@ -12,6 +12,8 @@ import type {
   CreateTaskSessionInput,
   TaskSession
 } from "../domain/task-session.js";
+import type { TaskActionPromptValues } from "../domain/task-action-prompt-values.js";
+import { resolveWorktreeForPrompt } from "../domain/task-action-prompt-values.js";
 import type { CreateTaskTicketInput, TaskTicket } from "../domain/task-ticket.js";
 import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../domain/task.js";
 import type { TaskArtifactRepository } from "../repository/task-artifact.repository.js";
@@ -28,12 +30,9 @@ import {
 import { BadRequestError, NotFoundError } from "./errors.js";
 import { renderActionPrompt } from "./task-action-prompt.js";
 
-export type GetTaskSessionPromptInput = {
-  readonly apiBaseUrl: string;
-  readonly worktree?: {
-    readonly enabled: boolean;
-    readonly path: string;
-  };
+export type CreateTaskSessionResult = {
+  readonly prompt: string | null;
+  readonly session: TaskSession;
 };
 
 export type TaskResources = {
@@ -79,6 +78,7 @@ export class TaskService {
     private readonly sessions: TaskSessionRepository,
     private readonly tickets: TaskTicketRepository,
     private readonly actions: TaskActionRepository,
+    private readonly publicApiBaseUrl: string,
     private readonly codexSessionsRoot = defaultCodexSessionsRoot()
   ) {}
 
@@ -106,18 +106,24 @@ export class TaskService {
   public async addSession(
     taskId: TaskId,
     input: CreateTaskSessionInput
-  ): Promise<TaskSession> {
+  ): Promise<CreateTaskSessionResult> {
     await this.requireTask(taskId);
     if (input.actionId != null) {
       await this.requireEnabledAction(input.actionId);
     }
-    return this.sessions.createForTask(taskId, input);
+    const session = await this.sessions.createForTask(taskId, input);
+    const prompt =
+      session.actionId == null
+        ? null
+        : await this.renderSessionPrompt(taskId, session.id, input.options);
+
+    return { prompt, session };
   }
 
-  public async getSessionPrompt(
+  public async renderSessionPrompt(
     taskId: TaskId,
     sessionId: string,
-    input: GetTaskSessionPromptInput
+    options?: TaskActionPromptValues
   ): Promise<string> {
     await this.requireTask(taskId);
     const session = await this.sessions.findById(sessionId);
@@ -135,18 +141,19 @@ export class TaskService {
     }
 
     const task = await this.requireTask(taskId);
+    const worktree = resolveWorktreeForPrompt(action.options, options);
 
     return renderActionPrompt(action, {
       action: {
         id: action.id,
         label: action.label
       },
-      apiBaseUrl: input.apiBaseUrl,
+      apiBaseUrl: this.publicApiBaseUrl,
       sessionId,
       taskDescription: task.description,
       taskId,
       taskTitle: task.title,
-      ...(input.worktree === undefined ? {} : { worktree: input.worktree })
+      ...(worktree === undefined ? {} : { worktree })
     });
   }
 

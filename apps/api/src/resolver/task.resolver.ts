@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { defaultWorktreePath } from "@tasker/core";
 import { z } from "zod";
+import { taskActionPromptValuesSchema } from "../domain/task-action-prompt-values.js";
 import type {
   ClaimTaskSessionInput,
   CreateTaskSessionInput,
@@ -28,13 +28,8 @@ const taskSessionParamsSchema = taskIdParamsSchema.extend({
   sessionId: z.string().min(1)
 });
 
-const sessionPromptQuerySchema = z.object({
-  apiBaseUrl: z.string().url(),
-  worktreeEnabled: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((value) => value === "true"),
-  worktreePath: z.string().optional()
+const renderSessionPromptSchema = z.object({
+  options: taskActionPromptValuesSchema.optional()
 });
 
 const createTaskSchema = z.object({
@@ -63,6 +58,7 @@ const createSessionSchema = z.object({
   actionId: z.string().min(1).nullable().optional(),
   claimed: z.boolean().default(true),
   metadata: z.record(z.unknown()).nullable().optional(),
+  options: taskActionPromptValuesSchema.optional(),
   provider: z.string().min(1),
   providerId: z.string().min(1).nullable().optional(),
   transcriptPath: z.string().min(1).nullable().optional()
@@ -166,27 +162,18 @@ export function registerTaskResolver(
 
   server.post("/tasks/:id/sessions", async (request, reply) => {
     const { id } = taskIdParamsSchema.parse(request.params);
-    const session = await taskService.addSession(
-      id,
-      parseCreateSessionInput(request.body)
-    );
-    return reply.code(201).send({ session });
+    const created = await taskService.addSession(id, parseCreateSessionInput(request.body));
+    return reply.code(201).send(created);
   });
 
-  server.get("/tasks/:id/sessions/:sessionId/prompt", async (request) => {
+  server.post("/tasks/:id/sessions/:sessionId/prompt", async (request) => {
     const { id, sessionId } = taskSessionParamsSchema.parse(request.params);
-    const query = sessionPromptQuerySchema.parse(request.query);
-    const prompt = await taskService.getSessionPrompt(id, sessionId, {
-      apiBaseUrl: query.apiBaseUrl,
-      ...(query.worktreeEnabled === true
-        ? {
-            worktree: {
-              enabled: true,
-              path: query.worktreePath ?? defaultWorktreePath
-            }
-          }
-        : {})
-    });
+    const parsed = renderSessionPromptSchema.parse(request.body ?? {});
+    const prompt = await taskService.renderSessionPrompt(
+      id,
+      sessionId,
+      parsed.options
+    );
     return { prompt };
   });
 
@@ -232,6 +219,7 @@ function parseCreateSessionInput(body: unknown): CreateTaskSessionInput {
     ...(parsed.actionId !== undefined ? { actionId: parsed.actionId } : {}),
     ...(parsed.claimed ? {} : { claimedAt: null }),
     ...(parsed.metadata !== undefined ? { metadata: parsed.metadata } : {}),
+    ...(parsed.options !== undefined ? { options: parsed.options } : {}),
     provider: parsed.provider,
     ...(parsed.providerId !== undefined ? { providerId: parsed.providerId } : {}),
     ...(parsed.transcriptPath !== undefined

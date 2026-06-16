@@ -58,16 +58,23 @@ export type ApiSession = {
   readonly transcriptPath: string | null;
 };
 
+export type TaskActionPromptValues = {
+  readonly worktree?: {
+    readonly enabled: boolean;
+    readonly path?: string;
+  };
+};
+
 export type CreateTaskSessionInput = {
   readonly actionId: string;
   readonly claimed: boolean;
+  readonly options?: TaskActionPromptValues;
   readonly provider: string;
 };
 
-export type GetTaskSessionPromptInput = {
-  readonly apiBaseUrl: string;
-  readonly worktreeEnabled?: boolean;
-  readonly worktreePath?: string;
+export type CreateTaskSessionResult = {
+  readonly prompt: string | null;
+  readonly session: ApiSession;
 };
 
 export type ApiTicket = {
@@ -207,32 +214,18 @@ export async function createTask(input: CreateTaskInput): Promise<ApiTask> {
 export async function createTaskSession(
   taskId: string,
   input: CreateTaskSessionInput
-): Promise<ApiSession> {
-  const { session } = await apiClient.post<{ readonly session: ApiSession }>(
-    `/tasks/${taskId}/sessions`,
-    input
-  );
-  return session;
+): Promise<CreateTaskSessionResult> {
+  return apiClient.post<CreateTaskSessionResult>(`/tasks/${taskId}/sessions`, input);
 }
 
-export async function getTaskSessionPrompt(
+export async function renderTaskSessionPrompt(
   taskId: string,
   sessionId: string,
-  input: GetTaskSessionPromptInput
+  options?: TaskActionPromptValues
 ): Promise<string> {
-  const params = new URLSearchParams({
-    apiBaseUrl: input.apiBaseUrl
-  });
-
-  if (input.worktreeEnabled === true) {
-    params.set("worktreeEnabled", "true");
-    if (input.worktreePath != null && input.worktreePath.length > 0) {
-      params.set("worktreePath", input.worktreePath);
-    }
-  }
-
-  const { prompt } = await apiClient.get<{ readonly prompt: string }>(
-    `/tasks/${taskId}/sessions/${sessionId}/prompt?${params.toString()}`
+  const { prompt } = await apiClient.post<{ readonly prompt: string }>(
+    `/tasks/${taskId}/sessions/${sessionId}/prompt`,
+    options == null ? {} : { options }
   );
   return prompt;
 }

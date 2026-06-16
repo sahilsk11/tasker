@@ -16,9 +16,9 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { defaultWorktreePath } from "@tasker/core";
-import { useEffect, useState } from "react";
-import type { ApiSession, ApiTaskAction } from "@/api/tasks";
-import { getTaskSessionPrompt } from "@/api/tasks";
+import { useEffect, useRef, useState } from "react";
+import type { ApiSession, ApiTaskAction, TaskActionPromptValues } from "@/api/tasks";
+import { renderTaskSessionPrompt } from "@/api/tasks";
 import { MarkdownDocument } from "@/components/MarkdownDocument";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { localApiBaseUrl } from "@/lib/env";
 import { cn } from "@/lib/utils";
 
 const quickActionCount = 2;
@@ -130,12 +129,14 @@ export function TaskActionsDialog({
 
 export function TaskActionPromptDialog({
   action,
+  initialPrompt,
   onBack,
   onOpenChange,
   session,
   taskId
 }: {
   readonly action: ApiTaskAction | null;
+  readonly initialPrompt: string | null;
   readonly onBack: () => void;
   readonly onOpenChange: (isOpen: boolean) => void;
   readonly session: ApiSession | null;
@@ -148,6 +149,7 @@ export function TaskActionPromptDialog({
   const [promptError, setPromptError] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [worktreePath, setWorktreePath] = useState(defaultWorktreePath);
+  const optionsAdjustedRef = useRef(false);
 
   const worktreeOption = action?.options?.worktree ?? null;
   const defaultWorktreePathValue =
@@ -158,15 +160,16 @@ export function TaskActionPromptDialog({
   }, [action, createWorktree, promptDraft, session, worktreePath]);
 
   useEffect(() => {
+    optionsAdjustedRef.current = false;
     setCreateWorktree(worktreeOption?.default ?? false);
     setMarkdownMode("view");
-    setPromptDraft("");
+    setPromptDraft(initialPrompt ?? "");
     setPromptError(null);
     setWorktreePath(defaultWorktreePathValue);
-  }, [action, defaultWorktreePathValue, session, worktreeOption?.default]);
+  }, [action, defaultWorktreePathValue, initialPrompt, session, worktreeOption?.default]);
 
   useEffect(() => {
-    if (action == null || session == null) {
+    if (action == null || session == null || !optionsAdjustedRef.current) {
       return;
     }
 
@@ -174,15 +177,12 @@ export function TaskActionPromptDialog({
     setIsLoadingPrompt(true);
     setPromptError(null);
 
-    void getTaskSessionPrompt(taskId, session.id, {
-      apiBaseUrl: localApiBaseUrl,
-      ...(createWorktree
-        ? {
-            worktreeEnabled: true,
-            worktreePath
-          }
-        : {})
-    })
+    const options = buildPromptOptions({
+      createWorktree,
+      worktreePath
+    });
+
+    void renderTaskSessionPrompt(taskId, session.id, options)
       .then((prompt) => {
         if (!cancelled) {
           setPromptDraft(prompt);
@@ -206,6 +206,16 @@ export function TaskActionPromptDialog({
       cancelled = true;
     };
   }, [action, createWorktree, session, taskId, worktreePath]);
+
+  function handleWorktreeToggle(enabled: boolean): void {
+    optionsAdjustedRef.current = true;
+    setCreateWorktree(enabled);
+  }
+
+  function handleWorktreePathChange(path: string): void {
+    optionsAdjustedRef.current = true;
+    setWorktreePath(path);
+  }
 
   async function copyPrompt(): Promise<void> {
     if (promptDraft.length === 0) {
@@ -247,7 +257,7 @@ export function TaskActionPromptDialog({
                 <input
                   type="checkbox"
                   checked={createWorktree}
-                  onChange={(event) => setCreateWorktree(event.target.checked)}
+                  onChange={(event) => handleWorktreeToggle(event.target.checked)}
                   className={cn(
                     "size-4 shrink-0 rounded border border-input bg-background accent-primary",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -262,7 +272,7 @@ export function TaskActionPromptDialog({
                   value={worktreePath}
                   disabled={!createWorktree}
                   placeholder={defaultWorktreePathValue}
-                  onChange={(event) => setWorktreePath(event.target.value)}
+                  onChange={(event) => handleWorktreePathChange(event.target.value)}
                 />
               </div>
             </section>
@@ -332,6 +342,21 @@ export function TaskActionPromptDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function buildPromptOptions({
+  createWorktree,
+  worktreePath
+}: {
+  readonly createWorktree: boolean;
+  readonly worktreePath: string;
+}): TaskActionPromptValues {
+  return {
+    worktree: {
+      enabled: createWorktree,
+      ...(createWorktree ? { path: worktreePath } : {})
+    }
+  };
 }
 
 async function copyPlainText(value: string): Promise<void> {

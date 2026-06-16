@@ -1,4 +1,5 @@
 import type { TaskId } from "./task.js";
+import type { TaskActionPromptValues } from "./task-action-prompt-values.js";
 
 export type TaskSessionId = string;
 
@@ -22,6 +23,7 @@ export type CreateTaskSessionInput = {
   readonly actionId?: string | null;
   readonly claimedAt?: Date | null;
   readonly metadata?: TaskSessionMetadata | null;
+  readonly options?: TaskActionPromptValues;
   readonly provider: SessionProvider;
   readonly providerId?: string | null;
   readonly transcriptPath?: string | null;

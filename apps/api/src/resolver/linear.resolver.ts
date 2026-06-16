@@ -19,6 +19,10 @@ const linearIssueStatusesSchema = z.object({
   identifiers: z.array(z.string().min(1)).max(100)
 });
 
+const createTaskFromLinearIssueSchema = z.object({
+  identifier: z.string().min(1)
+});
+
 export function registerLinearResolver(
   server: FastifyInstance,
   taskService: TaskService,
@@ -33,6 +37,29 @@ export function registerLinearResolver(
     return {
       issues: await linearService.getIssueStatuses(identifiers)
     };
+  });
+
+  server.post("/linear/issues/resolve", async (request) => {
+    const { identifier } = createTaskFromLinearIssueSchema.parse(request.body);
+    return {
+      issue: await linearService.getIssue(identifier)
+    };
+  });
+
+  server.post("/linear/tasks", async (request, reply) => {
+    const { identifier } = createTaskFromLinearIssueSchema.parse(request.body);
+    const issue = await linearService.getIssue(identifier);
+    const task = await taskService.createTask({
+      description: issue.description,
+      parentTaskId: null,
+      title: issue.title
+    });
+    const ticket = await taskService.addTicket(task.id, {
+      externalId: issue.identifier,
+      url: issue.url
+    });
+
+    return reply.code(201).send({ issue, task, ticket });
   });
 
   server.post("/tasks/:id/linear-ticket", async (request, reply) => {

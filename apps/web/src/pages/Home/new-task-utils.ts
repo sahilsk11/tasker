@@ -70,6 +70,5 @@ function isUrl(value: string): boolean {
 
 function getTicketIdFromUrl(value: string): string {
   const url = new URL(value);
-  const lastPathSegment = url.pathname.split("/").filter(Boolean).at(-1);
-  return lastPathSegment ?? value;
+  return url.pathname.split("/").filter(Boolean).at(-1) ?? value;
 }

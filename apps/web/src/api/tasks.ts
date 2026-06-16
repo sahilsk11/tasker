@@ -108,6 +108,11 @@ export type LinearIssueStatus = {
   readonly url: string;
 };
 
+export type LinearIssueDetails = LinearIssueStatus & {
+  readonly description: string | null;
+  readonly title: string;
+};
+
 export type LinearTeamOption = {
   readonly id: string;
   readonly key: string;
@@ -133,6 +138,10 @@ export type CreateLinearTicketInput = {
   readonly stateId: string;
   readonly teamId: string;
   readonly title: string;
+};
+
+export type CreateTaskFromLinearTicketInput = {
+  readonly identifier: string;
 };
 
 export async function listTaskBundles(): Promise<readonly TaskBundle[]> {
@@ -220,6 +229,16 @@ export async function listLinearIssueStatuses(
   return issues;
 }
 
+export async function resolveLinearIssue(
+  identifier: string
+): Promise<LinearIssueDetails> {
+  const { issue } = await apiClient.post<{ readonly issue: LinearIssueDetails }>(
+    "/linear/issues/resolve",
+    { identifier }
+  );
+  return issue;
+}
+
 export async function createLinearTaskTicket(
   taskId: string,
   input: CreateLinearTicketInput
@@ -229,4 +248,14 @@ export async function createLinearTaskTicket(
     input
   );
   return ticket;
+}
+
+export async function createTaskFromLinearTicket(
+  input: CreateTaskFromLinearTicketInput
+): Promise<ApiTask> {
+  const { task } = await apiClient.post<{ readonly task: ApiTask }>(
+    "/linear/tasks",
+    input
+  );
+  return task;
 }

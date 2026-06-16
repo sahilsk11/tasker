@@ -64,6 +64,7 @@ const linearIssuesSchema = z.object({
   issues: z.object({
     nodes: z.array(
       z.object({
+        description: z.string().nullable().optional(),
         id: z.string(),
         identifier: z.string(),
         state: z.object({
@@ -77,6 +78,7 @@ const linearIssuesSchema = z.object({
           }),
           type: z.string()
         }),
+        title: z.string().optional(),
         url: z.string().url()
       })
     )
@@ -143,6 +145,11 @@ export type LinearIssueStatus = {
     };
   };
   readonly url: string;
+};
+
+export type LinearIssueDetails = LinearIssueStatus & {
+  readonly description: string | null;
+  readonly title: string;
 };
 
 export class LinearService {
@@ -316,6 +323,62 @@ export class LinearService {
     }));
   }
 
+  public async getIssue(identifier: string): Promise<LinearIssueDetails> {
+    if (this.apiKey == null) {
+      throw new BadRequestError("LINEAR_API_KEY is not configured.");
+    }
+
+    const issueRef = parseIssueIdentifier(identifier);
+    if (issueRef == null) {
+      throw new BadRequestError("Enter a Linear ticket ID or URL.");
+    }
+
+    const data = await this.request(
+      `query TaskerLinearIssue($filter: IssueFilter) {
+        issues(first: 1, filter: $filter) {
+          nodes {
+            description
+            id
+            identifier
+            title
+            url
+            state {
+              id
+              name
+              position
+              type
+              team {
+                id
+                key
+                name
+              }
+            }
+          }
+        }
+      }`,
+      { filter: getIssueFilter([issueRef]) }
+    );
+    const issue = linearIssuesSchema.parse(data).issues.nodes.at(0);
+    if (issue?.title == null) {
+      throw new BadRequestError(`Linear issue ${issueRef.identifier} was not found.`);
+    }
+
+    return {
+      description: issue.description ?? null,
+      id: issue.id,
+      identifier: issue.identifier,
+      state: {
+        id: issue.state.id,
+        name: issue.state.name,
+        position: issue.state.position,
+        team: issue.state.team,
+        type: issue.state.type
+      },
+      title: issue.title,
+      url: issue.url
+    };
+  }
+
   private async request(query: string, variables?: object): Promise<unknown> {
     if (this.apiKey == null) {
       throw new BadRequestError("LINEAR_API_KEY is not configured.");
@@ -346,8 +409,9 @@ type LinearIssueRef = {
 };
 
 function parseIssueIdentifier(identifier: string): LinearIssueRef | null {
+  const normalizedIdentifier = getIssueIdentifier(identifier);
   const match = /^(?<teamKey>[A-Z][A-Z0-9]*)-(?<number>[0-9]+)$/u.exec(
-    identifier.trim().toUpperCase()
+    normalizedIdentifier.trim().toUpperCase()
   );
   const teamKey = match?.groups?.["teamKey"];
   const number = Number.parseInt(match?.groups?.["number"] ?? "", 10);
@@ -360,6 +424,19 @@ function parseIssueIdentifier(identifier: string): LinearIssueRef | null {
     number,
     teamKey
   };
+}
+
+function getIssueIdentifier(identifier: string): string {
+  try {
+    const url = new URL(identifier);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return identifier;
+    }
+
+    return url.pathname.split("/").filter(Boolean).at(-1) ?? identifier;
+  } catch {
+    return identifier;
+  }
 }
 
 function getIssueFilter(issueRefs: readonly LinearIssueRef[]): object {

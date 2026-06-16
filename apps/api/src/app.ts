@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import { ZodError } from "zod";
 import { createDb } from "./db/client.js";
 import { migrate } from "./db/migrate.js";
+import { SqliteTaskActionRepository } from "./repository/task-action.repository.js";
 import { SqliteTaskArtifactRepository } from "./repository/task-artifact.repository.js";
 import { SqliteTaskPullRequestRepository } from "./repository/task-pull-request.repository.js";
 import { SqliteTaskSessionRepository } from "./repository/task-session.repository.js";
@@ -40,6 +41,7 @@ export async function createApp(options: CreateAppOptions) {
     new SqliteTaskPullRequestRepository(db),
     new SqliteTaskSessionRepository(db),
     new SqliteTaskTicketRepository(db),
+    new SqliteTaskActionRepository(db),
     options.codexSessionsRoot
   );
   const linearService = new LinearService(options.linearApiKey, options.linear);

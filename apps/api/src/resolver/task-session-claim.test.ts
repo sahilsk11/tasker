@@ -5,15 +5,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createApp } from "../app.js";
+import { seedTaskActionDefaults } from "../test/seed-task-action-defaults.js";
 
 void test("external task sessions can be claimed with flexible metadata", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-session-claim-"));
   const codexSessionsRoot = join(dir, "codex", "sessions");
+  const databasePath = join(dir, "tasker.sqlite");
   const app = await createApp({
     codexSessionsRoot,
-    databasePath: join(dir, "tasker.sqlite"),
+    databasePath,
     linearApiKey: null
   });
+  await seedTaskActionDefaults(databasePath);
 
   try {
     const taskResponse = await app.inject({
@@ -133,8 +136,9 @@ void test("external task sessions can be claimed with flexible metadata", async 
     const claimBody = readJson(claimResponse.body) as {
       readonly taskOverview: {
         readonly action: {
+          readonly description: string;
           readonly id: string;
-          readonly prompt: string;
+          readonly label: string;
         } | null;
         readonly children: ReadonlyArray<{ readonly title: string }>;
         readonly latestTaskActivityAt: string;
@@ -182,10 +186,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
     );
     assert.ok(taskOverview.action);
     assert.equal(taskOverview.action.id, "investigate");
-    assert.equal(
-      taskOverview.action.prompt,
-      "Investigate this task and summarize what should happen next."
-    );
+    assert.equal(taskOverview.action.label, "Investigate");
     assert.deepEqual(
       taskOverview.resources.artifacts.map((artifact) => ({
         label: artifact.label,

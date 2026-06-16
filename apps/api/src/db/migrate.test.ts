@@ -106,8 +106,15 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000001_initial",
         "000004_task_session_tracking_metadata",
         "000005_resource_attribution_and_dedupe",
-        "000006_task_state_and_pull_requests"
+        "000006_task_state_and_pull_requests",
+        "000007_task_actions"
       ]);
+
+      const taskActions = database
+        .prepare("SELECT id FROM task_actions ORDER BY sort_order")
+        .all();
+
+      assert.deepEqual(taskActions, []);
 
       database.exec(
         readFileSync(

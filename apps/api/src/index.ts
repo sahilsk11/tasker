@@ -7,7 +7,8 @@ const app = await createApp({
     ? {}
     : { codexSessionsRoot: env.codexSessionsRoot }),
   databasePath: env.databasePath,
-  linearApiKey: env.linearApiKey
+  linearApiKey: env.linearApiKey,
+  publicApiBaseUrl: env.publicApiBaseUrl
 });
 
 await app.listen({ host: env.host, port: env.port });

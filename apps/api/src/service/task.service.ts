@@ -12,6 +12,8 @@ import type {
   CreateTaskSessionInput,
   TaskSession
 } from "../domain/task-session.js";
+import type { TaskActionPromptValues } from "../domain/task-action-prompt-values.js";
+import { resolveWorktreeForPrompt } from "../domain/task-action-prompt-values.js";
 import type { CreateTaskTicketInput, TaskTicket } from "../domain/task-ticket.js";
 import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../domain/task.js";
 import type { TaskArtifactRepository } from "../repository/task-artifact.repository.js";
@@ -26,6 +28,7 @@ import {
   resolveCodexTranscriptPath
 } from "./codex-transcript.js";
 import { BadRequestError, NotFoundError } from "./errors.js";
+import { renderActionPrompt } from "./task-action-prompt.js";
 
 export type TaskResources = {
   readonly artifacts: readonly TaskArtifact[];
@@ -70,6 +73,7 @@ export class TaskService {
     private readonly sessions: TaskSessionRepository,
     private readonly tickets: TaskTicketRepository,
     private readonly actions: TaskActionRepository,
+    private readonly publicApiBaseUrl: string,
     private readonly codexSessionsRoot = defaultCodexSessionsRoot()
   ) {}
 
@@ -103,6 +107,43 @@ export class TaskService {
       await this.requireEnabledAction(input.actionId);
     }
     return this.sessions.createForTask(taskId, input);
+  }
+
+  public async renderSessionPrompt(
+    taskId: TaskId,
+    sessionId: string,
+    options?: TaskActionPromptValues
+  ): Promise<string> {
+    await this.requireTask(taskId);
+    const session = await this.sessions.findById(sessionId);
+    if (session?.taskId !== taskId) {
+      throw new NotFoundError(`Task session ${sessionId} not found`);
+    }
+
+    if (session.actionId == null) {
+      throw new BadRequestError(`Task session ${sessionId} has no action`);
+    }
+
+    const action = await this.actions.findById(session.actionId);
+    if (action == null) {
+      throw new BadRequestError(`Task action ${session.actionId} not found`);
+    }
+
+    const task = await this.requireTask(taskId);
+    const worktree = resolveWorktreeForPrompt(action.options, options);
+
+    return renderActionPrompt(action, {
+      action: {
+        id: action.id,
+        label: action.label
+      },
+      apiBaseUrl: this.publicApiBaseUrl,
+      sessionId,
+      taskDescription: task.description,
+      taskId,
+      taskTitle: task.title,
+      ...(worktree === undefined ? {} : { worktree })
+    });
   }
 
   public async claimSession(

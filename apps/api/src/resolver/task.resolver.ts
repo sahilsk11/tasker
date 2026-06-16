@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { defaultWorktreePath } from "@tasker/core";
 import { z } from "zod";
 import type {
   ClaimTaskSessionInput,
@@ -21,6 +22,19 @@ const artifactIdParamsSchema = taskIdParamsSchema.extend({
 
 const sessionIdParamsSchema = z.object({
   sessionId: z.string().min(1)
+});
+
+const taskSessionParamsSchema = taskIdParamsSchema.extend({
+  sessionId: z.string().min(1)
+});
+
+const sessionPromptQuerySchema = z.object({
+  apiBaseUrl: z.string().url(),
+  worktreeEnabled: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
+  worktreePath: z.string().optional()
 });
 
 const createTaskSchema = z.object({
@@ -157,6 +171,23 @@ export function registerTaskResolver(
       parseCreateSessionInput(request.body)
     );
     return reply.code(201).send({ session });
+  });
+
+  server.get("/tasks/:id/sessions/:sessionId/prompt", async (request) => {
+    const { id, sessionId } = taskSessionParamsSchema.parse(request.params);
+    const query = sessionPromptQuerySchema.parse(request.query);
+    const prompt = await taskService.getSessionPrompt(id, sessionId, {
+      apiBaseUrl: query.apiBaseUrl,
+      ...(query.worktreeEnabled === true
+        ? {
+            worktree: {
+              enabled: true,
+              path: query.worktreePath ?? defaultWorktreePath
+            }
+          }
+        : {})
+    });
+    return { prompt };
   });
 
   server.post("/sessions/:sessionId/claim", async (request) => {

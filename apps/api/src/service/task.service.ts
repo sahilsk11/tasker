@@ -26,6 +26,15 @@ import {
   resolveCodexTranscriptPath
 } from "./codex-transcript.js";
 import { BadRequestError, NotFoundError } from "./errors.js";
+import { renderActionPrompt } from "./task-action-prompt.js";
+
+export type GetTaskSessionPromptInput = {
+  readonly apiBaseUrl: string;
+  readonly worktree?: {
+    readonly enabled: boolean;
+    readonly path: string;
+  };
+};
 
 export type TaskResources = {
   readonly artifacts: readonly TaskArtifact[];
@@ -103,6 +112,42 @@ export class TaskService {
       await this.requireEnabledAction(input.actionId);
     }
     return this.sessions.createForTask(taskId, input);
+  }
+
+  public async getSessionPrompt(
+    taskId: TaskId,
+    sessionId: string,
+    input: GetTaskSessionPromptInput
+  ): Promise<string> {
+    await this.requireTask(taskId);
+    const session = await this.sessions.findById(sessionId);
+    if (session?.taskId !== taskId) {
+      throw new NotFoundError(`Task session ${sessionId} not found`);
+    }
+
+    if (session.actionId == null) {
+      throw new BadRequestError(`Task session ${sessionId} has no action`);
+    }
+
+    const action = await this.actions.findById(session.actionId);
+    if (action == null) {
+      throw new BadRequestError(`Task action ${session.actionId} not found`);
+    }
+
+    const task = await this.requireTask(taskId);
+
+    return renderActionPrompt(action, {
+      action: {
+        id: action.id,
+        label: action.label
+      },
+      apiBaseUrl: input.apiBaseUrl,
+      sessionId,
+      taskDescription: task.description,
+      taskId,
+      taskTitle: task.title,
+      ...(input.worktree === undefined ? {} : { worktree: input.worktree })
+    });
   }
 
   public async claimSession(

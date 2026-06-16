@@ -64,6 +64,12 @@ export type CreateTaskSessionInput = {
   readonly provider: string;
 };
 
+export type GetTaskSessionPromptInput = {
+  readonly apiBaseUrl: string;
+  readonly worktreeEnabled?: boolean;
+  readonly worktreePath?: string;
+};
+
 export type ApiTicket = {
   readonly createdAt: string;
   readonly externalId: string;
@@ -72,12 +78,27 @@ export type ApiTicket = {
   readonly url: string | null;
 };
 
+export type ApiTaskActionBooleanOption = {
+  readonly default: boolean;
+  readonly fields?: {
+    readonly path?: {
+      readonly default: string;
+      readonly type: "text";
+    };
+  };
+  readonly label: string;
+  readonly type: "boolean";
+};
+
+export type ApiTaskActionOptions = {
+  readonly worktree?: ApiTaskActionBooleanOption;
+};
+
 export type ApiTaskAction = {
   readonly description: string;
   readonly id: string;
-  readonly isRecommended: boolean;
   readonly label: string;
-  readonly prompt: string;
+  readonly options: ApiTaskActionOptions | null;
 };
 
 export type TaskResources = {
@@ -192,6 +213,28 @@ export async function createTaskSession(
     input
   );
   return session;
+}
+
+export async function getTaskSessionPrompt(
+  taskId: string,
+  sessionId: string,
+  input: GetTaskSessionPromptInput
+): Promise<string> {
+  const params = new URLSearchParams({
+    apiBaseUrl: input.apiBaseUrl
+  });
+
+  if (input.worktreeEnabled === true) {
+    params.set("worktreeEnabled", "true");
+    if (input.worktreePath != null && input.worktreePath.length > 0) {
+      params.set("worktreePath", input.worktreePath);
+    }
+  }
+
+  const { prompt } = await apiClient.get<{ readonly prompt: string }>(
+    `/tasks/${taskId}/sessions/${sessionId}/prompt?${params.toString()}`
+  );
+  return prompt;
 }
 
 export async function createTaskTicket(

@@ -59,6 +59,57 @@ void test("task actions are loaded from the database", async () => {
   }
 });
 
+void test("session prompt endpoint renders seeded templates", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-prompt-"));
+  const databasePath = join(dir, "tasker.sqlite");
+  const app = await createApp({
+    databasePath,
+    linearApiKey: null
+  });
+  await seedTaskActionDefaults(databasePath);
+
+  try {
+    const taskResponse = await app.inject({
+      method: "POST",
+      payload: {
+        description: "Prompt endpoint description",
+        title: "Prompt endpoint task"
+      },
+      url: "/tasks"
+    });
+    assert.equal(taskResponse.statusCode, 201);
+    const task = (JSON.parse(taskResponse.body) as { readonly task: { readonly id: string } })
+      .task;
+
+    const sessionResponse = await app.inject({
+      method: "POST",
+      payload: {
+        actionId: "plan",
+        claimed: false,
+        provider: "codex"
+      },
+      url: `/tasks/${task.id}/sessions`
+    });
+    assert.equal(sessionResponse.statusCode, 201);
+    const session = (JSON.parse(sessionResponse.body) as {
+      readonly session: { readonly id: string };
+    }).session;
+
+    const promptResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/sessions/${session.id}/prompt?apiBaseUrl=${encodeURIComponent("http://127.0.0.1:3000")}`
+    });
+    assert.equal(promptResponse.statusCode, 200);
+    const promptBody = JSON.parse(promptResponse.body) as { readonly prompt: string };
+    assert.match(promptBody.prompt, /Create a practical implementation plan/);
+    assert.match(promptBody.prompt, /Prompt endpoint task/);
+    assert.match(promptBody.prompt, /Prompt endpoint description/);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 void test("session create rejects unknown action ids", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-invalid-"));
   const databasePath = join(dir, "tasker.sqlite");

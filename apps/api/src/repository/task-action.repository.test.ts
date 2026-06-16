@@ -59,7 +59,7 @@ void test("task actions are loaded from the database", async () => {
   }
 });
 
-void test("session create returns rendered prompt and options can re-render it", async () => {
+void test("session prompt endpoint renders seeded templates", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-prompt-"));
   const databasePath = join(dir, "tasker.sqlite");
   const app = await createApp({
@@ -93,13 +93,23 @@ void test("session create returns rendered prompt and options can re-render it",
     });
     assert.equal(sessionResponse.statusCode, 201);
     const created = JSON.parse(sessionResponse.body) as {
-      readonly prompt: string;
       readonly session: { readonly id: string };
     };
-    assert.match(created.prompt, /Create a practical implementation plan/);
-    assert.match(created.prompt, /Prompt endpoint task/);
-    assert.match(created.prompt, /Prompt endpoint description/);
-    assert.match(created.prompt, /http:\/\/127\.0\.0\.1:3000/);
+    assert.ok(created.session.id);
+
+    const defaultPromptResponse = await app.inject({
+      method: "POST",
+      payload: {},
+      url: `/tasks/${task.id}/sessions/${created.session.id}/prompt`
+    });
+    assert.equal(defaultPromptResponse.statusCode, 200);
+    const defaultPromptBody = JSON.parse(defaultPromptResponse.body) as {
+      readonly prompt: string;
+    };
+    assert.match(defaultPromptBody.prompt, /Create a practical implementation plan/);
+    assert.match(defaultPromptBody.prompt, /Prompt endpoint task/);
+    assert.match(defaultPromptBody.prompt, /Prompt endpoint description/);
+    assert.match(defaultPromptBody.prompt, /http:\/\/127\.0\.0\.1:3000/);
 
     const promptResponse = await app.inject({
       method: "POST",

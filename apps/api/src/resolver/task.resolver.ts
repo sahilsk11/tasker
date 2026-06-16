@@ -161,8 +161,8 @@ export function registerTaskResolver(
 
   server.post("/tasks/:id/sessions", async (request, reply) => {
     const { id } = taskIdParamsSchema.parse(request.params);
-    const created = await taskService.addSession(id, parseCreateSessionInput(request.body));
-    return reply.code(201).send(created);
+    const session = await taskService.addSession(id, parseCreateSessionInput(request.body));
+    return reply.code(201).send({ session });
   });
 
   server.post("/tasks/:id/sessions/:sessionId/prompt", async (request) => {

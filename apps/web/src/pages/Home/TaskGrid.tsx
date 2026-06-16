@@ -129,7 +129,6 @@ function TaskCard({
   const [actionError, setActionError] = useState<string | null>(null);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
   const [selectedSession, setSelectedSession] = useState<ApiSession | null>(null);
-  const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
   const [selectedKind, setSelectedKind] = useState<ResourceKind | null>(null);
   const [selectedAction, setSelectedAction] = useState<ApiTaskAction | null>(null);
   const [showAllActions, setShowAllActions] = useState(false);
@@ -151,13 +150,12 @@ function TaskCard({
     setIsCreatingPrompt(true);
 
     try {
-      const { prompt, session } = await createTaskSession(bundle.task.id, {
+      const session = await createTaskSession(bundle.task.id, {
         actionId: action.id,
         claimed: false,
         provider: "codex"
       });
       setSelectedSession(session);
-      setSelectedPrompt(prompt);
       setSelectedAction(action);
       if (closeActionsWhenReady) {
         setShowAllActions(false);
@@ -259,17 +257,14 @@ function TaskCard({
         onBack={() => {
           setSelectedAction(null);
           setSelectedSession(null);
-          setSelectedPrompt(null);
           setShowAllActions(true);
         }}
         onOpenChange={(isOpen) => {
           if (!isOpen) {
             setSelectedAction(null);
             setSelectedSession(null);
-            setSelectedPrompt(null);
           }
         }}
-        initialPrompt={selectedPrompt}
         session={selectedSession}
         taskId={bundle.task.id}
       />

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { defaultWorktreePath } from "@tasker/core";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ApiSession, ApiTaskAction, TaskActionPromptValues } from "@/api/tasks";
 import { renderTaskSessionPrompt } from "@/api/tasks";
 import { MarkdownDocument } from "@/components/MarkdownDocument";
@@ -129,14 +129,12 @@ export function TaskActionsDialog({
 
 export function TaskActionPromptDialog({
   action,
-  initialPrompt,
   onBack,
   onOpenChange,
   session,
   taskId
 }: {
   readonly action: ApiTaskAction | null;
-  readonly initialPrompt: string | null;
   readonly onBack: () => void;
   readonly onOpenChange: (isOpen: boolean) => void;
   readonly session: ApiSession | null;
@@ -149,7 +147,6 @@ export function TaskActionPromptDialog({
   const [promptError, setPromptError] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [worktreePath, setWorktreePath] = useState(defaultWorktreePath);
-  const optionsAdjustedRef = useRef(false);
 
   const worktreeOption = action?.options?.worktree ?? null;
   const defaultWorktreePathValue =
@@ -160,16 +157,19 @@ export function TaskActionPromptDialog({
   }, [action, createWorktree, promptDraft, session, worktreePath]);
 
   useEffect(() => {
-    optionsAdjustedRef.current = false;
+    if (action == null || session == null) {
+      setPromptDraft("");
+      return;
+    }
+
     setCreateWorktree(worktreeOption?.default ?? false);
     setMarkdownMode("view");
-    setPromptDraft(initialPrompt ?? "");
     setPromptError(null);
     setWorktreePath(defaultWorktreePathValue);
-  }, [action, defaultWorktreePathValue, initialPrompt, session, worktreeOption?.default]);
+  }, [action, defaultWorktreePathValue, session, worktreeOption?.default]);
 
   useEffect(() => {
-    if (action == null || session == null || !optionsAdjustedRef.current) {
+    if (action == null || session == null) {
       return;
     }
 
@@ -177,12 +177,12 @@ export function TaskActionPromptDialog({
     setIsLoadingPrompt(true);
     setPromptError(null);
 
-    const options = buildPromptOptions({
+    const promptOptions = buildPromptOptions({
       createWorktree,
       worktreePath
     });
 
-    void renderTaskSessionPrompt(taskId, session.id, options)
+    void renderTaskSessionPrompt(taskId, session.id, promptOptions)
       .then((prompt) => {
         if (!cancelled) {
           setPromptDraft(prompt);
@@ -206,16 +206,6 @@ export function TaskActionPromptDialog({
       cancelled = true;
     };
   }, [action, createWorktree, session, taskId, worktreePath]);
-
-  function handleWorktreeToggle(enabled: boolean): void {
-    optionsAdjustedRef.current = true;
-    setCreateWorktree(enabled);
-  }
-
-  function handleWorktreePathChange(path: string): void {
-    optionsAdjustedRef.current = true;
-    setWorktreePath(path);
-  }
 
   async function copyPrompt(): Promise<void> {
     if (promptDraft.length === 0) {
@@ -257,7 +247,7 @@ export function TaskActionPromptDialog({
                 <input
                   type="checkbox"
                   checked={createWorktree}
-                  onChange={(event) => handleWorktreeToggle(event.target.checked)}
+                  onChange={(event) => setCreateWorktree(event.target.checked)}
                   className={cn(
                     "size-4 shrink-0 rounded border border-input bg-background accent-primary",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -272,7 +262,7 @@ export function TaskActionPromptDialog({
                   value={worktreePath}
                   disabled={!createWorktree}
                   placeholder={defaultWorktreePathValue}
-                  onChange={(event) => handleWorktreePathChange(event.target.value)}
+                  onChange={(event) => setWorktreePath(event.target.value)}
                 />
               </div>
             </section>

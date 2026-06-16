@@ -71,11 +71,6 @@ export type CreateTaskSessionInput = {
   readonly provider: string;
 };
 
-export type CreateTaskSessionResult = {
-  readonly prompt: string | null;
-  readonly session: ApiSession;
-};
-
 export type ApiTicket = {
   readonly createdAt: string;
   readonly externalId: string;
@@ -213,8 +208,12 @@ export async function createTask(input: CreateTaskInput): Promise<ApiTask> {
 export async function createTaskSession(
   taskId: string,
   input: CreateTaskSessionInput
-): Promise<CreateTaskSessionResult> {
-  return apiClient.post<CreateTaskSessionResult>(`/tasks/${taskId}/sessions`, input);
+): Promise<ApiSession> {
+  const { session } = await apiClient.post<{ readonly session: ApiSession }>(
+    `/tasks/${taskId}/sessions`,
+    input
+  );
+  return session;
 }
 
 export async function renderTaskSessionPrompt(

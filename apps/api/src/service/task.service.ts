@@ -30,11 +30,6 @@ import {
 import { BadRequestError, NotFoundError } from "./errors.js";
 import { renderActionPrompt } from "./task-action-prompt.js";
 
-export type CreateTaskSessionResult = {
-  readonly prompt: string | null;
-  readonly session: TaskSession;
-};
-
 export type TaskResources = {
   readonly artifacts: readonly TaskArtifact[];
   readonly pullRequests: readonly TaskPullRequest[];
@@ -106,18 +101,12 @@ export class TaskService {
   public async addSession(
     taskId: TaskId,
     input: CreateTaskSessionInput
-  ): Promise<CreateTaskSessionResult> {
+  ): Promise<TaskSession> {
     await this.requireTask(taskId);
     if (input.actionId != null) {
       await this.requireEnabledAction(input.actionId);
     }
-    const session = await this.sessions.createForTask(taskId, input);
-    const prompt =
-      session.actionId == null
-        ? null
-        : await this.renderSessionPrompt(taskId, session.id);
-
-    return { prompt, session };
+    return this.sessions.createForTask(taskId, input);
   }
 
   public async renderSessionPrompt(

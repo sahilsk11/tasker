@@ -55,9 +55,7 @@ function matchesLinearStatus(bundle: TaskBundle, options: TaskViewOptions): bool
 function matchesFilter(bundle: TaskBundle, filter: TaskFilter): boolean {
   switch (filter) {
     case "has-pr":
-      return bundle.resources.artifacts.some((artifact) =>
-        ["pr", "pull_request", "pull-request"].includes(artifact.kind.toLowerCase())
-      );
+      return bundle.resources.pullRequests.length > 0;
     case "has-ticket":
       return bundle.resources.tickets.length > 0;
     case "root":

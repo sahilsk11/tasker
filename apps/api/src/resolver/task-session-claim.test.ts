@@ -54,13 +54,21 @@ void test("external task sessions can be claimed with flexible metadata", async 
     const resourceResponse = await app.inject({
       method: "POST",
       payload: {
-        kind: "summary",
-        label: "Previous notes",
+        label: "other",
         uri: "/tmp/previous-notes.md"
       },
-      url: `/tasks/${task.id}/resources`
+      url: `/tasks/${task.id}/artifacts`
     });
     assert.equal(resourceResponse.statusCode, 201);
+
+    const pullRequestResponse = await app.inject({
+      method: "POST",
+      payload: {
+        url: "https://github.com/sahilsk11/tasker/pull/123"
+      },
+      url: `/tasks/${task.id}/pull-requests`
+    });
+    assert.equal(pullRequestResponse.statusCode, 201);
 
     const childTaskResponse = await app.inject({
       method: "POST",
@@ -132,10 +140,10 @@ void test("external task sessions can be claimed with flexible metadata", async 
         readonly latestTaskActivityAt: string;
         readonly resources: {
           readonly artifacts: ReadonlyArray<{
-            readonly kind: string;
             readonly label: string;
             readonly uri: string;
           }>;
+          readonly pullRequests: ReadonlyArray<{ readonly url: string }>;
           readonly sessions: ReadonlyArray<{ readonly id: string }>;
           readonly tickets: ReadonlyArray<{ readonly externalId: string }>;
         };
@@ -180,17 +188,19 @@ void test("external task sessions can be claimed with flexible metadata", async 
     );
     assert.deepEqual(
       taskOverview.resources.artifacts.map((artifact) => ({
-        kind: artifact.kind,
         label: artifact.label,
         uri: artifact.uri
       })),
       [
         {
-          kind: "summary",
-          label: "Previous notes",
+          label: "other",
           uri: "/tmp/previous-notes.md"
         }
       ]
+    );
+    assert.deepEqual(
+      taskOverview.resources.pullRequests.map((pullRequest) => pullRequest.url),
+      ["https://github.com/sahilsk11/tasker/pull/123"]
     );
     assert.deepEqual(
       taskOverview.resources.sessions.map((session) => session.id),

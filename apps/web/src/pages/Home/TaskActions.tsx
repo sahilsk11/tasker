@@ -183,7 +183,6 @@ export function TaskActionPromptDialog({
     action == null || session == null
       ? ""
       : buildCodexPullRequestResourceCommand({
-          action,
           apiUrl: localApiBaseUrl,
           taskId
         });
@@ -487,7 +486,7 @@ function buildCodexTaskNotesResourceCommand({
   readonly taskNotesPath: string;
   readonly taskId: string;
 }): string {
-  const resourceUrl = `${apiUrl}/tasks/${taskId}/resources`;
+  const artifactUrl = `${apiUrl}/tasks/${taskId}/artifacts`;
   const resourceLabel = `${action.label} notes`;
 
   return `notes_path="${taskNotesPath}"
@@ -506,41 +505,43 @@ cat > "$notes_path" <<'TASKER_NOTES'
 ## Remaining risks
 TASKER_NOTES
 
-curl -sS -X POST "${resourceUrl}" \\
+curl -sS -X POST "${artifactUrl}" \\
   -H "Content-Type: application/json" \\
   --data-binary @- <<EOF
 {
   "createdBySessionId": ${JSON.stringify(sessionId)},
-  "kind": "summary",
-  "label": ${JSON.stringify(resourceLabel)},
+  "label": ${JSON.stringify(getArtifactLabelForAction(action.id))},
   "uri": "$notes_path"
 }
 EOF`;
 }
 
 function buildCodexPullRequestResourceCommand({
-  action,
   apiUrl,
   taskId
 }: {
-  readonly action: ApiTaskAction;
   readonly apiUrl: string;
   readonly taskId: string;
 }): string {
-  const resourceUrl = `${apiUrl}/tasks/${taskId}/resources`;
-  const resourceLabel = `${action.label} pull request`;
+  const pullRequestUrl = `${apiUrl}/tasks/${taskId}/pull-requests`;
 
   return `pr_url="https://github.com/OWNER/REPO/pull/NUMBER"
 
-curl -sS -X POST "${resourceUrl}" \\
+curl -sS -X POST "${pullRequestUrl}" \\
   -H "Content-Type: application/json" \\
   --data-binary @- <<EOF
 {
-  "kind": "pr",
-  "label": ${JSON.stringify(resourceLabel)},
-  "uri": "$pr_url"
+  "url": "$pr_url"
 }
 EOF`;
+}
+
+function getArtifactLabelForAction(actionId: string): "research" | "plan" | "implement" | "other" {
+  if (actionId === "research" || actionId === "plan" || actionId === "implement") {
+    return actionId;
+  }
+
+  return "other";
 }
 
 async function copyPlainText(value: string): Promise<void> {

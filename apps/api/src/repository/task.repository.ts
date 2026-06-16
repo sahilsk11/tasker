@@ -1,14 +1,31 @@
 import { randomUUID } from "node:crypto";
 import type { Kysely } from "kysely";
 import type { Database, TaskRow } from "../db/schema.js";
-import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../domain/task.js";
+import type {
+  CreateTaskInput,
+  Task,
+  TaskId,
+  TaskState,
+  UpdateTaskInput
+} from "../domain/task.js";
 
 export type TaskRepository = {
   readonly create: (input: CreateTaskInput) => Promise<Task>;
   readonly findById: (id: TaskId) => Promise<Task | null>;
   readonly findChildren: (parentTaskId: TaskId) => Promise<readonly Task[]>;
   readonly list: () => Promise<readonly Task[]>;
+  readonly updateStateAtLeast: (id: TaskId, state: TaskState) => Promise<Task | null>;
   readonly update: (id: TaskId, input: UpdateTaskInput) => Promise<Task | null>;
+};
+
+const taskStateRank: Record<TaskState, number> = {
+  code_review: 4,
+  done: 6,
+  implement: 3,
+  merged: 5,
+  plan: 2,
+  ready: 0,
+  research: 1
 };
 
 export class SqliteTaskRepository implements TaskRepository {
@@ -87,6 +104,32 @@ export class SqliteTaskRepository implements TaskRepository {
 
     return row == null ? null : toTask(row);
   }
+
+  public async updateStateAtLeast(
+    id: TaskId,
+    state: TaskState
+  ): Promise<Task | null> {
+    const task = await this.findById(id);
+    if (task == null) {
+      return null;
+    }
+
+    if (taskStateRank[task.state] >= taskStateRank[state]) {
+      return task;
+    }
+
+    const row = await this.db
+      .updateTable("tasks")
+      .set({
+        state,
+        updated_at: new Date().toISOString()
+      })
+      .where("id", "=", id)
+      .returningAll()
+      .executeTakeFirst();
+
+    return row == null ? null : toTask(row);
+  }
 }
 
 function toTask(row: TaskRow): Task {
@@ -95,6 +138,7 @@ function toTask(row: TaskRow): Task {
     description: row.description,
     id: row.id,
     parentTaskId: row.parent_task_id,
+    state: row.state,
     title: row.title,
     updatedAt: new Date(row.updated_at)
   };

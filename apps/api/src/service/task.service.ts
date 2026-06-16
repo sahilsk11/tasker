@@ -4,6 +4,10 @@ import { fileURLToPath } from "node:url";
 import type { TaskAction } from "../domain/task-action.js";
 import type { CreateTaskArtifactInput, TaskArtifact } from "../domain/task-artifact.js";
 import type {
+  CreateTaskPullRequestInput,
+  TaskPullRequest
+} from "../domain/task-pull-request.js";
+import type {
   ClaimTaskSessionInput,
   CreateTaskSessionInput,
   TaskSession
@@ -11,6 +15,7 @@ import type {
 import type { CreateTaskTicketInput, TaskTicket } from "../domain/task-ticket.js";
 import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../domain/task.js";
 import type { TaskArtifactRepository } from "../repository/task-artifact.repository.js";
+import type { TaskPullRequestRepository } from "../repository/task-pull-request.repository.js";
 import type { TaskSessionRepository } from "../repository/task-session.repository.js";
 import type { TaskTicketRepository } from "../repository/task-ticket.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
@@ -22,6 +27,7 @@ import { BadRequestError, NotFoundError } from "./errors.js";
 
 export type TaskResources = {
   readonly artifacts: readonly TaskArtifact[];
+  readonly pullRequests: readonly TaskPullRequest[];
   readonly sessions: readonly TaskSession[];
   readonly tickets: readonly TaskTicket[];
 };
@@ -58,6 +64,7 @@ export class TaskService {
   public constructor(
     private readonly tasks: TaskRepository,
     private readonly artifacts: TaskArtifactRepository,
+    private readonly pullRequests: TaskPullRequestRepository,
     private readonly sessions: TaskSessionRepository,
     private readonly tickets: TaskTicketRepository,
     private readonly codexSessionsRoot = defaultCodexSessionsRoot()
@@ -67,16 +74,21 @@ export class TaskService {
     taskId: TaskId,
     input: CreateTaskArtifactInput
   ): Promise<TaskArtifact> {
-    return this.addResource(taskId, input);
-  }
-
-  public async addResource(
-    taskId: TaskId,
-    input: CreateTaskArtifactInput
-  ): Promise<TaskArtifact> {
     await this.requireTask(taskId);
     await this.requireSessionForTask(taskId, input.createdBySessionId);
-    return this.artifacts.createForTask(taskId, input);
+    const artifact = await this.artifacts.createForTask(taskId, input);
+    await this.inferTaskStateFromArtifact(taskId, artifact);
+    return artifact;
+  }
+
+  public async addPullRequest(
+    taskId: TaskId,
+    input: CreateTaskPullRequestInput
+  ): Promise<TaskPullRequest> {
+    await this.requireTask(taskId);
+    const pullRequest = await this.pullRequests.createForTask(taskId, input);
+    await this.tasks.updateStateAtLeast(taskId, "code_review");
+    return pullRequest;
   }
 
   public async addSession(
@@ -122,13 +134,14 @@ export class TaskService {
   public async getResources(taskId: TaskId): Promise<TaskResources> {
     await this.requireTask(taskId);
 
-    const [artifacts, sessions, tickets] = await Promise.all([
+    const [artifacts, pullRequests, sessions, tickets] = await Promise.all([
       this.artifacts.listByTaskId(taskId),
+      this.pullRequests.listByTaskId(taskId),
       this.sessions.listByTaskId(taskId),
       this.tickets.listByTaskId(taskId)
     ]);
 
-    return { artifacts, sessions, tickets };
+    return { artifacts, pullRequests, sessions, tickets };
   }
 
   public async getArtifact(
@@ -213,6 +226,11 @@ export class TaskService {
     return this.artifacts.listByTaskId(taskId);
   }
 
+  public async listPullRequests(taskId: TaskId): Promise<readonly TaskPullRequest[]> {
+    await this.requireTask(taskId);
+    return this.pullRequests.listByTaskId(taskId);
+  }
+
   public async listChildren(taskId: TaskId): Promise<readonly Task[]> {
     await this.requireTask(taskId);
     return this.tasks.findChildren(taskId);
@@ -284,6 +302,7 @@ export class TaskService {
         task.updatedAt,
         ...children.map((child) => child.updatedAt),
         ...resources.artifacts.map((artifact) => artifact.createdAt),
+        ...resources.pullRequests.map((pullRequest) => pullRequest.createdAt),
         ...resources.sessions.map((resourceSession) =>
           resourceSession.claimedAt ?? resourceSession.createdAt
         ),
@@ -311,6 +330,17 @@ export class TaskService {
     });
 
     return transcriptPath == null ? input : { ...input, transcriptPath };
+  }
+
+  private async inferTaskStateFromArtifact(
+    taskId: TaskId,
+    artifact: TaskArtifact
+  ): Promise<void> {
+    if (artifact.label === "other") {
+      return;
+    }
+
+    await this.tasks.updateStateAtLeast(taskId, artifact.label);
   }
 }
 

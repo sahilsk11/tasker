@@ -6,6 +6,7 @@ import type {
   TaskSessionMetadata
 } from "../domain/task-session.js";
 import type { CreateTaskArtifactInput } from "../domain/task-artifact.js";
+import type { CreateTaskPullRequestInput } from "../domain/task-pull-request.js";
 import type { CreateTaskTicketInput } from "../domain/task-ticket.js";
 import type { UpdateTaskInput } from "../domain/task.js";
 import type { TaskService } from "../service/task.service.js";
@@ -36,9 +37,12 @@ const updateTaskSchema = z.object({
 
 const createArtifactSchema = z.object({
   createdBySessionId: z.string().min(1).nullable().optional(),
-  kind: z.string().min(1),
-  label: z.string().min(1),
+  label: z.enum(["research", "plan", "implement", "other"]),
   uri: z.string().min(1)
+});
+
+const createPullRequestSchema = z.object({
+  url: z.string().url()
 });
 
 const createSessionSchema = z.object({
@@ -98,15 +102,6 @@ export function registerTaskResolver(
     return { resources: await taskService.getResources(id) };
   });
 
-  server.post("/tasks/:id/resources", async (request, reply) => {
-    const { id } = taskIdParamsSchema.parse(request.params);
-    const resource = await taskService.addResource(
-      id,
-      parseCreateArtifactInput(request.body)
-    );
-    return reply.code(201).send({ resource });
-  });
-
   server.get("/tasks/:id/actions", async (request) => {
     const { id } = taskIdParamsSchema.parse(request.params);
     return { actions: await taskService.listActions(id) };
@@ -134,6 +129,20 @@ export function registerTaskResolver(
       parseCreateArtifactInput(request.body)
     );
     return reply.code(201).send({ artifact });
+  });
+
+  server.get("/tasks/:id/pull-requests", async (request) => {
+    const { id } = taskIdParamsSchema.parse(request.params);
+    return { pullRequests: await taskService.listPullRequests(id) };
+  });
+
+  server.post("/tasks/:id/pull-requests", async (request, reply) => {
+    const { id } = taskIdParamsSchema.parse(request.params);
+    const pullRequest = await taskService.addPullRequest(
+      id,
+      parseCreatePullRequestInput(request.body)
+    );
+    return reply.code(201).send({ pullRequest });
   });
 
   server.get("/tasks/:id/sessions", async (request) => {
@@ -177,10 +186,13 @@ function parseCreateArtifactInput(body: unknown): CreateTaskArtifactInput {
     ...(parsed.createdBySessionId !== undefined
       ? { createdBySessionId: parsed.createdBySessionId }
       : {}),
-    kind: parsed.kind,
     label: parsed.label,
     uri: parsed.uri
   };
+}
+
+function parseCreatePullRequestInput(body: unknown): CreateTaskPullRequestInput {
+  return createPullRequestSchema.parse(body);
 }
 
 function parseCreateSessionInput(body: unknown): CreateTaskSessionInput {

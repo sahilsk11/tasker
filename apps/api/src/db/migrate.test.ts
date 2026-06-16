@@ -48,6 +48,45 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         }
       ]);
 
+      const tasks = database
+        .prepare("SELECT id, state FROM tasks ORDER BY id")
+        .all();
+
+      assert.deepEqual(tasks, [
+        {
+          id: "task-1",
+          state: "code_review"
+        }
+      ]);
+
+      const artifacts = database
+        .prepare(
+          `
+            SELECT label, uri, created_by_session_id
+            FROM task_artifacts
+            ORDER BY uri
+          `
+        )
+        .all();
+
+      assert.deepEqual(artifacts, [
+        {
+          created_by_session_id: null,
+          label: "plan",
+          uri: "/tmp/legacy-plan.md"
+        }
+      ]);
+
+      const pullRequests = database
+        .prepare("SELECT url FROM task_pull_requests ORDER BY url")
+        .all();
+
+      assert.deepEqual(pullRequests, [
+        {
+          url: "https://github.com/sahilsk11/tasker/pull/1"
+        }
+      ]);
+
       const appliedVersions = database
         .prepare("SELECT version FROM schema_migrations ORDER BY version")
         .all()
@@ -56,7 +95,8 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
       assert.deepEqual(appliedVersions, [
         "000001_initial",
         "000004_task_session_tracking_metadata",
-        "000005_resource_attribution_and_dedupe"
+        "000005_resource_attribution_and_dedupe",
+        "000006_task_state_and_pull_requests"
       ]);
     } finally {
       database.close();
@@ -109,6 +149,35 @@ function seedLegacySessionDatabase(databasePath: string): void {
       "task-1",
       "codex",
       "2026-01-01T00:00:01.000Z"
+    );
+
+    const insertArtifact = database.prepare(`
+      INSERT INTO task_artifacts (id, task_id, kind, label, uri, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    insertArtifact.run(
+      "artifact-1",
+      "task-1",
+      "summary",
+      "Plan",
+      "/tmp/legacy-plan.md",
+      "2026-01-01T00:00:02.000Z"
+    );
+    insertArtifact.run(
+      "artifact-2",
+      "task-1",
+      "pr",
+      "Implementation PR",
+      "https://github.com/sahilsk11/tasker/pull/1",
+      "2026-01-01T00:00:03.000Z"
+    );
+    insertArtifact.run(
+      "artifact-3",
+      "task-1",
+      "pr",
+      "Duplicate PR",
+      "https://github.com/sahilsk11/tasker/pull/1",
+      "2026-01-01T00:00:04.000Z"
     );
   } finally {
     database.close();

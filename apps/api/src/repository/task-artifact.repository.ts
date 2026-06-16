@@ -32,17 +32,16 @@ export class SqliteTaskArtifactRepository implements TaskArtifactRepository {
         created_at: new Date().toISOString(),
         created_by_session_id: input.createdBySessionId ?? null,
         id: randomUUID(),
-        kind: input.kind,
         label: input.label,
         task_id: taskId,
         uri: input.uri
       })
-      .onConflict((oc) => oc.columns(["task_id", "kind", "uri"]).doNothing())
+      .onConflict((oc) => oc.columns(["task_id", "label", "uri"]).doNothing())
       .returningAll()
       .executeTakeFirst();
 
     if (row == null) {
-      return this.findByTaskIdKindAndUri(taskId, input.kind, input.uri);
+      return this.findByTaskIdLabelAndUri(taskId, input.label, input.uri);
     }
 
     return toTaskArtifact(row);
@@ -73,16 +72,16 @@ export class SqliteTaskArtifactRepository implements TaskArtifactRepository {
     return row == null ? null : toTaskArtifact(row);
   }
 
-  private async findByTaskIdKindAndUri(
+  private async findByTaskIdLabelAndUri(
     taskId: TaskId,
-    kind: string,
+    label: CreateTaskArtifactInput["label"],
     uri: string
   ): Promise<TaskArtifact> {
     const row = await this.db
       .selectFrom("task_artifacts")
       .selectAll()
       .where("task_id", "=", taskId)
-      .where("kind", "=", kind)
+      .where("label", "=", label)
       .where("uri", "=", uri)
       .executeTakeFirstOrThrow();
 
@@ -95,7 +94,6 @@ function toTaskArtifact(row: TaskArtifactRow): TaskArtifact {
     createdAt: new Date(row.created_at),
     createdBySessionId: row.created_by_session_id,
     id: row.id,
-    kind: row.kind,
     label: row.label,
     taskId: row.task_id,
     uri: row.uri

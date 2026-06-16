@@ -23,16 +23,10 @@ export function usePullRequestStatuses(
 function getPullRequestUrls(bundles: readonly TaskBundle[]): readonly string[] {
   const urls = new Set<string>();
   for (const bundle of bundles) {
-    for (const artifact of bundle.resources.artifacts) {
-      if (isPullRequestArtifact(artifact.kind)) {
-        urls.add(artifact.uri);
-      }
+    for (const pullRequest of bundle.resources.pullRequests) {
+      urls.add(pullRequest.url);
     }
   }
 
   return Array.from(urls).sort();
-}
-
-function isPullRequestArtifact(kind: string): boolean {
-  return ["pr", "pull_request", "pull-request"].includes(kind.toLowerCase());
 }

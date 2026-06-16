@@ -5,18 +5,34 @@ export type ApiTask = {
   readonly description: string | null;
   readonly id: string;
   readonly parentTaskId: string | null;
+  readonly state: TaskState;
   readonly title: string;
   readonly updatedAt: string;
 };
+
+export type TaskState =
+  | "ready"
+  | "research"
+  | "plan"
+  | "implement"
+  | "code_review"
+  | "merged"
+  | "done";
 
 export type ApiArtifact = {
   readonly createdAt: string;
   readonly createdBySessionId: string | null;
   readonly id: string;
-  readonly kind: string;
-  readonly label: string;
+  readonly label: "research" | "plan" | "implement" | "other";
   readonly taskId: string;
   readonly uri: string;
+};
+
+export type ApiPullRequest = {
+  readonly createdAt: string;
+  readonly id: string;
+  readonly taskId: string;
+  readonly url: string;
 };
 
 export type ArtifactContentKind = "html" | "image" | "markdown" | "unsupported";
@@ -66,6 +82,7 @@ export type ApiTaskAction = {
 
 export type TaskResources = {
   readonly artifacts: readonly ApiArtifact[];
+  readonly pullRequests: readonly ApiPullRequest[];
   readonly sessions: readonly ApiSession[];
   readonly tickets: readonly ApiTicket[];
 };

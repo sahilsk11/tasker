@@ -6,77 +6,55 @@ import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { createApp } from "../app.js";
 
-void test("task resources can register PR links", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "tasker-resource-"));
+void test("artifact and pull request endpoints infer task state", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-resource-state-"));
   const app = await createApp({
     databasePath: join(dir, "tasker.sqlite"),
     linearApiKey: null
   });
 
   try {
-    const taskResponse = await app.inject({
-      method: "POST",
-      payload: {
-        title: "Resource registration"
-      },
-      url: "/tasks"
-    });
-    assert.equal(taskResponse.statusCode, 201);
-    const task = (readJson(taskResponse.body) as {
-      readonly task: { readonly id: string };
-    }).task;
+    const task = await createTask(app, "State inference");
+    assert.equal(task.state, "ready");
 
-    const createResourceResponse = await app.inject({
-      method: "POST",
-      payload: {
-        kind: "pr",
-        label: "Implementation PR",
-        uri: "https://github.com/sahilsk11/tasker/pull/21"
-      },
-      url: `/tasks/${task.id}/resources`
+    const research = await createArtifact(app, task.id, {
+      label: "research",
+      uri: "/tmp/research.md"
     });
-    assert.equal(createResourceResponse.statusCode, 201);
-    const resource = (readJson(createResourceResponse.body) as {
-      readonly resource: {
-        readonly id: string;
-        readonly kind: string;
-        readonly label: string;
-        readonly taskId: string;
-        readonly uri: string;
-      };
-    }).resource;
-    assert.equal(resource.kind, "pr");
-    assert.equal(resource.label, "Implementation PR");
-    assert.equal(resource.taskId, task.id);
-    assert.equal(resource.uri, "https://github.com/sahilsk11/tasker/pull/21");
+    assert.equal(research.label, "research");
+    assert.equal(research.taskId, task.id);
+    assert.equal(await getTaskState(app, task.id), "research");
 
-    const resourcesResponse = await app.inject({
-      method: "GET",
-      url: `/tasks/${task.id}/resources`
+    await createArtifact(app, task.id, {
+      label: "plan",
+      uri: "/tmp/plan.md"
     });
-    assert.equal(resourcesResponse.statusCode, 200);
-    const resources = (readJson(resourcesResponse.body) as {
-      readonly resources: {
-        readonly artifacts: ReadonlyArray<{
-          readonly id: string;
-          readonly kind: string;
-          readonly label: string;
-          readonly taskId: string;
-          readonly uri: string;
-        }>;
-      };
-    }).resources;
-    assert.equal(resources.artifacts.length, 1);
-    const artifact = resources.artifacts[0];
-    assert.ok(artifact);
-    assert.equal(artifact.id, resource.id);
-    assert.equal(artifact.kind, "pr");
-    assert.equal(artifact.label, "Implementation PR");
-    assert.equal(artifact.taskId, task.id);
-    assert.equal(
-      artifact.uri,
-      "https://github.com/sahilsk11/tasker/pull/21"
-    );
+    assert.equal(await getTaskState(app, task.id), "plan");
+
+    await createArtifact(app, task.id, {
+      label: "implement",
+      uri: "/tmp/implementation.md"
+    });
+    assert.equal(await getTaskState(app, task.id), "implement");
+
+    const pullRequest = await createPullRequest(app, task.id, {
+      url: "https://github.com/sahilsk11/tasker/pull/21"
+    });
+    assert.equal(pullRequest.taskId, task.id);
+    assert.equal(pullRequest.url, "https://github.com/sahilsk11/tasker/pull/21");
+    assert.equal(await getTaskState(app, task.id), "code_review");
+
+    await createArtifact(app, task.id, {
+      label: "other",
+      uri: "/tmp/other.md"
+    });
+    assert.equal(await getTaskState(app, task.id), "code_review");
+
+    await createArtifact(app, task.id, {
+      label: "plan",
+      uri: "/tmp/late-plan.md"
+    });
+    assert.equal(await getTaskState(app, task.id), "code_review");
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });
@@ -105,31 +83,18 @@ void test("task artifacts expose renderable local file content", async () => {
       )
     );
 
-    const taskResponse = await app.inject({
-      method: "POST",
-      payload: {
-        title: "Renderable artifacts"
-      },
-      url: "/tasks"
-    });
-    assert.equal(taskResponse.statusCode, 201);
-    const task = (readJson(taskResponse.body) as {
-      readonly task: { readonly id: string };
-    }).task;
+    const task = await createTask(app, "Renderable artifacts");
 
     const markdownArtifact = await createArtifact(app, task.id, {
-      kind: "summary",
-      label: "Notes",
+      label: "other",
       uri: markdownPath
     });
     const htmlArtifact = await createArtifact(app, task.id, {
-      kind: "report",
-      label: "Report",
+      label: "other",
       uri: pathToFileURL(htmlPath).href
     });
     const imageArtifact = await createArtifact(app, task.id, {
-      kind: "screenshot",
-      label: "Screenshot",
+      label: "other",
       uri: imagePath
     });
 
@@ -179,7 +144,7 @@ void test("task artifacts expose renderable local file content", async () => {
   }
 });
 
-void test("task resources dedupe repeated registrations and track session attribution", async () => {
+void test("task resources aggregate and dedupe explicit resource types", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-resource-dedupe-"));
   const app = await createApp({
     databasePath: join(dir, "tasker.sqlite"),
@@ -194,41 +159,26 @@ void test("task resources dedupe repeated registrations and track session attrib
 
     const artifactPayload = {
       createdBySessionId: session.id,
-      kind: "summary",
-      label: "Implement notes",
+      label: "implement",
       uri: "/tmp/tasker-notes.md"
-    };
-    const firstArtifactResponse = await app.inject({
-      method: "POST",
-      payload: artifactPayload,
-      url: `/tasks/${task.id}/resources`
-    });
-    assert.equal(firstArtifactResponse.statusCode, 201);
-    const firstArtifact = (readJson(firstArtifactResponse.body) as {
-      readonly resource: {
-        readonly createdBySessionId: string | null;
-        readonly id: string;
-        readonly label: string;
-      };
-    }).resource;
+    } as const;
+    const firstArtifact = await createArtifact(app, task.id, artifactPayload);
     assert.equal(firstArtifact.createdBySessionId, session.id);
 
-    const duplicateArtifactResponse = await app.inject({
-      method: "POST",
-      payload: { ...artifactPayload, label: "Duplicate notes" },
-      url: `/tasks/${task.id}/resources`
-    });
-    assert.equal(duplicateArtifactResponse.statusCode, 201);
-    const duplicateArtifact = (readJson(duplicateArtifactResponse.body) as {
-      readonly resource: {
-        readonly createdBySessionId: string | null;
-        readonly id: string;
-        readonly label: string;
-      };
-    }).resource;
+    const duplicateArtifact = await createArtifact(app, task.id, artifactPayload);
     assert.equal(duplicateArtifact.id, firstArtifact.id);
-    assert.equal(duplicateArtifact.label, "Implement notes");
     assert.equal(duplicateArtifact.createdBySessionId, session.id);
+
+    const pullRequestPayload = {
+      url: "https://github.com/sahilsk11/tasker/pull/42"
+    };
+    const firstPullRequest = await createPullRequest(app, task.id, pullRequestPayload);
+    const duplicatePullRequest = await createPullRequest(
+      app,
+      task.id,
+      pullRequestPayload
+    );
+    assert.equal(duplicatePullRequest.id, firstPullRequest.id);
 
     const ticketPayload = {
       externalId: "SAS-58",
@@ -263,23 +213,37 @@ void test("task resources dedupe repeated registrations and track session attrib
     const resources = (readJson(resourcesResponse.body) as {
       readonly resources: {
         readonly artifacts: ReadonlyArray<{ readonly id: string }>;
+        readonly pullRequests: ReadonlyArray<{ readonly id: string }>;
+        readonly sessions: ReadonlyArray<{ readonly id: string }>;
         readonly tickets: ReadonlyArray<{ readonly id: string }>;
       };
     }).resources;
     assert.equal(resources.artifacts.length, 1);
+    assert.equal(resources.pullRequests.length, 1);
+    assert.equal(resources.sessions.length, 1);
     assert.equal(resources.tickets.length, 1);
 
     const wrongSessionResponse = await app.inject({
       method: "POST",
       payload: {
         createdBySessionId: otherSession.id,
-        kind: "summary",
-        label: "Wrong session",
+        label: "implement",
         uri: "/tmp/wrong-session.md"
+      },
+      url: `/tasks/${task.id}/artifacts`
+    });
+    assert.equal(wrongSessionResponse.statusCode, 400);
+
+    const legacyCreateResponse = await app.inject({
+      method: "POST",
+      payload: {
+        kind: "summary",
+        label: "Implement notes",
+        uri: "/tmp/legacy.md"
       },
       url: `/tasks/${task.id}/resources`
     });
-    assert.equal(wrongSessionResponse.statusCode, 400);
+    assert.equal(legacyCreateResponse.statusCode, 404);
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });
@@ -293,29 +257,80 @@ function readJson(body: string): unknown {
 async function createTask(
   app: Awaited<ReturnType<typeof createApp>>,
   title: string
-): Promise<{ readonly id: string }> {
+): Promise<{ readonly id: string; readonly state: string }> {
   const response = await app.inject({
     method: "POST",
     payload: { title },
     url: "/tasks"
   });
   assert.equal(response.statusCode, 201);
-  return (readJson(response.body) as { readonly task: { readonly id: string } }).task;
+  return (readJson(response.body) as {
+    readonly task: { readonly id: string; readonly state: string };
+  }).task;
+}
+
+async function getTaskState(
+  app: Awaited<ReturnType<typeof createApp>>,
+  taskId: string
+): Promise<string> {
+  const response = await app.inject({
+    method: "GET",
+    url: `/tasks/${taskId}`
+  });
+  assert.equal(response.statusCode, 200);
+  return (readJson(response.body) as {
+    readonly task: { readonly state: string };
+  }).task.state;
 }
 
 async function createArtifact(
   app: Awaited<ReturnType<typeof createApp>>,
   taskId: string,
-  payload: { readonly kind: string; readonly label: string; readonly uri: string }
-): Promise<{ readonly id: string }> {
+  payload: {
+    readonly createdBySessionId?: string;
+    readonly label: "research" | "plan" | "implement" | "other";
+    readonly uri: string;
+  }
+): Promise<{
+  readonly createdBySessionId: string | null;
+  readonly id: string;
+  readonly label: string;
+  readonly taskId: string;
+}> {
   const response = await app.inject({
     method: "POST",
     payload,
     url: `/tasks/${taskId}/artifacts`
   });
   assert.equal(response.statusCode, 201);
-  return (readJson(response.body) as { readonly artifact: { readonly id: string } })
-    .artifact;
+  return (readJson(response.body) as {
+    readonly artifact: {
+      readonly createdBySessionId: string | null;
+      readonly id: string;
+      readonly label: string;
+      readonly taskId: string;
+    };
+  }).artifact;
+}
+
+async function createPullRequest(
+  app: Awaited<ReturnType<typeof createApp>>,
+  taskId: string,
+  payload: { readonly url: string }
+): Promise<{ readonly id: string; readonly taskId: string; readonly url: string }> {
+  const response = await app.inject({
+    method: "POST",
+    payload,
+    url: `/tasks/${taskId}/pull-requests`
+  });
+  assert.equal(response.statusCode, 201);
+  return (readJson(response.body) as {
+    readonly pullRequest: {
+      readonly id: string;
+      readonly taskId: string;
+      readonly url: string;
+    };
+  }).pullRequest;
 }
 
 async function createSession(

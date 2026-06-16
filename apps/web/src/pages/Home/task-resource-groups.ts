@@ -1,4 +1,4 @@
-import type { ApiArtifact, TaskBundle } from "@/api/tasks";
+import type { ApiArtifact, ApiPullRequest, TaskBundle } from "@/api/tasks";
 
 export type ResourceKind =
   | "ticket"
@@ -83,6 +83,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
       )
     ),
     ...bundle.resources.artifacts.map(resourceFromArtifact),
+    ...bundle.resources.pullRequests.map(resourceFromPullRequest),
     ...bundle.children.map((child) =>
       resource(
         "subtask",
@@ -101,32 +102,34 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
 }
 
 function resourceFromArtifact(artifact: ApiArtifact): Resource {
-  const kind = getArtifactResourceKind(artifact.kind);
   return resource(
-    kind,
+    "artifact",
     artifact.label,
-    kind === "artifact" ? artifact.kind : artifact.uri,
+    artifact.uri,
     "Ready",
     formatDate(artifact.createdAt),
     {
-      href: kind === "pr" ? artifact.uri : null,
+      href: null,
       id: artifact.id,
       taskId: artifact.taskId
     }
   );
 }
 
-function getArtifactResourceKind(kind: string): ResourceKind {
-  const normalized = kind.toLowerCase();
-  if (normalized === "pr" || normalized === "pull_request" || normalized === "pull-request") {
-    return "pr";
-  }
-
-  if (normalized === "worktree") {
-    return "worktree";
-  }
-
-  return "artifact";
+function resourceFromPullRequest(pullRequest: ApiPullRequest): Resource {
+  const pullRequestNumber = getPullRequestNumber(pullRequest.url);
+  return resource(
+    "pr",
+    pullRequestNumber == null ? "Pull request" : `PR ${String(pullRequestNumber)}`,
+    pullRequest.url,
+    "Registered",
+    formatDate(pullRequest.createdAt),
+    {
+      href: pullRequest.url,
+      id: pullRequest.id,
+      taskId: pullRequest.taskId
+    }
+  );
 }
 
 function resource(

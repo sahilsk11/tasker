@@ -31,12 +31,13 @@ export class SqliteTaskArtifactRepository implements TaskArtifactRepository {
       .values({
         created_at: new Date().toISOString(),
         created_by_session_id: input.createdBySessionId ?? null,
+        dedupe_key: getArtifactDedupeKey(input.label, input.uri),
         id: randomUUID(),
         label: input.label,
         task_id: taskId,
         uri: input.uri
       })
-      .onConflict((oc) => oc.columns(["task_id", "label", "uri"]).doNothing())
+      .onConflict((oc) => oc.columns(["task_id", "dedupe_key"]).doNothing())
       .returningAll()
       .executeTakeFirst();
 
@@ -98,4 +99,11 @@ function toTaskArtifact(row: TaskArtifactRow): TaskArtifact {
     taskId: row.task_id,
     uri: row.uri
   };
+}
+
+function getArtifactDedupeKey(
+  label: CreateTaskArtifactInput["label"],
+  uri: string
+): string {
+  return `artifact:${label}:${Buffer.from(uri, "utf8").toString("hex")}`;
 }

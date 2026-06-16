@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Kysely } from "kysely";
+import { sql, type Kysely } from "kysely";
 import type { Database, TaskRow } from "../db/schema.js";
 import type {
   CreateTaskInput,
@@ -109,15 +109,6 @@ export class SqliteTaskRepository implements TaskRepository {
     id: TaskId,
     state: TaskState
   ): Promise<Task | null> {
-    const task = await this.findById(id);
-    if (task == null) {
-      return null;
-    }
-
-    if (taskStateRank[task.state] >= taskStateRank[state]) {
-      return task;
-    }
-
     const row = await this.db
       .updateTable("tasks")
       .set({
@@ -125,10 +116,19 @@ export class SqliteTaskRepository implements TaskRepository {
         updated_at: new Date().toISOString()
       })
       .where("id", "=", id)
+      .where(sql<number>`CASE state
+        WHEN 'ready' THEN 0
+        WHEN 'research' THEN 1
+        WHEN 'plan' THEN 2
+        WHEN 'implement' THEN 3
+        WHEN 'code_review' THEN 4
+        WHEN 'merged' THEN 5
+        WHEN 'done' THEN 6
+      END`, "<", taskStateRank[state])
       .returningAll()
       .executeTakeFirst();
 
-    return row == null ? null : toTask(row);
+    return row == null ? this.findById(id) : toTask(row);
   }
 }
 

@@ -1,8 +1,7 @@
 DROP INDEX IF EXISTS task_pull_requests_task_url_unique_idx;
 DROP INDEX IF EXISTS task_pull_requests_task_id_idx;
-DROP TABLE IF EXISTS task_pull_requests;
 
-DROP INDEX IF EXISTS task_artifacts_task_label_uri_unique_idx;
+DROP INDEX IF EXISTS task_artifacts_task_dedupe_key_unique_idx;
 DROP INDEX IF EXISTS task_artifacts_task_id_idx;
 
 PRAGMA foreign_keys = OFF;
@@ -29,15 +28,41 @@ INSERT INTO task_artifacts_rollback (
 SELECT
   id,
   task_id,
-  label,
+  CASE
+    WHEN row_number() OVER (
+      PARTITION BY task_id, label, uri
+      ORDER BY created_at ASC, id ASC
+    ) = 1 THEN label
+    ELSE 'legacy_artifact_' || id
+  END,
   label,
   uri,
   created_at,
   created_by_session_id
 FROM task_artifacts;
 
+INSERT INTO task_artifacts_rollback (
+  id,
+  task_id,
+  kind,
+  label,
+  uri,
+  created_at,
+  created_by_session_id
+)
+SELECT
+  id,
+  task_id,
+  'pr',
+  'Pull request',
+  url,
+  created_at,
+  NULL
+FROM task_pull_requests;
+
 DROP TABLE task_artifacts;
 ALTER TABLE task_artifacts_rollback RENAME TO task_artifacts;
+DROP TABLE task_pull_requests;
 
 CREATE TABLE tasks_rollback (
   id text PRIMARY KEY,

@@ -64,7 +64,7 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
           `
             SELECT label, uri, created_by_session_id
             FROM task_artifacts
-            ORDER BY uri
+            ORDER BY uri, label
           `
         )
         .all();
@@ -74,6 +74,16 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
           created_by_session_id: null,
           label: "plan",
           uri: "/tmp/legacy-plan.md"
+        },
+        {
+          created_by_session_id: null,
+          label: "other",
+          uri: "/tmp/shared-resource"
+        },
+        {
+          created_by_session_id: null,
+          label: "other",
+          uri: "/tmp/shared-resource"
         }
       ]);
 
@@ -97,6 +107,46 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000004_task_session_tracking_metadata",
         "000005_resource_attribution_and_dedupe",
         "000006_task_state_and_pull_requests"
+      ]);
+
+      database.exec(
+        readFileSync(
+          join(migrationsDirectory, "000006_task_state_and_pull_requests.down.sql"),
+          "utf8"
+        )
+      );
+
+      const rolledBackArtifacts = database
+        .prepare(
+          `
+            SELECT kind, label, uri
+            FROM task_artifacts
+            ORDER BY uri, kind
+          `
+        )
+        .all();
+
+      assert.deepEqual(rolledBackArtifacts, [
+        {
+          kind: "plan",
+          label: "plan",
+          uri: "/tmp/legacy-plan.md"
+        },
+        {
+          kind: "legacy_artifact_artifact-5",
+          label: "other",
+          uri: "/tmp/shared-resource"
+        },
+        {
+          kind: "other",
+          label: "other",
+          uri: "/tmp/shared-resource"
+        },
+        {
+          kind: "pr",
+          label: "Pull request",
+          uri: "https://github.com/sahilsk11/tasker/pull/1"
+        }
       ]);
     } finally {
       database.close();
@@ -178,6 +228,22 @@ function seedLegacySessionDatabase(databasePath: string): void {
       "Duplicate PR",
       "https://github.com/sahilsk11/tasker/pull/1",
       "2026-01-01T00:00:04.000Z"
+    );
+    insertArtifact.run(
+      "artifact-4",
+      "task-1",
+      "summary",
+      "Summary",
+      "/tmp/shared-resource",
+      "2026-01-01T00:00:05.000Z"
+    );
+    insertArtifact.run(
+      "artifact-5",
+      "task-1",
+      "report",
+      "Report",
+      "/tmp/shared-resource",
+      "2026-01-01T00:00:06.000Z"
     );
   } finally {
     database.close();

@@ -27,6 +27,7 @@ CREATE TABLE task_artifacts_next (
   task_id text NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   label text NOT NULL CHECK (label IN ('research', 'plan', 'implement', 'other')),
   uri text NOT NULL,
+  dedupe_key text NOT NULL,
   created_at text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   created_by_session_id text REFERENCES task_sessions(id) ON DELETE SET NULL
 );
@@ -36,40 +37,47 @@ INSERT INTO task_artifacts_next (
   task_id,
   label,
   uri,
+  dedupe_key,
   created_at,
   created_by_session_id
 )
 SELECT
   id,
   task_id,
-  CASE
-    WHEN lower(kind) IN ('research', 'plan', 'implement') THEN lower(kind)
-    WHEN lower(label) IN ('research', 'plan', 'implement') THEN lower(label)
-    ELSE 'other'
-  END,
+  normalized_label,
   uri,
+  CASE
+    WHEN resource_rank = 1 THEN 'artifact:' || normalized_label || ':' || hex(uri)
+    ELSE 'legacy:' || id
+  END,
   created_at,
   created_by_session_id
-FROM task_artifacts
-WHERE id IN (
-  SELECT id
+FROM (
+  SELECT
+    id,
+    task_id,
+    normalized_label,
+    uri,
+    created_at,
+    created_by_session_id,
+    row_number() OVER (
+      PARTITION BY task_id, normalized_label, uri
+      ORDER BY created_at ASC, id ASC
+    ) AS resource_rank
   FROM (
     SELECT
       id,
-      row_number() OVER (
-        PARTITION BY
-          task_id,
-          CASE
-            WHEN lower(kind) IN ('research', 'plan', 'implement') THEN lower(kind)
-            WHEN lower(label) IN ('research', 'plan', 'implement') THEN lower(label)
-            ELSE 'other'
-          END,
-          uri
-        ORDER BY created_at ASC, id ASC
-      ) AS resource_rank
+      task_id,
+      CASE
+        WHEN lower(kind) IN ('research', 'plan', 'implement') THEN lower(kind)
+        WHEN lower(label) IN ('research', 'plan', 'implement') THEN lower(label)
+        ELSE 'other'
+      END AS normalized_label,
+      uri,
+      created_at,
+      created_by_session_id
     FROM task_artifacts
-  )
-  WHERE resource_rank = 1
+  ) AS normalized_artifacts
 );
 
 DROP TABLE task_artifacts;
@@ -78,8 +86,8 @@ ALTER TABLE task_artifacts_next RENAME TO task_artifacts;
 PRAGMA foreign_keys = ON;
 
 CREATE INDEX task_artifacts_task_id_idx ON task_artifacts(task_id);
-CREATE UNIQUE INDEX task_artifacts_task_label_uri_unique_idx
-ON task_artifacts(task_id, label, uri);
+CREATE UNIQUE INDEX task_artifacts_task_dedupe_key_unique_idx
+ON task_artifacts(task_id, dedupe_key);
 
 CREATE INDEX task_pull_requests_task_id_idx ON task_pull_requests(task_id);
 

@@ -46,9 +46,13 @@ void test("task actions are loaded from the database", async () => {
       actions.map((action) => action.id),
       ["investigate", "plan", "breakdown", "implement", "code_review", "new_session"]
     );
-    assert.equal(actions[0]?.label, "Investigate");
-    assert.equal(actions[3]?.options?.worktree != null, true);
-    assert.equal(actions[0]?.options, null);
+    const firstAction = actions[0];
+    const implementAction = actions[3];
+    assert.ok(firstAction);
+    assert.ok(implementAction);
+    assert.equal(firstAction.label, "Investigate");
+    assert.equal(implementAction.options?.worktree != null, true);
+    assert.equal(firstAction.options, null);
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });
@@ -87,7 +91,8 @@ void test("session create rejects unknown action ids", async () => {
     });
 
     assert.equal(sessionResponse.statusCode, 400);
-    assert.match(JSON.parse(sessionResponse.body).error, /not-a-real-action/);
+    const errorBody = JSON.parse(sessionResponse.body) as { readonly error: string };
+    assert.match(errorBody.error, /not-a-real-action/);
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });

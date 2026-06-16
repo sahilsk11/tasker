@@ -15,7 +15,7 @@ migrate({ databasePath: env.databasePath });
 
 const result = await applyTaskActionDefaultsAtPath(env.databasePath, { mode });
 
-console.log(
+console.info(
   JSON.stringify(
     {
       databasePath: env.databasePath,

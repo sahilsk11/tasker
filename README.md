@@ -59,6 +59,23 @@ macOS: ~/Library/Application Support/Tasker
 Linux: ~/.local/share/tasker
 ```
 
+## SAS deploy
+
+Pushes to `main` trigger `.github/workflows/sas-redeploy.yml`. The workflow
+posts a signed GitHub-style `push` event to the SAS webhook route:
+
+```text
+https://webhooks-sahil.ultron.sh/github-tasker
+```
+
+SAS maps that route to `sahilsk11/tasker` on `main` and submits the `tasker`
+deploy tag. The SAS role then pulls the latest Tasker checkout, rebuilds the
+workspace, and restarts each `tasker-<user>.service` instance when code or build
+artifacts changed.
+
+The repository secret `SAS_DEPLOY_WEBHOOK_SECRET` must match the SAS-side
+`WEBHOOK_GITHUB_TASKER_SECRET` value.
+
 ## Layout
 
 ```text

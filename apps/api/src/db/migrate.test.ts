@@ -111,14 +111,10 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
       ]);
 
       const taskActions = database
-        .prepare("SELECT id, prompt_template FROM task_actions ORDER BY sort_order")
+        .prepare("SELECT id FROM task_actions ORDER BY sort_order")
         .all();
 
-      assert.equal(taskActions.length, 6);
-      assert.match(
-        (taskActions[0] as { prompt_template: string }).prompt_template,
-        /\{\{taskHeader\}\}/
-      );
+      assert.deepEqual(taskActions, []);
 
       database.exec(
         readFileSync(

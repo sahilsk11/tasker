@@ -8,6 +8,7 @@ import { createDb } from "../db/client.js";
 import { migrate } from "../db/migrate.js";
 import { SqliteTaskActionRepository } from "../repository/task-action.repository.js";
 import { renderActionPrompt } from "../service/task-action-prompt.js";
+import { seedTaskActionDefaults } from "../test/seed-task-action-defaults.js";
 
 void test("seeded plan template renders with only known placeholders", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-action-prompt-"));
@@ -15,6 +16,7 @@ void test("seeded plan template renders with only known placeholders", async () 
 
   try {
     migrate({ databasePath });
+    await seedTaskActionDefaults(databasePath);
     const db = createDb({ path: databasePath });
     try {
       const repository = new SqliteTaskActionRepository(db);

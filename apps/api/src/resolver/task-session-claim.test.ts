@@ -5,15 +5,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createApp } from "../app.js";
+import { seedTaskActionDefaults } from "../test/seed-task-action-defaults.js";
 
 void test("external task sessions can be claimed with flexible metadata", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-session-claim-"));
   const codexSessionsRoot = join(dir, "codex", "sessions");
+  const databasePath = join(dir, "tasker.sqlite");
   const app = await createApp({
     codexSessionsRoot,
-    databasePath: join(dir, "tasker.sqlite"),
+    databasePath,
     linearApiKey: null
   });
+  await seedTaskActionDefaults(databasePath);
 
   try {
     const taskResponse = await app.inject({

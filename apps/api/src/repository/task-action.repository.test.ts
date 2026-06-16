@@ -4,13 +4,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createApp } from "../app.js";
+import { seedTaskActionDefaults } from "../test/seed-task-action-defaults.js";
 
 void test("task actions are loaded from the database", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-"));
+  const databasePath = join(dir, "tasker.sqlite");
   const app = await createApp({
-    databasePath: join(dir, "tasker.sqlite"),
+    databasePath,
     linearApiKey: null
   });
+  await seedTaskActionDefaults(databasePath);
 
   try {
     const taskResponse = await app.inject({
@@ -54,10 +57,12 @@ void test("task actions are loaded from the database", async () => {
 
 void test("session create rejects unknown action ids", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-invalid-"));
+  const databasePath = join(dir, "tasker.sqlite");
   const app = await createApp({
-    databasePath: join(dir, "tasker.sqlite"),
+    databasePath,
     linearApiKey: null
   });
+  await seedTaskActionDefaults(databasePath);
 
   try {
     const taskResponse = await app.inject({

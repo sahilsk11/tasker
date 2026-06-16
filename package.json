@@ -22,7 +22,7 @@
     "install-daemon": "node scripts/install-daemon.mjs",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint --max-warnings 0 && node scripts/check-file-lines.mjs",
     "smoke:migrations": "pnpm --filter @tasker/api smoke:migrations",
-    "test": "pnpm -r --if-present test",
+    "test": "pnpm --filter @tasker/core build && pnpm -r --if-present test",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {

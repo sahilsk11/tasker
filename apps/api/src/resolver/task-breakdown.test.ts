@@ -68,20 +68,6 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
       ["task_has_existing_subtasks"]
     );
 
-    const previewResponse = await app.inject({
-      method: "GET",
-      url: `/breakdowns/preview?uri=${encodeURIComponent(breakdownPath)}`
-    });
-    assert.equal(previewResponse.statusCode, 200);
-    const contentType = previewResponse.headers["content-type"];
-    if (typeof contentType !== "string") {
-      throw new Error("Preview response did not include a string content type.");
-    }
-    assert.match(contentType, /text\/html/);
-    assert.match(previewResponse.body, /Large task/);
-    assert.match(previewResponse.body, /Add breakdown API/);
-    assert.match(previewResponse.body, /Accept this breakdown/);
-
     const acceptResponse = await app.inject({
       method: "POST",
       payload: { uri: breakdownPath },

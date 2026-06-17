@@ -15,10 +15,11 @@ import {
   Workflow
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { defaultWorktreePath } from "@tasker/core";
 import { useEffect, useState } from "react";
-import type { ApiSession, ApiTaskAction } from "@/api/tasks";
+import type { ApiSession, ApiTaskAction, TaskActionPromptValues } from "@/api/tasks";
+import { renderTaskSessionPrompt } from "@/api/tasks";
 import { MarkdownDocument } from "@/components/MarkdownDocument";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,10 +30,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { localApiBaseUrl } from "@/lib/env";
 import { cn } from "@/lib/utils";
 
-const defaultWorktreePath = "~/wt";
+const quickActionCount = 2;
 
 const taskActionIcons: Record<string, LucideIcon> = {
   breakdown: ListTree,
@@ -52,12 +52,12 @@ export function TaskActionRow({
   readonly onSelectAction: (action: ApiTaskAction) => void;
   readonly onViewAll: () => void;
 }): React.JSX.Element {
-  const recommendedActions = actions.filter((action) => action.isRecommended).slice(0, 2);
+  const quickActions = actions.slice(0, quickActionCount);
 
   return (
     <div className="mt-auto min-w-0 border-t border-border/70 pt-4">
       <div className="flex flex-wrap justify-center gap-2">
-        {recommendedActions.map((action) => (
+        {quickActions.map((action) => (
           <TaskActionButton
             key={action.id}
             action={action}
@@ -132,78 +132,80 @@ export function TaskActionPromptDialog({
   onBack,
   onOpenChange,
   session,
-  taskDescription,
-  taskId,
-  taskTitle
+  taskId
 }: {
   readonly action: ApiTaskAction | null;
   readonly onBack: () => void;
   readonly onOpenChange: (isOpen: boolean) => void;
   readonly session: ApiSession | null;
-  readonly taskDescription: string | null;
   readonly taskId: string;
-  readonly taskTitle: string;
 }): React.JSX.Element {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [createWorktree, setCreateWorktree] = useState(false);
   const [markdownMode, setMarkdownMode] = useState<"edit" | "view">("view");
   const [promptDraft, setPromptDraft] = useState("");
+  const [promptError, setPromptError] = useState<string | null>(null);
+  const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [worktreePath, setWorktreePath] = useState(defaultWorktreePath);
+
+  const worktreeOption = action?.options?.worktree ?? null;
+  const defaultWorktreePathValue =
+    worktreeOption?.fields?.path?.default ?? defaultWorktreePath;
 
   useEffect(() => {
     setCopiedPrompt(false);
-  }, [action, createWorktree, session, worktreePath]);
+  }, [action, createWorktree, promptDraft, session, worktreePath]);
 
   useEffect(() => {
-    setCreateWorktree(false);
+    if (action == null || session == null) {
+      setPromptDraft("");
+      return;
+    }
+
+    setCreateWorktree(worktreeOption?.default ?? false);
     setMarkdownMode("view");
-    setWorktreePath(defaultWorktreePath);
-  }, [action, session]);
-
-  const claimCommand =
-    session == null ? "" : buildCodexClaimCommand(localApiBaseUrl, session.id);
-  const worktreeOptions = buildWorktreePromptOptions({
-    action,
-    createWorktree,
-    worktreePath
-  });
-  const taskNotesPath =
-    session == null ? "" : buildSessionTaskNotesPath(taskId, session.id);
-  const taskNotesCommand =
-    action == null || session == null
-      ? ""
-      : buildCodexTaskNotesResourceCommand({
-          action,
-          apiUrl: localApiBaseUrl,
-          sessionId: session.id,
-          taskNotesPath,
-          taskId
-        });
-  const pullRequestCommand =
-    action == null || session == null
-      ? ""
-      : buildCodexPullRequestResourceCommand({
-          apiUrl: localApiBaseUrl,
-          taskId
-        });
-  const prompt =
-    action == null || session == null
-      ? ""
-      : buildCodexActionPrompt({
-          action,
-          claimCommand,
-          pullRequestCommand,
-          sessionId: session.id,
-          taskNotesCommand,
-          taskNotesPath,
-          taskDescription,
-          taskTitle,
-          worktreeOptions
-        });
+    setPromptError(null);
+    setWorktreePath(defaultWorktreePathValue);
+  }, [action, defaultWorktreePathValue, session, worktreeOption?.default]);
 
   useEffect(() => {
-    setPromptDraft(prompt);
-  }, [prompt]);
+    if (action == null || session == null) {
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingPrompt(true);
+    setPromptError(null);
+
+    const promptOptions = buildPromptOptions({
+      createWorktree,
+      worktreePath
+    });
+
+    void renderTaskSessionPrompt(taskId, session.id, promptOptions)
+      .then((prompt) => {
+        if (!cancelled) {
+          setPromptDraft(prompt);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setPromptError(
+            error instanceof Error ? error.message : "Failed to load action prompt."
+          );
+          setPromptDraft("");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingPrompt(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [action, createWorktree, session, taskId, worktreePath]);
 
   async function copyPrompt(): Promise<void> {
     if (promptDraft.length === 0) {
@@ -239,7 +241,7 @@ export function TaskActionPromptDialog({
         </DialogHeader>
 
         <div className="grid min-h-0 gap-4 overflow-y-auto border-t border-border p-5">
-          {action?.id === "implement" ? (
+          {worktreeOption == null ? null : (
             <section className="grid gap-3 rounded-lg border border-border bg-secondary/30 p-4">
               <label className="flex min-w-0 items-center gap-3 text-sm font-medium text-foreground">
                 <input
@@ -251,20 +253,20 @@ export function TaskActionPromptDialog({
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   )}
                 />
-                <span>Create a worktree</span>
+                <span>{worktreeOption.label}</span>
               </label>
               <div className="grid gap-2">
-                <Label htmlFor="implement-worktree-path">Worktree location</Label>
+                <Label htmlFor="action-worktree-path">Worktree location</Label>
                 <Input
-                  id="implement-worktree-path"
+                  id="action-worktree-path"
                   value={worktreePath}
                   disabled={!createWorktree}
-                  placeholder={defaultWorktreePath}
+                  placeholder={defaultWorktreePathValue}
                   onChange={(event) => setWorktreePath(event.target.value)}
                 />
               </div>
             </section>
-          ) : null}
+          )}
 
           <section className="flex h-[min(30rem,calc(100dvh-18rem))] min-h-80 flex-col overflow-hidden rounded-lg border border-border bg-card">
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
@@ -275,7 +277,7 @@ export function TaskActionPromptDialog({
                   variant="outline"
                   size="sm"
                   onClick={() => void copyPrompt()}
-                  disabled={promptDraft.length === 0}
+                  disabled={promptDraft.length === 0 || isLoadingPrompt}
                 >
                   {copiedPrompt ? (
                     <Check className="size-4" />
@@ -290,6 +292,7 @@ export function TaskActionPromptDialog({
                     variant="ghost"
                     size="sm"
                     onClick={() => setMarkdownMode("edit")}
+                    disabled={isLoadingPrompt}
                   >
                     <Pencil className="size-4" />
                     <span>Edit</span>
@@ -307,14 +310,23 @@ export function TaskActionPromptDialog({
                 )}
               </div>
             </div>
-            <MarkdownDocument
-              value={promptDraft}
-              onChange={setPromptDraft}
-              mode={markdownMode}
-              className="flex min-h-0 flex-1"
-              previewClassName="px-5 py-5"
-              textareaClassName="min-h-0"
-            />
+            {promptError != null ? (
+              <p className="px-5 py-4 text-sm text-destructive">{promptError}</p>
+            ) : isLoadingPrompt ? (
+              <p className="flex items-center gap-2 px-5 py-4 text-sm text-muted-foreground">
+                <LoaderCircle className="size-4 animate-spin" />
+                <span>Loading prompt...</span>
+              </p>
+            ) : (
+              <MarkdownDocument
+                value={promptDraft}
+                onChange={setPromptDraft}
+                mode={markdownMode}
+                className="flex min-h-0 flex-1"
+                previewClassName="px-5 py-5"
+                textareaClassName="min-h-0"
+              />
+            )}
           </section>
         </div>
       </DialogContent>
@@ -322,226 +334,19 @@ export function TaskActionPromptDialog({
   );
 }
 
-function buildCodexActionPrompt({
-  action,
-  claimCommand,
-  pullRequestCommand,
-  sessionId,
-  taskNotesCommand,
-  taskNotesPath,
-  taskDescription,
-  taskTitle,
-  worktreeOptions
-}: {
-  readonly action: ApiTaskAction;
-  readonly claimCommand: string;
-  readonly pullRequestCommand: string;
-  readonly sessionId: string;
-  readonly taskNotesCommand: string;
-  readonly taskNotesPath: string;
-  readonly taskDescription: string | null;
-  readonly taskTitle: string;
-  readonly worktreeOptions: WorktreePromptOptions;
-}): string {
-  const description = taskDescription?.trim();
-  const contextLines = [
-    `# ${taskTitle}`,
-    ...(description == null || description.length === 0
-      ? []
-      : ["", "## Description", description]),
-    "",
-    "## Action",
-    action.prompt
-  ];
-  const worktreeSection = worktreeOptions.createWorktree
-    ? `
-## Worktree
-
-Before editing files, create an isolated git worktree for this implementation.
-Use this location unless it is unavailable:
-
-\`${worktreeOptions.path}\`
-
-Base the worktree on the latest fetched \`origin/main\` or \`origin/master\`, not on
-the current checkout's local branch. Leave existing uncommitted changes in the
-primary checkout untouched. Do all implementation, verification, commit, push,
-and pull request work from inside the worktree.
-`
-    : "";
-
-  return `${contextLines.join("\n")}${worktreeSection}
-
-## Tasker session claim
-
-Before doing the task, claim this Tasker session.
-
-Run this command from the agent if available:
-
-\`\`\`bash
-${claimCommand}
-\`\`\`
-
-If CODEX_THREAD_ID is not set, still continue with the task and report that claim failed.
-
-The claim response includes a \`taskOverview\` object with the current task,
-selected action, existing resources, child tasks, and \`latestTaskActivityAt\`.
-Use that returned overview before deciding what to inspect or change.
-
-## Tasker artifact attribution
-
-When registering artifacts created by this session, include \`"createdBySessionId": "${sessionId}"\`
-in the artifact resource payload. Tickets and PR resources do not use session
-attribution.
-
-## Tasker task notes
-
-Before finishing, write durable findings and next-step context to:
-
-\`${taskNotesPath}\`
-
-Keep the artifact concise and useful for the next agent. Include decisions made,
-files inspected or changed, verification performed, and any remaining risks.
-
-After writing the artifact, register it with Tasker:
-
-\`\`\`bash
-${taskNotesCommand}
-\`\`\`
-
-If artifact registration fails, still finish the task and report the failure.
-
-## Optional pull request resource
-
-If this task does not need a pull request, skip this section.
-
-If you open a pull request while working on this Tasker session, register the PR
-URL before finishing:
-
-\`\`\`bash
-${pullRequestCommand}
-\`\`\`
-
-If PR registration fails, still finish the task and report the failure.`;
-}
-
-type WorktreePromptOptions = {
-  readonly createWorktree: boolean;
-  readonly path: string;
-};
-
-function buildWorktreePromptOptions({
-  action,
+function buildPromptOptions({
   createWorktree,
   worktreePath
 }: {
-  readonly action: ApiTaskAction | null;
   readonly createWorktree: boolean;
   readonly worktreePath: string;
-}): WorktreePromptOptions {
-  if (action?.id !== "implement" || !createWorktree) {
-    return {
-      createWorktree: false,
-      path: defaultWorktreePath
-    };
-  }
-
-  const trimmedPath = worktreePath.trim();
-
+}): TaskActionPromptValues {
   return {
-    createWorktree: true,
-    path: trimmedPath.length === 0 ? defaultWorktreePath : trimmedPath
+    worktree: {
+      enabled: createWorktree,
+      ...(createWorktree ? { path: worktreePath } : {})
+    }
   };
-}
-
-function buildCodexClaimCommand(apiUrl: string, sessionId: string): string {
-  const claimUrl = `${apiUrl}/sessions/${sessionId}/claim`;
-  return `curl -sS -X POST "${claimUrl}" \\
-  -H "Content-Type: application/json" \\
-  --data-binary @- <<EOF
-{
-  "provider": "codex",
-  "providerId": "\${CODEX_THREAD_ID:-}",
-  "metadata": {
-    "reportedCwd": "$(pwd)",
-    "codexThreadIdEnvPresent": $([ -n "\${CODEX_THREAD_ID:-}" ] && echo true || echo false)
-  }
-}
-EOF`;
-}
-
-function buildSessionTaskNotesPath(taskId: string, sessionId: string): string {
-  return `$HOME/.tasker/artifacts/${taskId}/${sessionId}/notes.md`;
-}
-
-function buildCodexTaskNotesResourceCommand({
-  action,
-  apiUrl,
-  sessionId,
-  taskNotesPath,
-  taskId
-}: {
-  readonly action: ApiTaskAction;
-  readonly apiUrl: string;
-  readonly sessionId: string;
-  readonly taskNotesPath: string;
-  readonly taskId: string;
-}): string {
-  const artifactUrl = `${apiUrl}/tasks/${taskId}/artifacts`;
-  const resourceLabel = `${action.label} notes`;
-
-  return `notes_path="${taskNotesPath}"
-mkdir -p "$(dirname "$notes_path")"
-
-# Replace this template with the durable context you discovered.
-cat > "$notes_path" <<'TASKER_NOTES'
-# ${resourceLabel}
-
-## Summary
-
-## Decisions
-
-## Verification
-
-## Remaining risks
-TASKER_NOTES
-
-curl -sS -X POST "${artifactUrl}" \\
-  -H "Content-Type: application/json" \\
-  --data-binary @- <<EOF
-{
-  "createdBySessionId": ${JSON.stringify(sessionId)},
-  "label": ${JSON.stringify(getArtifactLabelForAction(action.id))},
-  "uri": "$notes_path"
-}
-EOF`;
-}
-
-function buildCodexPullRequestResourceCommand({
-  apiUrl,
-  taskId
-}: {
-  readonly apiUrl: string;
-  readonly taskId: string;
-}): string {
-  const pullRequestUrl = `${apiUrl}/tasks/${taskId}/pull-requests`;
-
-  return `pr_url="https://github.com/OWNER/REPO/pull/NUMBER"
-
-curl -sS -X POST "${pullRequestUrl}" \\
-  -H "Content-Type: application/json" \\
-  --data-binary @- <<EOF
-{
-  "url": "$pr_url"
-}
-EOF`;
-}
-
-function getArtifactLabelForAction(actionId: string): "research" | "plan" | "implement" | "other" {
-  if (actionId === "research" || actionId === "plan" || actionId === "implement") {
-    return actionId;
-  }
-
-  return "other";
 }
 
 async function copyPlainText(value: string): Promise<void> {
@@ -636,7 +441,6 @@ function TaskActionListItem({
       <div className="flex min-w-0 items-center gap-2">
         <Icon className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate text-sm font-medium">{action.label}</span>
-        {action.isRecommended ? <Badge variant="secondary">Recommended</Badge> : null}
       </div>
       <p className="text-sm leading-5 text-muted-foreground">{action.description}</p>
     </button>

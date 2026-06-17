@@ -2,6 +2,7 @@ import type { TaskActionOptions } from "./task-action-options.js";
 
 export type TaskAction = {
   readonly description: string;
+  readonly iconName: string | null;
   readonly id: string;
   readonly label: string;
   readonly options: TaskActionOptions | null;
@@ -13,6 +14,24 @@ export type TaskActionRecord = TaskAction & {
   readonly promptTemplate: string;
   readonly sortOrder: number;
   readonly updatedAt: Date;
+};
+
+export type TaskActionDetails = TaskAction & {
+  readonly createdAt: string;
+  readonly enabled: boolean;
+  readonly promptTemplate: string;
+  readonly sortOrder: number;
+  readonly updatedAt: string;
+};
+
+export type UpdateTaskActionInput = {
+  readonly description?: string;
+  readonly enabled?: boolean;
+  readonly iconName?: string | null;
+  readonly label?: string;
+  readonly options?: TaskActionOptions | null;
+  readonly promptTemplate?: string;
+  readonly sortOrder?: number;
 };
 
 export type TaskActionPromptContext = {

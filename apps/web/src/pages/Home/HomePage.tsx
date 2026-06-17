@@ -10,6 +10,7 @@ import {
   type TaskBundle
 } from "@/api/tasks";
 import { NewTaskDialog } from "./NewTaskDialog";
+import { SettingsDialog } from "./SettingsDialog";
 import { TaskGrid, TaskGridSkeleton } from "./TaskGrid";
 import { TaskToolbar } from "./TaskToolbar";
 import {
@@ -99,6 +100,7 @@ export function HomePage(): React.JSX.Element {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
+      <SettingsDialog />
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between gap-4 border-b border-border/70 pb-5">
           <div className="flex min-w-0 items-center gap-3">

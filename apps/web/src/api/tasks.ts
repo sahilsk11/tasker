@@ -115,9 +115,28 @@ export type ApiTaskActionOptions = {
 
 export type ApiTaskAction = {
   readonly description: string;
+  readonly iconName: string | null;
   readonly id: string;
   readonly label: string;
   readonly options: ApiTaskActionOptions | null;
+};
+
+export type ApiTaskActionDetails = ApiTaskAction & {
+  readonly createdAt: string;
+  readonly enabled: boolean;
+  readonly promptTemplate: string;
+  readonly sortOrder: number;
+  readonly updatedAt: string;
+};
+
+export type UpdateTaskActionInput = {
+  readonly description?: string;
+  readonly enabled?: boolean;
+  readonly iconName?: string | null;
+  readonly label?: string;
+  readonly options?: ApiTaskActionOptions | null;
+  readonly promptTemplate?: string;
+  readonly sortOrder?: number;
 };
 
 export type TaskResources = {
@@ -261,6 +280,23 @@ export async function listTaskBundles(): Promise<readonly TaskBundle[]> {
       return { actions, children, resources, task };
     })
   );
+}
+
+export async function listTaskActionSettings(): Promise<readonly ApiTaskActionDetails[]> {
+  const { actions } = await apiClient.get<{
+    readonly actions: readonly ApiTaskActionDetails[];
+  }>("/actions");
+  return actions;
+}
+
+export async function updateTaskActionSettings(
+  actionId: string,
+  input: UpdateTaskActionInput
+): Promise<ApiTaskActionDetails> {
+  const { action } = await apiClient.patch<{
+    readonly action: ApiTaskActionDetails;
+  }>(`/actions/${actionId}`, input);
+  return action;
 }
 
 export async function createTask(input: CreateTaskInput): Promise<ApiTask> {

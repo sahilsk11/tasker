@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { taskActionPromptValuesSchema } from "../domain/task-action-prompt-values.js";
 import type {
   ClaimTaskSessionInput,
   CreateTaskSessionInput,
@@ -21,6 +22,14 @@ const artifactIdParamsSchema = taskIdParamsSchema.extend({
 
 const sessionIdParamsSchema = z.object({
   sessionId: z.string().min(1)
+});
+
+const taskSessionParamsSchema = taskIdParamsSchema.extend({
+  sessionId: z.string().min(1)
+});
+
+const renderSessionPromptSchema = z.object({
+  promptOptions: taskActionPromptValuesSchema.optional()
 });
 
 const createTaskSchema = z.object({
@@ -152,11 +161,19 @@ export function registerTaskResolver(
 
   server.post("/tasks/:id/sessions", async (request, reply) => {
     const { id } = taskIdParamsSchema.parse(request.params);
-    const session = await taskService.addSession(
-      id,
-      parseCreateSessionInput(request.body)
-    );
+    const session = await taskService.addSession(id, parseCreateSessionInput(request.body));
     return reply.code(201).send({ session });
+  });
+
+  server.post("/tasks/:id/sessions/:sessionId/prompt", async (request) => {
+    const { id, sessionId } = taskSessionParamsSchema.parse(request.params);
+    const parsed = renderSessionPromptSchema.parse(request.body ?? {});
+    const prompt = await taskService.renderSessionPrompt(
+      id,
+      sessionId,
+      parsed.promptOptions
+    );
+    return { prompt };
   });
 
   server.post("/sessions/:sessionId/claim", async (request) => {

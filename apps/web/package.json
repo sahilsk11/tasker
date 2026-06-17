@@ -11,6 +11,7 @@
     "ui:add": "pnpm dlx shadcn@latest add"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
     "@fontsource-variable/geist": "^5.2.9",
     "@fontsource-variable/geist-mono": "^5.2.8",
     "@radix-ui/react-dialog": "^1.1.16",
@@ -20,6 +21,7 @@
     "@tanstack/react-query": "^5.101.0",
     "@tasker/core": "workspace:*",
     "@vitejs/plugin-react": "^4.5.2",
+    "@xyflow/react": "^12.11.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.18.0",

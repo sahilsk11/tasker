@@ -10,7 +10,7 @@ import type {
   TaskBreakdownValidationResult,
   TaskBreakdownWarning
 } from "../domain/task-breakdown.js";
-import type { Task, TaskId } from "../domain/task.js";
+import type { Task } from "../domain/task.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 import { BadRequestError, NotFoundError } from "./errors.js";
 
@@ -88,16 +88,6 @@ export class TaskBreakdownService {
     };
   }
 
-  public async renderPreview(uri: string): Promise<string> {
-    const validation = await this.validate({ uri });
-    if (validation.breakdown == null) {
-      return renderInvalidPreview(validation);
-    }
-
-    const parentTask = await this.requireTask(validation.breakdown.taskId);
-    return renderValidPreview(parentTask, validation, uri, this.buildAcceptUrl());
-  }
-
   private async loadBreakdown(input: TaskBreakdownSourceInput): Promise<{
     readonly breakdown: TaskBreakdown | null;
     readonly errors: readonly TaskBreakdownValidationError[];
@@ -161,23 +151,10 @@ export class TaskBreakdownService {
     return { errors, warnings };
   }
 
-  private async requireTask(taskId: TaskId): Promise<Task> {
-    const task = await this.tasks.findById(taskId);
-    if (task == null) {
-      throw new NotFoundError(`Task ${taskId} not found`);
-    }
-
-    return task;
-  }
-
   private buildPreviewUrl(uri: string): string {
-    const url = new URL(`${trimTrailingSlash(this.publicApiBaseUrl)}/breakdowns/preview`);
+    const url = new URL(`${getFrontendBaseUrl(this.publicApiBaseUrl)}/breakdowns/preview`);
     url.searchParams.set("uri", uri);
     return url.toString();
-  }
-
-  private buildAcceptUrl(): string {
-    return `${trimTrailingSlash(this.publicApiBaseUrl)}/breakdowns/accept`;
   }
 }
 
@@ -270,114 +247,12 @@ function getLocalFilePath(uri: string): string {
   throw new BadRequestError("Breakdown URI must be an absolute local file path");
 }
 
-function renderInvalidPreview(validation: TaskBreakdownValidationResult): string {
-  return renderPage("Invalid breakdown", [
-    "<h1>Invalid breakdown</h1>",
-    "<ul>",
-    ...validation.errors.map(
-      (error) => `<li><code>${escapeHtml(error.path)}</code>: ${escapeHtml(error.message)}</li>`
-    ),
-    "</ul>"
-  ]);
-}
-
-function renderValidPreview(
-  parentTask: Task,
-  validation: TaskBreakdownValidationResult,
-  uri: string,
-  acceptUrl: string
-): string {
-  const breakdown = validation.breakdown;
-  if (breakdown == null) {
-    return renderInvalidPreview(validation);
-  }
-
-  return renderPage(`Breakdown preview: ${parentTask.title}`, [
-    `<h1>${escapeHtml(parentTask.title)}</h1>`,
-    parentTask.description == null ? "" : `<p>${escapeHtml(parentTask.description)}</p>`,
-    `<h2>Proposed breakdown</h2>`,
-    `<p>${escapeHtml(breakdown.summary)}</p>`,
-    renderWarnings(validation.warnings),
-    "<ol>",
-    ...breakdown.items.map((item) => renderBreakdownItem(item)),
-    "</ol>",
-    `<button type="button" id="accept-breakdown">Accept this breakdown</button>`,
-    `<pre id="accept-result"></pre>`,
-    `<script>
-      document.getElementById("accept-breakdown").addEventListener("click", async () => {
-        const response = await fetch(${JSON.stringify(acceptUrl)}, {
-          body: JSON.stringify({ uri: ${JSON.stringify(uri)} }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST"
-        });
-        document.getElementById("accept-result").textContent =
-          JSON.stringify(await response.json(), null, 2);
-      });
-    </script>`
-  ]);
-}
-
-function renderBreakdownItem(item: TaskBreakdown["items"][number]): string {
-  const dependencies =
-    item.dependsOn.length === 0
-      ? ""
-      : `<p><strong>Depends on:</strong> ${escapeHtml(item.dependsOn.join(", "))}</p>`;
-
-  return `<li>
-    <h3>${escapeHtml(item.title)}</h3>
-    <p>${escapeHtml(item.description)}</p>
-    <p><strong>ID:</strong> <code>${escapeHtml(item.id)}</code></p>
-    ${dependencies}
-  </li>`;
-}
-
-function renderWarnings(warnings: readonly TaskBreakdownWarning[]): string {
-  if (warnings.length === 0) {
-    return "";
-  }
-
-  return [
-    "<h2>Warnings</h2>",
-    "<ul>",
-    ...warnings.map((warning) => `<li>${escapeHtml(warning.message)}</li>`),
-    "</ul>"
-  ].join("\n");
-}
-
-function renderPage(title: string, body: readonly string[]): string {
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>${escapeHtml(title)}</title>
-    <style>
-      body { color: #111827; font: 16px/1.5 system-ui, sans-serif; margin: 40px auto; max-width: 880px; padding: 0 24px; }
-      button { background: #111827; border: 0; color: white; cursor: pointer; font: inherit; padding: 10px 14px; }
-      code { background: #f3f4f6; padding: 2px 4px; }
-      li { margin: 0 0 16px; }
-    </style>
-  </head>
-  <body>
-    ${body.filter(Boolean).join("\n")}
-  </body>
-</html>`;
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => {
-    const entities: Record<string, string> = {
-      '"': "&quot;",
-      "&": "&amp;",
-      "'": "&#39;",
-      "<": "&lt;",
-      ">": "&gt;"
-    };
-    return entities[character] ?? character;
-  });
-}
-
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/$/, "");
+}
+
+function getFrontendBaseUrl(publicApiBaseUrl: string): string {
+  return trimTrailingSlash(publicApiBaseUrl).replace(/\/api$/u, "");
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

@@ -15,22 +15,12 @@ const sourceInputSchema = z
     message: "Provide only one of breakdown or uri."
   });
 
-const previewQuerySchema = z.object({
-  uri: z.string().min(1)
-});
-
 export function registerTaskBreakdownResolver(
   server: FastifyInstance,
   breakdownService: TaskBreakdownService
 ): void {
   server.post("/breakdowns/validate", async (request) => {
     return breakdownService.validate(parseSourceInput(request.body));
-  });
-
-  server.get("/breakdowns/preview", async (request, reply) => {
-    const { uri } = previewQuerySchema.parse(request.query);
-    const html = await breakdownService.renderPreview(uri);
-    return reply.type("text/html; charset=utf-8").send(html);
   });
 
   server.post("/breakdowns/accept", async (request, reply) => {

@@ -134,6 +134,51 @@ export type TaskBundle = {
   readonly task: ApiTask;
 };
 
+export type ApiTaskBreakdownItem = {
+  readonly dependsOn: readonly string[];
+  readonly description: string;
+  readonly id: string;
+  readonly title: string;
+};
+
+export type ApiTaskBreakdown = {
+  readonly items: readonly ApiTaskBreakdownItem[];
+  readonly schemaVersion: 1;
+  readonly summary: string;
+  readonly taskId: string;
+};
+
+export type ApiTaskBreakdownValidationError = {
+  readonly message: string;
+  readonly path: string;
+};
+
+export type ApiTaskBreakdownWarning =
+  | {
+      readonly code: "task_has_existing_subtasks";
+      readonly existingSubtasks: readonly ApiTask[];
+      readonly message: string;
+    }
+  | {
+      readonly code: "dependency_order";
+      readonly message: string;
+      readonly path: string;
+    };
+
+export type ApiTaskBreakdownValidationResult = {
+  readonly breakdown: ApiTaskBreakdown | null;
+  readonly errors: readonly ApiTaskBreakdownValidationError[];
+  readonly previewUrl: string | null;
+  readonly valid: boolean;
+  readonly warnings: readonly ApiTaskBreakdownWarning[];
+};
+
+export type ApiAcceptTaskBreakdownResult = {
+  readonly accepted: true;
+  readonly createdSubtasks: readonly ApiTask[];
+  readonly taskId: string;
+};
+
 export type CreateTaskInput = {
   readonly description: string | null;
   readonly parentTaskId: string | null;
@@ -221,6 +266,25 @@ export async function listTaskBundles(): Promise<readonly TaskBundle[]> {
 export async function createTask(input: CreateTaskInput): Promise<ApiTask> {
   const { task } = await apiClient.post<{ readonly task: ApiTask }>("/tasks", input);
   return task;
+}
+
+export async function getTask(taskId: string): Promise<ApiTask> {
+  const { task } = await apiClient.get<{ readonly task: ApiTask }>(`/tasks/${taskId}`);
+  return task;
+}
+
+export async function validateTaskBreakdown(
+  uri: string
+): Promise<ApiTaskBreakdownValidationResult> {
+  return apiClient.post<ApiTaskBreakdownValidationResult>("/breakdowns/validate", {
+    uri
+  });
+}
+
+export async function acceptTaskBreakdown(
+  uri: string
+): Promise<ApiAcceptTaskBreakdownResult> {
+  return apiClient.post<ApiAcceptTaskBreakdownResult>("/breakdowns/accept", { uri });
 }
 
 export async function createTaskSession(

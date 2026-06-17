@@ -10,12 +10,14 @@ import { SqliteTaskTicketRepository } from "./repository/task-ticket.repository.
 import { SqliteTaskRepository } from "./repository/task.repository.js";
 import { registerGitHubResolver } from "./resolver/github.resolver.js";
 import { registerLinearResolver } from "./resolver/linear.resolver.js";
+import { registerTaskBreakdownResolver } from "./resolver/task-breakdown.resolver.js";
 import { registerTaskResolver } from "./resolver/task.resolver.js";
 import { CodexSessionProvider } from "./service/codex-session-provider.js";
 import { BadRequestError, NotFoundError } from "./service/errors.js";
 import { GitHubService, type GitHubServiceOptions } from "./service/github.service.js";
 import { LinearService, type LinearServiceOptions } from "./service/linear.service.js";
 import { TaskSessionProviderRegistry } from "./service/session-provider.js";
+import { TaskBreakdownService } from "./service/task-breakdown.service.js";
 import { TaskService } from "./service/task.service.js";
 
 export type CreateAppOptions = {
@@ -57,15 +59,21 @@ export async function createApp(options: CreateAppOptions) {
         : { titleDiscovery: codexTitleDiscovery })
     })
   ]);
+  const taskRepository = new SqliteTaskRepository(db);
+  const publicApiBaseUrl = options.publicApiBaseUrl ?? "http://127.0.0.1:3000";
   const taskService = new TaskService(
-    new SqliteTaskRepository(db),
+    taskRepository,
     new SqliteTaskArtifactRepository(db),
     new SqliteTaskPullRequestRepository(db),
     new SqliteTaskSessionRepository(db),
     new SqliteTaskTicketRepository(db),
     new SqliteTaskActionRepository(db),
-    options.publicApiBaseUrl ?? "http://127.0.0.1:3000",
+    publicApiBaseUrl,
     sessionProviders
+  );
+  const taskBreakdownService = new TaskBreakdownService(
+    taskRepository,
+    publicApiBaseUrl
   );
   const linearService = new LinearService(options.linearApiKey, options.linear);
   const githubService = new GitHubService(options.github);
@@ -94,6 +102,7 @@ export async function createApp(options: CreateAppOptions) {
   await server.register(
     (api, _options, done) => {
       registerTaskResolver(api, taskService);
+      registerTaskBreakdownResolver(api, taskBreakdownService);
       registerLinearResolver(api, taskService, linearService);
       registerGitHubResolver(api, githubService);
       done();

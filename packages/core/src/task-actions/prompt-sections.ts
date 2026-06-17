@@ -36,6 +36,72 @@ primary checkout untouched. Do all implementation, verification, commit, push,
 and pull request work from inside the worktree.`;
 }
 
+export function buildBreakdownWorkflowSection(context: TaskActionPromptContext): string {
+  const breakdownPath = `$HOME/.tasker/breakdowns/${context.taskId}/breakdown.json`;
+  const validateUrl = `${context.apiBaseUrl}/breakdowns/validate`;
+  const acceptUrl = `${context.apiBaseUrl}/breakdowns/accept`;
+
+  return `## Tasker breakdown workflow
+
+Create or update a local breakdown JSON document for this task at:
+
+\`${breakdownPath}\`
+
+Use this schema:
+
+\`\`\`json
+{
+  "schemaVersion": 1,
+  "taskId": ${JSON.stringify(context.taskId)},
+  "summary": "Short summary of the decomposition.",
+  "items": [
+    {
+      "id": "backend-contract",
+      "title": "Add the backend contract",
+      "description": "What this subtask should accomplish.",
+      "dependsOn": []
+    }
+  ]
+}
+\`\`\`
+
+Keep the breakdown one level deep. Use stable item IDs and put dependency IDs in
+\`dependsOn\`. Do not create child tasks directly.
+
+After writing or editing the JSON file, validate it:
+
+\`\`\`bash
+breakdown_path="${breakdownPath}"
+mkdir -p "$(dirname "$breakdown_path")"
+
+curl -sS -X POST "${validateUrl}" \\
+  -H "Content-Type: application/json" \\
+  --data-binary @- <<EOF
+{
+  "uri": "$breakdown_path"
+}
+EOF
+\`\`\`
+
+If validation returns \`valid: true\`, give the user the returned \`previewUrl\`.
+The user can review that page and accept it to create first-party subtasks.
+If validation returns warnings about existing subtasks, adjust the breakdown to
+work around them unless the user explicitly asked to append more work.
+
+Only call the accept endpoint yourself if the user explicitly asks you to lock in
+the breakdown:
+
+\`\`\`bash
+curl -sS -X POST "${acceptUrl}" \\
+  -H "Content-Type: application/json" \\
+  --data-binary @- <<EOF
+{
+  "uri": "$breakdown_path"
+}
+EOF
+\`\`\``;
+}
+
 export function buildSessionClaimSection(context: TaskActionPromptContext): string {
   const claimCommand = buildCodexClaimCommand(context.apiBaseUrl, context.sessionId);
 

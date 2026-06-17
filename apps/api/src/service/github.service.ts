@@ -6,7 +6,10 @@ export type PullRequestStatus = "closed" | "draft" | "merged" | "open" | "unknow
 export type PullRequestStatusResult = {
   readonly error: string | null;
   readonly number: number | null;
+  readonly owner: string | null;
+  readonly repository: string | null;
   readonly status: PullRequestStatus;
+  readonly title: string | null;
   readonly url: string;
 };
 
@@ -21,11 +24,14 @@ type GitHubPullResponse = {
   readonly merged_at?: string | null;
   readonly number?: number;
   readonly state?: string;
+  readonly title?: string;
 };
 
 type ParsedPullRequestUrl = {
   readonly apiUrl: string;
   readonly number: number;
+  readonly owner: string;
+  readonly repository: string;
 };
 
 export class GitHubService {
@@ -61,7 +67,10 @@ export class GitHubService {
       return {
         error: "Only github.com pull request URLs are supported",
         number: null,
+        owner: null,
+        repository: null,
         status: "unknown",
+        title: null,
         url
       };
     }
@@ -87,7 +96,10 @@ export class GitHubService {
       return {
         error: `GitHub returned ${String(resolvedResponse.status)}`,
         number: parsed.number,
+        owner: parsed.owner,
+        repository: parsed.repository,
         status: "unknown",
+        title: null,
         url
       };
     }
@@ -96,7 +108,10 @@ export class GitHubService {
     return {
       error: null,
       number: pullRequest.number ?? parsed.number,
+      owner: parsed.owner,
+      repository: parsed.repository,
       status: getPullRequestStatus(pullRequest),
+      title: pullRequest.title ?? null,
       url
     };
   }
@@ -122,7 +137,9 @@ function parseGitHubPullRequestUrl(value: string): ParsedPullRequestUrl | null {
 
   return {
     apiUrl: `https://api.github.com/repos/${owner}/${repo}/pulls/${String(number)}`,
-    number
+    number,
+    owner,
+    repository: repo
   };
 }
 

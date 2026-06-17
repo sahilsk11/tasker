@@ -5,7 +5,10 @@ export type PullRequestStatus = "closed" | "draft" | "merged" | "open" | "unknow
 export type PullRequestStatusResult = {
   readonly error: string | null;
   readonly number: number | null;
+  readonly owner: string | null;
+  readonly repository: string | null;
   readonly status: PullRequestStatus;
+  readonly title: string | null;
   readonly url: string;
 };
 

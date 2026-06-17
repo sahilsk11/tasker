@@ -15,7 +15,9 @@ export type Resource = {
   readonly key: string;
   readonly kind: ResourceKind;
   readonly label: string;
+  readonly metaLabel: string | null;
   readonly pullRequestNumber: number | null;
+  readonly pullRequestRepository: string | null;
   readonly state: string;
   readonly taskId: string;
   readonly updatedAt: string;
@@ -112,15 +114,18 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
 }
 
 function resourceFromArtifact(artifact: ApiArtifact): Resource {
+  const createdAt = formatDate(artifact.createdAt);
+
   return resource(
     "artifact",
-    artifact.label,
-    artifact.uri,
+    getFileName(artifact.uri),
+    createdAt,
     "Ready",
-    formatDate(artifact.createdAt),
+    createdAt,
     {
       href: null,
       id: artifact.id,
+      metaLabel: artifact.label,
       taskId: artifact.taskId
     }
   );
@@ -151,9 +156,14 @@ function resource(
   options: {
     readonly href: string | null;
     readonly id: string;
+    readonly metaLabel?: string | null;
     readonly taskId: string;
   }
 ): Resource {
+  const pullRequestRepository = kind === "pr" && options.href != null
+    ? getPullRequestRepository(options.href)
+    : null;
+
   return {
     detail,
     href: options.href,
@@ -161,9 +171,11 @@ function resource(
     key: `${kind}-${options.taskId}-${options.id}`,
     kind,
     label,
+    metaLabel: options.metaLabel ?? null,
     pullRequestNumber: kind === "pr" && options.href != null
       ? getPullRequestNumber(options.href)
       : null,
+    pullRequestRepository,
     state,
     taskId: options.taskId,
     updatedAt
@@ -179,6 +191,19 @@ function getUrlHost(value: string): string {
 }
 
 function getPullRequestNumber(value: string): number | null {
+  const parsed = parsePullRequestUrl(value);
+  return parsed?.number ?? null;
+}
+
+function getPullRequestRepository(value: string): string | null {
+  const parsed = parsePullRequestUrl(value);
+  return parsed?.repository ?? null;
+}
+
+function parsePullRequestUrl(value: string): {
+  readonly number: number;
+  readonly repository: string;
+} | null {
   try {
     const url = new URL(value);
     const [owner, repo, pull, numberValue] = url.pathname.split("/").filter(Boolean);
@@ -187,9 +212,35 @@ function getPullRequestNumber(value: string): number | null {
       return null;
     }
 
-    return number;
+    return {
+      number,
+      repository: repo
+    };
   } catch {
     return null;
+  }
+}
+
+function getFileName(value: string): string {
+  const path = getPathFromUri(value);
+  const segments = path.split(/[\\/]/).filter(Boolean);
+  return decodeUriPart(segments.at(-1) ?? value);
+}
+
+function getPathFromUri(value: string): string {
+  try {
+    const url = new URL(value);
+    return url.protocol === "file:" ? url.pathname : value;
+  } catch {
+    return value;
+  }
+}
+
+function decodeUriPart(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
   }
 }
 

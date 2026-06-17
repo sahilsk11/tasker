@@ -179,9 +179,10 @@ function ResourceColumn({
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               )}
             >
-              <span className="truncate text-sm font-medium text-foreground">
-                {resource.label}
-              </span>
+              <ResourceTitle
+                pullRequestStatuses={pullRequestStatuses}
+                resource={resource}
+              />
               <ResourceSummary
                 pullRequestStatuses={pullRequestStatuses}
                 resource={resource}
@@ -270,7 +271,9 @@ function ResourceTable({
       <TableBody>
         {group.items.map((resource) => (
           <TableRow key={resource.key}>
-            <TableCell className="font-medium text-foreground">{resource.label}</TableCell>
+            <TableCell className="font-medium text-foreground">
+              {getResourceTitle(resource, pullRequestStatuses)}
+            </TableCell>
             <TableCell className="text-muted-foreground">{resource.detail}</TableCell>
             <TableCell>
               {resource.kind === "pr" ? (
@@ -283,7 +286,7 @@ function ResourceTable({
             </TableCell>
             <TableCell className="text-muted-foreground">
               {resource.kind === "pr"
-                ? formatPullRequestNumber(resource)
+                ? formatPullRequestReference(resource, pullRequestStatuses)
                 : resource.updatedAt}
             </TableCell>
             <TableCell>
@@ -324,8 +327,26 @@ function ResourceSummary({
         <PullRequestStatusBadge
           status={getPullRequestStatus(resource, pullRequestStatuses)}
         />
+        <span
+          className="min-w-0 truncate text-right text-xs text-muted-foreground"
+          title={formatPullRequestReference(resource, pullRequestStatuses)}
+        >
+          {formatPullRequestReference(resource, pullRequestStatuses)}
+        </span>
+      </span>
+    );
+  }
+
+  if (resource.kind === "artifact") {
+    return (
+      <span className="flex min-w-0 items-center justify-between gap-2">
+        {resource.metaLabel == null ? null : (
+          <Badge className="h-5 shrink-0 px-1.5 text-[11px]" variant="secondary">
+            {resource.metaLabel}
+          </Badge>
+        )}
         <span className="shrink-0 text-xs text-muted-foreground">
-          {formatPullRequestNumber(resource)}
+          {resource.detail}
         </span>
       </span>
     );
@@ -340,6 +361,23 @@ function ResourceSummary({
   );
 }
 
+function ResourceTitle({
+  pullRequestStatuses,
+  resource
+}: {
+  readonly pullRequestStatuses: PullRequestStatusMap;
+  readonly resource: Resource;
+}): React.JSX.Element {
+  return (
+    <span
+      className="truncate text-sm font-medium text-foreground"
+      title={getResourceTitle(resource, pullRequestStatuses)}
+    >
+      {getResourceTitle(resource, pullRequestStatuses)}
+    </span>
+  );
+}
+
 function getPullRequestStatus(
   resource: Resource,
   pullRequestStatuses: PullRequestStatusMap
@@ -347,8 +385,27 @@ function getPullRequestStatus(
   return resource.href == null ? null : pullRequestStatuses.get(resource.href) ?? null;
 }
 
-function formatPullRequestNumber(resource: Resource): string {
-  return resource.pullRequestNumber == null
-    ? "#"
-    : `#${String(resource.pullRequestNumber)}`;
+function getResourceTitle(
+  resource: Resource,
+  pullRequestStatuses: PullRequestStatusMap
+): string {
+  if (resource.kind !== "pr") {
+    return resource.label;
+  }
+
+  return getPullRequestStatus(resource, pullRequestStatuses)?.title ?? resource.label;
+}
+
+function formatPullRequestReference(
+  resource: Resource,
+  pullRequestStatuses: PullRequestStatusMap
+): string {
+  const status = getPullRequestStatus(resource, pullRequestStatuses);
+  const repository = status?.repository ?? resource.pullRequestRepository;
+  const number = status?.number ?? resource.pullRequestNumber;
+  if (repository == null) {
+    return number == null ? "#" : `#${String(number)}`;
+  }
+
+  return number == null ? repository : `${repository}#${String(number)}`;
 }

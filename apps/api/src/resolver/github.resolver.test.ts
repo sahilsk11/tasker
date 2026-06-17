@@ -25,7 +25,8 @@ void test("pull request statuses are fetched from GitHub with discovered gh toke
           draft: false,
           merged_at: "2026-06-15T12:00:00Z",
           number: 7,
-          state: "closed"
+          state: "closed",
+          title: "Render resource titles"
         }));
       },
       homeDir: dir
@@ -58,7 +59,10 @@ void test("pull request statuses are fetched from GitHub with discovered gh toke
       readonly pullRequests: ReadonlyArray<{
         readonly error: string | null;
         readonly number: number | null;
+        readonly owner: string | null;
+        readonly repository: string | null;
         readonly status: string;
+        readonly title: string | null;
         readonly url: string;
       }>;
     };
@@ -66,7 +70,10 @@ void test("pull request statuses are fetched from GitHub with discovered gh toke
       {
         error: null,
         number: 7,
+        owner: "sahilsk11",
+        repository: "tasker",
         status: "merged",
+        title: "Render resource titles",
         url: "https://github.com/sahilsk11/tasker/pull/7"
       }
     ]);

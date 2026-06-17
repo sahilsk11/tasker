@@ -174,3 +174,75 @@ void test("session create rejects unknown action ids", async () => {
     await rm(dir, { force: true, recursive: true });
   }
 });
+
+void test("task action settings can be updated through the catalog endpoint", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-settings-"));
+  const databasePath = join(dir, "tasker.sqlite");
+  const app = await createApp({
+    databasePath,
+    linearApiKey: null
+  });
+  await seedTaskActionDefaults(databasePath);
+
+  try {
+    const updateResponse = await app.inject({
+      method: "PATCH",
+      payload: {
+        description: "Plan the next concrete implementation steps.",
+        enabled: false,
+        iconName: "workflow",
+        label: "Plan next",
+        sortOrder: 8
+      },
+      url: "/actions/plan"
+    });
+    assert.equal(updateResponse.statusCode, 200);
+    const updated = JSON.parse(updateResponse.body) as {
+      readonly action: {
+        readonly description: string;
+        readonly enabled: boolean;
+        readonly iconName: string;
+        readonly label: string;
+        readonly sortOrder: number;
+      };
+    };
+    assert.equal(updated.action.label, "Plan next");
+    assert.equal(updated.action.enabled, false);
+    assert.equal(updated.action.iconName, "workflow");
+    assert.equal(updated.action.sortOrder, 8);
+
+    const catalogResponse = await app.inject({
+      method: "GET",
+      url: "/actions"
+    });
+    assert.equal(catalogResponse.statusCode, 200);
+    const catalog = JSON.parse(catalogResponse.body) as {
+      readonly actions: ReadonlyArray<{ readonly id: string; readonly enabled: boolean }>;
+    };
+    assert.ok(catalog.actions.some((action) => action.id === "plan" && !action.enabled));
+
+    const taskResponse = await app.inject({
+      method: "POST",
+      payload: {
+        title: "Settings catalog task"
+      },
+      url: "/tasks"
+    });
+    assert.equal(taskResponse.statusCode, 201);
+    const task = (JSON.parse(taskResponse.body) as { readonly task: { readonly id: string } })
+      .task;
+
+    const enabledActionsResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/actions`
+    });
+    assert.equal(enabledActionsResponse.statusCode, 200);
+    const enabledActions = JSON.parse(enabledActionsResponse.body) as {
+      readonly actions: ReadonlyArray<{ readonly id: string }>;
+    };
+    assert.equal(enabledActions.actions.some((action) => action.id === "plan"), false);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});

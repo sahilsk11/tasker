@@ -66,11 +66,12 @@ void test("applyTaskActionDefaults update mode overwrites existing rows", async 
 
       const row = await db
         .selectFrom("task_actions")
-        .select(["description"])
+        .select(["description", "icon_name"])
         .where("id", "=", "plan")
         .executeTakeFirstOrThrow();
 
       assert.equal(row.description, "Updated plan description");
+      assert.equal(row.icon_name, "map");
     } finally {
       await db.destroy();
     }

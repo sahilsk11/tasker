@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { taskActionOptionsSchema } from "../domain/task-action-options.js";
 import { taskActionPromptValuesSchema } from "../domain/task-action-prompt-values.js";
 import type {
   ClaimTaskSessionInput,
@@ -9,11 +10,16 @@ import type {
 import type { CreateTaskArtifactInput } from "../domain/task-artifact.js";
 import type { CreateTaskPullRequestInput } from "../domain/task-pull-request.js";
 import type { CreateTaskTicketInput } from "../domain/task-ticket.js";
+import type { UpdateTaskActionInput } from "../domain/task-action.js";
 import type { UpdateTaskInput } from "../domain/task.js";
 import type { TaskService } from "../service/task.service.js";
 
 const taskIdParamsSchema = z.object({
   id: z.string().min(1)
+});
+
+const actionIdParamsSchema = z.object({
+  actionId: z.string().min(1)
 });
 
 const artifactIdParamsSchema = taskIdParamsSchema.extend({
@@ -49,6 +55,18 @@ const updateTaskSchema = z.object({
   parentTaskId: z.string().nullable().optional(),
   title: z.string().min(1).optional()
 });
+
+const updateTaskActionSchema = z
+  .object({
+    description: z.string().min(1).optional(),
+    enabled: z.boolean().optional(),
+    iconName: z.string().min(1).nullable().optional(),
+    label: z.string().min(1).optional(),
+    options: taskActionOptionsSchema.nullable().optional(),
+    promptTemplate: z.string().min(1).optional(),
+    sortOrder: z.number().int().min(0).optional()
+  })
+  .strict();
 
 const createArtifactSchema = z.object({
   createdBySessionId: z.string().min(1).nullable().optional(),
@@ -90,6 +108,19 @@ export function registerTaskResolver(
   server.get("/tasks", async () => ({
     tasks: await taskService.listTasks()
   }));
+
+  server.get("/actions", async () => ({
+    actions: await taskService.listActionSettings()
+  }));
+
+  server.patch("/actions/:actionId", async (request) => {
+    const { actionId } = actionIdParamsSchema.parse(request.params);
+    const action = await taskService.updateActionSettings(
+      actionId,
+      parseUpdateTaskActionInput(request.body)
+    );
+    return { action };
+  });
 
   server.post("/tasks", async (request, reply) => {
     const task = await taskService.createTask(createTaskSchema.parse(request.body));
@@ -293,5 +324,20 @@ function parseUpdateTaskInput(body: unknown): UpdateTaskInput {
     ...(parsed.description !== undefined ? { description: parsed.description } : {}),
     ...(parsed.parentTaskId !== undefined ? { parentTaskId: parsed.parentTaskId } : {}),
     ...(parsed.title !== undefined ? { title: parsed.title } : {})
+  };
+}
+
+function parseUpdateTaskActionInput(body: unknown): UpdateTaskActionInput {
+  const parsed = updateTaskActionSchema.parse(body);
+  return {
+    ...(parsed.description !== undefined ? { description: parsed.description } : {}),
+    ...(parsed.enabled !== undefined ? { enabled: parsed.enabled } : {}),
+    ...(parsed.iconName !== undefined ? { iconName: parsed.iconName } : {}),
+    ...(parsed.label !== undefined ? { label: parsed.label } : {}),
+    ...(parsed.options !== undefined ? { options: parsed.options } : {}),
+    ...(parsed.promptTemplate !== undefined
+      ? { promptTemplate: parsed.promptTemplate }
+      : {}),
+    ...(parsed.sortOrder !== undefined ? { sortOrder: parsed.sortOrder } : {})
   };
 }

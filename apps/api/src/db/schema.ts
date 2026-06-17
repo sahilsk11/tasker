@@ -15,6 +15,7 @@ export type TaskActionsTable = {
   readonly created_at: Generated<string>;
   readonly description: string;
   readonly enabled: Generated<number>;
+  readonly icon_name: string | null;
   readonly id: string;
   readonly label: string;
   readonly options_json: string | null;

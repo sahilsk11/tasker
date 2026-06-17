@@ -23,11 +23,8 @@ import type { TaskTicketRepository } from "../repository/task-ticket.repository.
 import type { TaskActionRepository } from "../repository/task-action.repository.js";
 import { toTaskAction } from "../repository/task-action.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
-import {
-  defaultCodexSessionsRoot,
-  resolveCodexTranscriptPath
-} from "./codex-transcript.js";
 import { BadRequestError, NotFoundError } from "./errors.js";
+import { TaskSessionProviderRegistry } from "./session-provider.js";
 import { renderActionPrompt } from "./task-action-prompt.js";
 
 export type TaskResources = {
@@ -74,7 +71,7 @@ export class TaskService {
     private readonly tickets: TaskTicketRepository,
     private readonly actions: TaskActionRepository,
     private readonly publicApiBaseUrl: string,
-    private readonly codexSessionsRoot = defaultCodexSessionsRoot()
+    private readonly sessionProviders = new TaskSessionProviderRegistry()
   ) {}
 
   public async addArtifact(
@@ -106,7 +103,9 @@ export class TaskService {
     if (input.actionId != null) {
       await this.requireEnabledAction(input.actionId);
     }
-    return this.sessions.createForTask(taskId, input);
+    return this.sessionProviders.enrichSession(
+      await this.sessions.createForTask(taskId, input)
+    );
   }
 
   public async renderSessionPrompt(
@@ -150,8 +149,12 @@ export class TaskService {
     sessionId: string,
     input: ClaimTaskSessionInput
   ): Promise<ClaimTaskSessionResult> {
-    const claimInput = await this.withDiscoveredTranscript(input);
-    const session = await this.sessions.claim(sessionId, claimInput);
+    const claimInput = await this.sessionProviders.prepareClaimInput(input);
+    const claimedSession = await this.sessions.claim(sessionId, claimInput);
+    const session =
+      claimedSession == null
+        ? null
+        : await this.sessionProviders.enrichSession(claimedSession);
     if (session == null) {
       throw new NotFoundError(`Task session ${sessionId} not found`);
     }
@@ -188,7 +191,12 @@ export class TaskService {
       this.tickets.listByTaskId(taskId)
     ]);
 
-    return { artifacts, pullRequests, sessions, tickets };
+    return {
+      artifacts,
+      pullRequests,
+      sessions: await this.sessionProviders.enrichSessions(sessions),
+      tickets
+    };
   }
 
   public async getArtifact(
@@ -286,7 +294,9 @@ export class TaskService {
 
   public async listSessions(taskId: TaskId): Promise<readonly TaskSession[]> {
     await this.requireTask(taskId);
-    return this.sessions.listByTaskId(taskId);
+    return this.sessionProviders.enrichSessions(
+      await this.sessions.listByTaskId(taskId)
+    );
   }
 
   public async listTasks(): Promise<readonly Task[]> {
@@ -366,25 +376,6 @@ export class TaskService {
       resources,
       task
     };
-  }
-
-  private async withDiscoveredTranscript(
-    input: ClaimTaskSessionInput
-  ): Promise<ClaimTaskSessionInput> {
-    if (
-      input.provider !== "codex" ||
-      input.providerId == null ||
-      input.providerId.length === 0 ||
-      input.transcriptPath !== undefined
-    ) {
-      return input;
-    }
-
-    const transcriptPath = await resolveCodexTranscriptPath(input.providerId, {
-      sessionsRoot: this.codexSessionsRoot
-    });
-
-    return transcriptPath == null ? input : { ...input, transcriptPath };
   }
 
   private async inferTaskStateFromArtifact(

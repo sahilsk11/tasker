@@ -123,6 +123,7 @@ function toTaskSession(row: TaskSessionRow): TaskSession {
     actionId: row.action_id,
     claimedAt: row.claimed_at == null ? null : new Date(row.claimed_at),
     createdAt: new Date(row.created_at),
+    displayTitle: null,
     id: row.id,
     metadata: parseMetadata(row.metadata_json),
     provider: row.provider,

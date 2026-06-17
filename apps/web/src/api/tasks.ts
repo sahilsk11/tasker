@@ -51,6 +51,7 @@ export type ApiSession = {
   readonly actionId: string | null;
   readonly claimedAt: string | null;
   readonly createdAt: string;
+  readonly displayTitle: string | null;
   readonly id: string;
   readonly provider: string;
   readonly providerId: string | null;

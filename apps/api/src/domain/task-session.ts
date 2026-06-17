@@ -10,6 +10,7 @@ export type TaskSession = {
   readonly actionId: string | null;
   readonly claimedAt: Date | null;
   readonly createdAt: Date;
+  readonly displayTitle: string | null;
   readonly id: TaskSessionId;
   readonly metadata: TaskSessionMetadata | null;
   readonly provider: SessionProvider;

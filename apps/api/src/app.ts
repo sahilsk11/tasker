@@ -11,13 +11,17 @@ import { SqliteTaskRepository } from "./repository/task.repository.js";
 import { registerGitHubResolver } from "./resolver/github.resolver.js";
 import { registerLinearResolver } from "./resolver/linear.resolver.js";
 import { registerTaskResolver } from "./resolver/task.resolver.js";
+import { CodexSessionProvider } from "./service/codex-session-provider.js";
 import { BadRequestError, NotFoundError } from "./service/errors.js";
 import { GitHubService, type GitHubServiceOptions } from "./service/github.service.js";
 import { LinearService, type LinearServiceOptions } from "./service/linear.service.js";
+import { TaskSessionProviderRegistry } from "./service/session-provider.js";
 import { TaskService } from "./service/task.service.js";
 
 export type CreateAppOptions = {
+  readonly codexSessionIndexPath?: string;
   readonly codexSessionsRoot?: string;
+  readonly codexStatePath?: string;
   readonly databasePath: string;
   readonly github?: GitHubServiceOptions;
   readonly linear?: LinearServiceOptions;
@@ -36,6 +40,23 @@ export async function createApp(options: CreateAppOptions) {
   });
 
   const db = createDb({ path: options.databasePath });
+  const codexTitleDiscovery =
+    options.codexStatePath === undefined || options.codexSessionIndexPath === undefined
+      ? undefined
+      : {
+          sessionIndexPath: options.codexSessionIndexPath,
+          statePath: options.codexStatePath
+        };
+  const sessionProviders = new TaskSessionProviderRegistry([
+    new CodexSessionProvider({
+      ...(options.codexSessionsRoot === undefined
+        ? {}
+        : { sessionsRoot: options.codexSessionsRoot }),
+      ...(codexTitleDiscovery === undefined
+        ? {}
+        : { titleDiscovery: codexTitleDiscovery })
+    })
+  ]);
   const taskService = new TaskService(
     new SqliteTaskRepository(db),
     new SqliteTaskArtifactRepository(db),
@@ -44,7 +65,7 @@ export async function createApp(options: CreateAppOptions) {
     new SqliteTaskTicketRepository(db),
     new SqliteTaskActionRepository(db),
     options.publicApiBaseUrl ?? "http://127.0.0.1:3000",
-    options.codexSessionsRoot
+    sessionProviders
   );
   const linearService = new LinearService(options.linearApiKey, options.linear);
   const githubService = new GitHubService(options.github);

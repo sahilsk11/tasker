@@ -266,7 +266,9 @@ function TaskCard({
           }
         }}
         session={selectedSession}
+        taskDescription={bundle.task.description}
         taskId={bundle.task.id}
+        taskTitle={bundle.task.title}
       />
       <ResourceTableDialog
         group={selectedGroup}

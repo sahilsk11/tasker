@@ -23,7 +23,6 @@ export type CreateAppOptions = {
   readonly linear?: LinearServiceOptions;
   readonly linearApiKey: string | null;
   readonly migrationsDirectory?: string;
-  readonly publicApiBaseUrl?: string;
   readonly routePrefix?: string;
 };
 
@@ -43,7 +42,6 @@ export async function createApp(options: CreateAppOptions) {
     new SqliteTaskSessionRepository(db),
     new SqliteTaskTicketRepository(db),
     new SqliteTaskActionRepository(db),
-    options.publicApiBaseUrl ?? "http://127.0.0.1:3000",
     options.codexSessionsRoot
   );
   const linearService = new LinearService(options.linearApiKey, options.linear);

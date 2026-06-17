@@ -58,13 +58,6 @@ export type ApiSession = {
   readonly transcriptPath: string | null;
 };
 
-export type TaskActionPromptValues = {
-  readonly worktree?: {
-    readonly enabled: boolean;
-    readonly path?: string;
-  };
-};
-
 export type CreateTaskSessionInput = {
   readonly actionId: string;
   readonly claimed: boolean;
@@ -79,27 +72,12 @@ export type ApiTicket = {
   readonly url: string | null;
 };
 
-export type ApiTaskActionBooleanOption = {
-  readonly default: boolean;
-  readonly fields?: {
-    readonly path?: {
-      readonly default: string;
-      readonly type: "text";
-    };
-  };
-  readonly label: string;
-  readonly type: "boolean";
-};
-
-export type ApiTaskActionOptions = {
-  readonly worktree?: ApiTaskActionBooleanOption;
-};
-
 export type ApiTaskAction = {
   readonly description: string;
   readonly id: string;
+  readonly isRecommended: boolean;
   readonly label: string;
-  readonly options: ApiTaskActionOptions | null;
+  readonly prompt: string;
 };
 
 export type TaskResources = {
@@ -214,18 +192,6 @@ export async function createTaskSession(
     input
   );
   return session;
-}
-
-export async function renderTaskSessionPrompt(
-  taskId: string,
-  sessionId: string,
-  promptOptions?: TaskActionPromptValues
-): Promise<string> {
-  const { prompt } = await apiClient.post<{ readonly prompt: string }>(
-    `/tasks/${taskId}/sessions/${sessionId}/prompt`,
-    promptOptions == null ? {} : { promptOptions }
-  );
-  return prompt;
 }
 
 export async function createTaskTicket(

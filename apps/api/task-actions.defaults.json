@@ -21,7 +21,7 @@
     "id": "breakdown",
     "label": "Break down",
     "description": "Break the task into smaller child tasks or a dependency outline.",
-    "promptTemplate": "{{taskHeader}}\n\n## Action\nBreak this task down into smaller subtasks and dependencies.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
+    "promptTemplate": "{{taskHeader}}\n\n## Action\nBreak this task down into smaller subtasks and dependencies.\n\n{{breakdownWorkflow}}\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
     "options": null,
     "enabled": true,
     "sortOrder": 2

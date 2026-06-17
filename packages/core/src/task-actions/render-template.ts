@@ -1,5 +1,6 @@
 import {
   buildArtifactAttributionSection,
+  buildBreakdownWorkflowSection,
   buildPullRequestRegistrationSection,
   buildSessionClaimSection,
   buildTaskHeaderSection,
@@ -14,6 +15,7 @@ const substitutionRegistry: Record<
   (context: TaskActionPromptContext) => string
 > = {
   artifactAttribution: buildArtifactAttributionSection,
+  breakdownWorkflow: buildBreakdownWorkflowSection,
   registerDoc: buildTaskNotesRegistrationSection,
   registerPr: buildPullRequestRegistrationSection,
   registerSession: buildSessionClaimSection,

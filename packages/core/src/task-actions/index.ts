@@ -1,5 +1,6 @@
 export {
   buildArtifactAttributionSection,
+  buildBreakdownWorkflowSection,
   buildPullRequestRegistrationSection,
   buildSessionClaimSection,
   buildTaskHeaderSection,

@@ -10,9 +10,13 @@ import { seedTaskActionDefaults } from "../test/seed-task-action-defaults.js";
 void test("external task sessions can be claimed with flexible metadata", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-session-claim-"));
   const codexSessionsRoot = join(dir, "codex", "sessions");
+  const codexSessionIndexPath = join(dir, "codex", "session_index.jsonl");
+  const codexStatePath = join(dir, "codex", "state.sqlite");
   const databasePath = join(dir, "tasker.sqlite");
   const app = await createApp({
+    codexSessionIndexPath,
     codexSessionsRoot,
+    codexStatePath,
     databasePath,
     linearApiKey: null
   });
@@ -118,6 +122,13 @@ void test("external task sessions can be claimed with flexible metadata", async 
         type: "session_meta"
       })}\n`
     );
+    await writeFile(
+      codexSessionIndexPath,
+      `${JSON.stringify({
+        id: providerId,
+        thread_name: "Investigate claimable session"
+      })}\n`
+    );
 
     const claimResponse = await app.inject({
       method: "POST",
@@ -148,7 +159,10 @@ void test("external task sessions can be claimed with flexible metadata", async 
             readonly uri: string;
           }>;
           readonly pullRequests: ReadonlyArray<{ readonly url: string }>;
-          readonly sessions: ReadonlyArray<{ readonly id: string }>;
+          readonly sessions: ReadonlyArray<{
+            readonly displayTitle: string | null;
+            readonly id: string;
+          }>;
           readonly tickets: ReadonlyArray<{ readonly externalId: string }>;
         };
         readonly task: {
@@ -159,6 +173,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
       };
       readonly session: {
         readonly claimedAt: string | null;
+        readonly displayTitle: string | null;
         readonly metadata: Record<string, unknown> | null;
         readonly provider: string;
         readonly providerId: string | null;
@@ -168,6 +183,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
     const { taskOverview, session: claimedSession } = claimBody;
     assert.equal(typeof claimedSession.claimedAt, "string");
     assert.equal(claimedSession.provider, "codex");
+    assert.equal(claimedSession.displayTitle, "Investigate claimable session");
     assert.equal(
       claimedSession.providerId,
       providerId
@@ -208,6 +224,10 @@ void test("external task sessions can be claimed with flexible metadata", async 
       [createdSession.id]
     );
     assert.deepEqual(
+      taskOverview.resources.sessions.map((session) => session.displayTitle),
+      ["Investigate claimable session"]
+    );
+    assert.deepEqual(
       taskOverview.resources.tickets.map((ticket) => ticket.externalId),
       ["TASK-123"]
     );
@@ -223,6 +243,10 @@ void test("external task sessions can be claimed with flexible metadata", async 
     });
     assert.equal(claimedListResponse.statusCode, 200);
     assert.deepEqual(readSessionIds(claimedListResponse.body), [createdSession.id]);
+    assert.deepEqual(
+      readSessionDisplayTitles(claimedListResponse.body),
+      ["Investigate claimable session"]
+    );
 
     const missingSessionResponse = await app.inject({
       method: "POST",
@@ -252,6 +276,13 @@ function readSessionIds(body: string): readonly string[] {
     readonly sessions: ReadonlyArray<{ readonly id: string }>;
   };
   return parsed.sessions.map((session) => session.id);
+}
+
+function readSessionDisplayTitles(body: string): ReadonlyArray<string | null> {
+  const parsed = readJson(body) as {
+    readonly sessions: ReadonlyArray<{ readonly displayTitle: string | null }>;
+  };
+  return parsed.sessions.map((session) => session.displayTitle);
 }
 
 function readJson(body: string): unknown {

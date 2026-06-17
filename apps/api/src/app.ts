@@ -15,22 +15,32 @@ import { registerTaskResolver } from "./resolver/task.resolver.js";
 import { CodexSessionProvider } from "./service/codex-session-provider.js";
 import { BadRequestError, NotFoundError } from "./service/errors.js";
 import { GitHubService, type GitHubServiceOptions } from "./service/github.service.js";
+import {
+  KannaSessionProvider,
+  type KannaSessionProviderOptions
+} from "./service/kanna-session-provider.js";
 import { LinearService, type LinearServiceOptions } from "./service/linear.service.js";
-import { TaskSessionProviderRegistry } from "./service/session-provider.js";
 import { TaskBreakdownService } from "./service/task-breakdown.service.js";
+import {
+  TaskSessionProviderRegistry,
+  type TaskSessionProvider
+} from "./service/session-provider.js";
 import { TaskService } from "./service/task.service.js";
 
 export type CreateAppOptions = {
+  readonly agentRunProvider?: string | null;
   readonly codexSessionIndexPath?: string;
   readonly codexSessionsRoot?: string;
   readonly codexStatePath?: string;
   readonly databasePath: string;
   readonly github?: GitHubServiceOptions;
+  readonly kanna?: KannaSessionProviderOptions;
   readonly linear?: LinearServiceOptions;
   readonly linearApiKey: string | null;
   readonly migrationsDirectory?: string;
   readonly publicApiBaseUrl?: string;
   readonly routePrefix?: string;
+  readonly sessionProviders?: readonly TaskSessionProvider[];
 };
 
 export async function createApp(options: CreateAppOptions) {
@@ -49,7 +59,7 @@ export async function createApp(options: CreateAppOptions) {
           sessionIndexPath: options.codexSessionIndexPath,
           statePath: options.codexStatePath
         };
-  const sessionProviders = new TaskSessionProviderRegistry([
+  const providers: TaskSessionProvider[] = [
     new CodexSessionProvider({
       ...(options.codexSessionsRoot === undefined
         ? {}
@@ -57,10 +67,15 @@ export async function createApp(options: CreateAppOptions) {
       ...(codexTitleDiscovery === undefined
         ? {}
         : { titleDiscovery: codexTitleDiscovery })
-    })
-  ]);
+    }),
+    new KannaSessionProvider(options.kanna),
+    ...(options.sessionProviders ?? [])
+  ];
   const taskRepository = new SqliteTaskRepository(db);
   const publicApiBaseUrl = options.publicApiBaseUrl ?? "http://127.0.0.1:3000";
+  const sessionProviders = new TaskSessionProviderRegistry(providers, {
+    defaultLaunchProvider: options.agentRunProvider ?? null
+  });
   const taskService = new TaskService(
     taskRepository,
     new SqliteTaskArtifactRepository(db),

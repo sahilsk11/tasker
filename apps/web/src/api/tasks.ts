@@ -53,6 +53,7 @@ export type ApiSession = {
   readonly createdAt: string;
   readonly displayTitle: string | null;
   readonly id: string;
+  readonly metadata: Record<string, unknown> | null;
   readonly provider: string;
   readonly providerId: string | null;
   readonly taskId: string;
@@ -60,6 +61,7 @@ export type ApiSession = {
 };
 
 export type TaskActionPromptValues = {
+  readonly workingPath?: string;
   readonly worktree?: {
     readonly enabled: boolean;
     readonly path?: string;
@@ -70,6 +72,21 @@ export type CreateTaskSessionInput = {
   readonly actionId: string;
   readonly claimed: boolean;
   readonly provider: string;
+};
+
+export type RunTaskSessionPromptInput = {
+  readonly prompt: string;
+  readonly provider?: string | null;
+  readonly workingPath: string;
+};
+
+export type RunTaskSessionPromptResult = {
+  readonly launch: {
+    readonly metadata?: Record<string, unknown>;
+    readonly openUrl?: string | null;
+    readonly provider: string;
+  };
+  readonly session: ApiSession;
 };
 
 export type ApiTicket = {
@@ -227,6 +244,17 @@ export async function renderTaskSessionPrompt(
     promptOptions == null ? {} : { promptOptions }
   );
   return prompt;
+}
+
+export async function runTaskSessionPrompt(
+  taskId: string,
+  sessionId: string,
+  input: RunTaskSessionPromptInput
+): Promise<RunTaskSessionPromptResult> {
+  return apiClient.post<RunTaskSessionPromptResult>(
+    `/tasks/${taskId}/sessions/${sessionId}/run`,
+    input
+  );
 }
 
 export async function createTaskTicket(

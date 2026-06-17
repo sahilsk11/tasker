@@ -13,7 +13,10 @@ import type {
   TaskSession
 } from "../domain/task-session.js";
 import type { TaskActionPromptValues } from "../domain/task-action-prompt-values.js";
-import { resolveWorktreeForPrompt } from "../domain/task-action-prompt-values.js";
+import {
+  resolveWorkingPathForPrompt,
+  resolveWorktreeForPrompt
+} from "../domain/task-action-prompt-values.js";
 import type { CreateTaskTicketInput, TaskTicket } from "../domain/task-ticket.js";
 import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../domain/task.js";
 import type { TaskArtifactRepository } from "../repository/task-artifact.repository.js";
@@ -24,7 +27,10 @@ import type { TaskActionRepository } from "../repository/task-action.repository.
 import { toTaskAction } from "../repository/task-action.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 import { BadRequestError, NotFoundError } from "./errors.js";
-import { TaskSessionProviderRegistry } from "./session-provider.js";
+import {
+  TaskSessionProviderRegistry,
+  type StartedTaskSession
+} from "./session-provider.js";
 import { renderActionPrompt } from "./task-action-prompt.js";
 
 export type TaskResources = {
@@ -44,6 +50,17 @@ export type TaskOverview = {
 
 export type ClaimTaskSessionResult = {
   readonly taskOverview: TaskOverview;
+  readonly session: TaskSession;
+};
+
+export type RunTaskSessionPromptInput = {
+  readonly prompt: string;
+  readonly provider?: string | null;
+  readonly workingPath: string;
+};
+
+export type RunTaskSessionPromptResult = {
+  readonly launch: StartedTaskSession["launch"];
   readonly session: TaskSession;
 };
 
@@ -130,8 +147,8 @@ export class TaskService {
 
     const task = await this.requireTask(taskId);
     const worktree = resolveWorktreeForPrompt(action.options, options);
-
-    return renderActionPrompt(action, {
+    const workingPath = resolveWorkingPathForPrompt(options);
+    const basePrompt = renderActionPrompt(action, {
       action: {
         id: action.id,
         label: action.label
@@ -143,6 +160,48 @@ export class TaskService {
       taskTitle: task.title,
       ...(worktree === undefined ? {} : { worktree })
     });
+
+    return workingPath === undefined
+      ? basePrompt
+      : `${basePrompt}\n\n## Working path\n\nStart from this working directory:\n\n\`${workingPath}\``;
+  }
+
+  public async runSessionPrompt(
+    taskId: TaskId,
+    sessionId: string,
+    input: RunTaskSessionPromptInput
+  ): Promise<RunTaskSessionPromptResult> {
+    const prompt = input.prompt.trim();
+    if (prompt.length === 0) {
+      throw new BadRequestError("Prompt is required");
+    }
+    const workingPath = input.workingPath.trim();
+    if (workingPath.length === 0) {
+      throw new BadRequestError("Working path is required");
+    }
+
+    const task = await this.requireTask(taskId);
+    const session = await this.sessions.findById(sessionId);
+    if (session?.taskId !== taskId) {
+      throw new NotFoundError(`Task session ${sessionId} not found`);
+    }
+
+    const started = await this.sessionProviders.startSession({
+      prompt,
+      ...(input.provider !== undefined ? { requestedProvider: input.provider } : {}),
+      session,
+      task,
+      workingPath
+    });
+    const claimedSession = await this.sessions.claim(sessionId, started.claim);
+    if (claimedSession == null) {
+      throw new BadRequestError(`Task session ${sessionId} has already been claimed`);
+    }
+
+    return {
+      launch: started.launch,
+      session: await this.sessionProviders.enrichSession(claimedSession)
+    };
   }
 
   public async claimSession(

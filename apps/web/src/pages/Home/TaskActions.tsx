@@ -10,6 +10,7 @@ import {
   MessageSquareText,
   MoreHorizontal,
   Pencil,
+  Play,
   Save,
   Search,
   Workflow
@@ -18,7 +19,7 @@ import type { LucideIcon } from "lucide-react";
 import { defaultWorktreePath } from "@tasker/core";
 import { useEffect, useState } from "react";
 import type { ApiSession, ApiTaskAction, TaskActionPromptValues } from "@/api/tasks";
-import { renderTaskSessionPrompt } from "@/api/tasks";
+import { renderTaskSessionPrompt, runTaskSessionPrompt } from "@/api/tasks";
 import { MarkdownDocument } from "@/components/MarkdownDocument";
 import { Button } from "@/components/ui/button";
 import {
@@ -108,7 +109,7 @@ export function TaskActionsDialog({
           </div>
           <DialogTitle>Task actions</DialogTitle>
           <DialogDescription>
-            Suggested prompts for {taskTitle}. Starting sessions is not wired yet.
+            Suggested prompts for {taskTitle}.
           </DialogDescription>
           <TaskActionDialogStatus error={error} isPreparingPrompt={isPreparingPrompt} />
         </DialogHeader>
@@ -130,22 +131,27 @@ export function TaskActionsDialog({
 export function TaskActionPromptDialog({
   action,
   onBack,
+  onRunComplete,
   onOpenChange,
   session,
   taskId
 }: {
   readonly action: ApiTaskAction | null;
   readonly onBack: () => void;
+  readonly onRunComplete: (session: ApiSession) => void;
   readonly onOpenChange: (isOpen: boolean) => void;
   readonly session: ApiSession | null;
   readonly taskId: string;
 }): React.JSX.Element {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [createWorktree, setCreateWorktree] = useState(false);
+  const [isRunningAgent, setIsRunningAgent] = useState(false);
   const [markdownMode, setMarkdownMode] = useState<"edit" | "view">("view");
   const [promptDraft, setPromptDraft] = useState("");
   const [promptError, setPromptError] = useState<string | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
+  const [workingPath, setWorkingPath] = useState("");
   const [worktreePath, setWorktreePath] = useState(defaultWorktreePath);
 
   const worktreeOption = action?.options?.worktree ?? null;
@@ -154,7 +160,8 @@ export function TaskActionPromptDialog({
 
   useEffect(() => {
     setCopiedPrompt(false);
-  }, [action, createWorktree, promptDraft, session, worktreePath]);
+    setRunError(null);
+  }, [action, createWorktree, promptDraft, session, workingPath, worktreePath]);
 
   useEffect(() => {
     if (action == null || session == null) {
@@ -165,6 +172,8 @@ export function TaskActionPromptDialog({
     setCreateWorktree(worktreeOption?.default ?? false);
     setMarkdownMode("view");
     setPromptError(null);
+    setRunError(null);
+    setWorkingPath("");
     setWorktreePath(defaultWorktreePathValue);
   }, [action, defaultWorktreePathValue, session, worktreeOption?.default]);
 
@@ -179,6 +188,7 @@ export function TaskActionPromptDialog({
 
     const promptOptions = buildPromptOptions({
       createWorktree,
+      workingPath,
       worktreePath
     });
 
@@ -205,10 +215,10 @@ export function TaskActionPromptDialog({
     return () => {
       cancelled = true;
     };
-  }, [action, createWorktree, session, taskId, worktreePath]);
+  }, [action, createWorktree, session, taskId, workingPath, worktreePath]);
 
   async function copyPrompt(): Promise<void> {
-    if (promptDraft.length === 0) {
+    if (promptDraft.length === 0 || workingPath.trim().length === 0) {
       return;
     }
 
@@ -216,7 +226,34 @@ export function TaskActionPromptDialog({
     setCopiedPrompt(true);
   }
 
+  async function runInAgent(): Promise<void> {
+    const trimmedWorkingPath = workingPath.trim();
+    if (session == null || promptDraft.trim().length === 0 || trimmedWorkingPath.length === 0) {
+      return;
+    }
+
+    setIsRunningAgent(true);
+    setRunError(null);
+    try {
+      const result = await runTaskSessionPrompt(taskId, session.id, {
+        prompt: promptDraft,
+        workingPath: trimmedWorkingPath
+      });
+      onRunComplete(result.session);
+      onOpenChange(false);
+    } catch (error) {
+      setRunError(
+        error instanceof Error ? error.message : "Failed to run prompt in agent."
+      );
+    } finally {
+      setIsRunningAgent(false);
+    }
+  }
+
   const Icon = action == null ? Workflow : taskActionIcons[action.id] ?? Workflow;
+  const hasWorkingPath = workingPath.trim().length > 0;
+  const canRunPrompt =
+    promptDraft.trim().length > 0 && hasWorkingPath && !isLoadingPrompt && !isRunningAgent;
 
   return (
     <Dialog open={action != null && session != null} onOpenChange={onOpenChange}>
@@ -268,24 +305,20 @@ export function TaskActionPromptDialog({
             </section>
           )}
 
+          <section className="grid gap-2">
+            <Label htmlFor="action-working-path">Working path</Label>
+            <Input
+              id="action-working-path"
+              value={workingPath}
+              placeholder="/path/to/project"
+              onChange={(event) => setWorkingPath(event.target.value)}
+            />
+          </section>
+
           <section className="flex h-[min(30rem,calc(100dvh-18rem))] min-h-80 flex-col overflow-hidden rounded-lg border border-border bg-card">
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
               <span className="text-sm font-medium text-foreground">Prompt preview</span>
               <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void copyPrompt()}
-                  disabled={promptDraft.length === 0 || isLoadingPrompt}
-                >
-                  {copiedPrompt ? (
-                    <Check className="size-4" />
-                  ) : (
-                    <Copy className="size-4" />
-                  )}
-                  <span>{copiedPrompt ? "Copied" : "Copy"}</span>
-                </Button>
                 {markdownMode === "view" ? (
                   <Button
                     type="button"
@@ -308,6 +341,34 @@ export function TaskActionPromptDialog({
                     <span>Save</span>
                   </Button>
                 )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void copyPrompt()}
+                  disabled={promptDraft.length === 0 || !hasWorkingPath || isLoadingPrompt}
+                >
+                  {copiedPrompt ? (
+                    <Check className="size-4" />
+                  ) : (
+                    <Copy className="size-4" />
+                  )}
+                  <span>{copiedPrompt ? "Copied" : "Copy"}</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={() => void runInAgent()}
+                  disabled={!canRunPrompt}
+                >
+                  {isRunningAgent ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : (
+                    <Play className="size-4" />
+                  )}
+                  <span>{isRunningAgent ? "Running" : "Run in Agent"}</span>
+                </Button>
               </div>
             </div>
             {promptError != null ? (
@@ -328,6 +389,11 @@ export function TaskActionPromptDialog({
               />
             )}
           </section>
+          {runError == null ? null : (
+            <p className="text-sm text-destructive" role="alert">
+              {runError}
+            </p>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -336,12 +402,15 @@ export function TaskActionPromptDialog({
 
 function buildPromptOptions({
   createWorktree,
+  workingPath,
   worktreePath
 }: {
   readonly createWorktree: boolean;
+  readonly workingPath: string;
   readonly worktreePath: string;
 }): TaskActionPromptValues {
   return {
+    ...(workingPath.trim().length === 0 ? {} : { workingPath: workingPath.trim() }),
     worktree: {
       enabled: createWorktree,
       ...(createWorktree ? { path: worktreePath } : {})

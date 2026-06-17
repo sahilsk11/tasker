@@ -1,15 +1,27 @@
 import type { TaskActionOptions } from "./task-action-options.js";
 
+export type TaskActionId =
+  | "research"
+  | "plan"
+  | "implement"
+  | "breakdown"
+  | "code_review";
+
 export type TaskAction = {
   readonly description: string;
-  readonly id: string;
+  readonly id: TaskActionId;
+  readonly isRecommended: boolean;
   readonly label: string;
   readonly options: TaskActionOptions | null;
 };
 
-export type TaskActionRecord = TaskAction & {
+export type TaskActionRecord = {
   readonly createdAt: Date;
+  readonly description: string;
   readonly enabled: boolean;
+  readonly id: string;
+  readonly label: string;
+  readonly options: TaskActionOptions | null;
   readonly promptTemplate: string;
   readonly sortOrder: number;
   readonly updatedAt: Date;

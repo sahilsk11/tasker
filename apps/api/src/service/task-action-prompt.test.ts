@@ -26,7 +26,7 @@ void test("seeded plan template renders with only known placeholders", async () 
 
       const prompt = renderActionPrompt(plan, {
         action: {
-          id: plan.id,
+          id: "plan",
           label: plan.label
         },
         apiBaseUrl: "http://127.0.0.1:3001",

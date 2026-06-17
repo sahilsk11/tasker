@@ -1,9 +1,9 @@
 [
   {
-    "id": "investigate",
-    "label": "Investigate",
-    "description": "Inspect the task and produce a concise recommendation.",
-    "promptTemplate": "{{taskHeader}}\n\n## Action\nInvestigate this task and summarize what should happen next.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
+    "id": "research",
+    "label": "Research",
+    "description": "Inspect the task and produce concise implementation context.",
+    "promptTemplate": "{{taskHeader}}\n\n## Action\nResearch this task and summarize what should happen next.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
     "options": null,
     "enabled": true,
     "sortOrder": 0
@@ -16,15 +16,6 @@
     "options": null,
     "enabled": true,
     "sortOrder": 1
-  },
-  {
-    "id": "breakdown",
-    "label": "Break down",
-    "description": "Break the task into smaller child tasks or a dependency outline.",
-    "promptTemplate": "{{taskHeader}}\n\n## Action\nBreak this task down into smaller subtasks and dependencies.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
-    "options": null,
-    "enabled": true,
-    "sortOrder": 2
   },
   {
     "id": "implement",
@@ -45,6 +36,15 @@
       }
     },
     "enabled": true,
+    "sortOrder": 2
+  },
+  {
+    "id": "breakdown",
+    "label": "Break down",
+    "description": "Break the task into smaller child tasks or a dependency outline.",
+    "promptTemplate": "{{taskHeader}}\n\n## Action\nBreak this task down into smaller subtasks and dependencies.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
+    "options": null,
+    "enabled": true,
     "sortOrder": 3
   },
   {
@@ -55,14 +55,5 @@
     "options": null,
     "enabled": true,
     "sortOrder": 4
-  },
-  {
-    "id": "new_session",
-    "label": "New session",
-    "description": "Open a general-purpose agent session attached to this task.",
-    "promptTemplate": "{{taskHeader}}\n\n## Action\nStart a new session for this task.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
-    "options": null,
-    "enabled": true,
-    "sortOrder": 5
   }
 ]

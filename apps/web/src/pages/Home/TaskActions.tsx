@@ -7,7 +7,6 @@ import {
   LoaderCircle,
   ListTree,
   MapIcon,
-  MessageSquareText,
   MoreHorizontal,
   Pencil,
   Save,
@@ -17,7 +16,12 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { defaultWorktreePath } from "@tasker/core";
 import { useEffect, useState } from "react";
-import type { ApiSession, ApiTaskAction, TaskActionPromptValues } from "@/api/tasks";
+import type {
+  ApiSession,
+  ApiTaskAction,
+  TaskActionId,
+  TaskActionPromptValues
+} from "@/api/tasks";
 import { renderTaskSessionPrompt } from "@/api/tasks";
 import { MarkdownDocument } from "@/components/MarkdownDocument";
 import { Button } from "@/components/ui/button";
@@ -34,13 +38,12 @@ import { cn } from "@/lib/utils";
 
 const quickActionCount = 2;
 
-const taskActionIcons: Record<string, LucideIcon> = {
+const taskActionIcons: Record<TaskActionId, LucideIcon> = {
   breakdown: ListTree,
   code_review: ClipboardCheck,
   implement: Code2,
-  investigate: Search,
-  new_session: MessageSquareText,
-  plan: MapIcon
+  plan: MapIcon,
+  research: Search
 };
 
 export function TaskActionRow({
@@ -216,7 +219,7 @@ export function TaskActionPromptDialog({
     setCopiedPrompt(true);
   }
 
-  const Icon = action == null ? Workflow : taskActionIcons[action.id] ?? Workflow;
+  const Icon = action == null ? Workflow : taskActionIcons[action.id];
 
   return (
     <Dialog open={action != null && session != null} onOpenChange={onOpenChange}>
@@ -369,7 +372,7 @@ function TaskActionButton({
   readonly action: ApiTaskAction;
   readonly onSelect: () => void;
 }): React.JSX.Element {
-  const Icon = taskActionIcons[action.id] ?? Workflow;
+  const Icon = taskActionIcons[action.id];
 
   return (
     <Button
@@ -424,7 +427,7 @@ function TaskActionListItem({
   readonly disabled: boolean;
   readonly onSelect: () => void;
 }): React.JSX.Element {
-  const Icon = taskActionIcons[action.id] ?? Workflow;
+  const Icon = taskActionIcons[action.id];
 
   return (
     <button

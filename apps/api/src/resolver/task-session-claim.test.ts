@@ -39,7 +39,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
     const createSessionResponse = await app.inject({
       method: "POST",
       payload: {
-        actionId: "investigate",
+        actionId: "research",
         claimed: false,
         provider: "codex"
       },
@@ -54,7 +54,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
         readonly provider: string;
       };
     }).session;
-    assert.equal(createdSession.actionId, "investigate");
+    assert.equal(createdSession.actionId, "research");
     assert.equal(createdSession.claimedAt, null);
     assert.equal(createdSession.provider, "codex");
 
@@ -126,7 +126,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
       codexSessionIndexPath,
       `${JSON.stringify({
         id: providerId,
-        thread_name: "Investigate claimable session"
+        thread_name: "Research claimable session"
       })}\n`
     );
 
@@ -183,7 +183,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
     const { taskOverview, session: claimedSession } = claimBody;
     assert.equal(typeof claimedSession.claimedAt, "string");
     assert.equal(claimedSession.provider, "codex");
-    assert.equal(claimedSession.displayTitle, "Investigate claimable session");
+    assert.equal(claimedSession.displayTitle, "Research claimable session");
     assert.equal(
       claimedSession.providerId,
       providerId
@@ -201,8 +201,8 @@ void test("external task sessions can be claimed with flexible metadata", async 
       "Context that should reach the claiming agent."
     );
     assert.ok(taskOverview.action);
-    assert.equal(taskOverview.action.id, "investigate");
-    assert.equal(taskOverview.action.label, "Investigate");
+    assert.equal(taskOverview.action.id, "research");
+    assert.equal(taskOverview.action.label, "Research");
     assert.deepEqual(
       taskOverview.resources.artifacts.map((artifact) => ({
         label: artifact.label,
@@ -225,7 +225,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
     );
     assert.deepEqual(
       taskOverview.resources.sessions.map((session) => session.displayTitle),
-      ["Investigate claimable session"]
+      ["Research claimable session"]
     );
     assert.deepEqual(
       taskOverview.resources.tickets.map((ticket) => ticket.externalId),
@@ -245,7 +245,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
     assert.deepEqual(readSessionIds(claimedListResponse.body), [createdSession.id]);
     assert.deepEqual(
       readSessionDisplayTitles(claimedListResponse.body),
-      ["Investigate claimable session"]
+      ["Research claimable session"]
     );
 
     const missingSessionResponse = await app.inject({

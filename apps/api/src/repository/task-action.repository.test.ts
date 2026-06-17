@@ -3,7 +3,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import SqliteDatabase from "better-sqlite3";
 import { createApp } from "../app.js";
+import type { TaskState } from "../domain/task.js";
 import { seedTaskActionDefaults } from "../test/seed-task-action-defaults.js";
 
 void test("task actions are loaded from the database", async () => {
@@ -36,23 +38,91 @@ void test("task actions are loaded from the database", async () => {
       readonly actions: ReadonlyArray<{
         readonly description: string;
         readonly id: string;
+        readonly isRecommended: boolean;
         readonly label: string;
         readonly options: { readonly worktree?: unknown } | null;
       }>;
     }).actions;
 
-    assert.equal(actions.length, 6);
+    assert.equal(actions.length, 5);
     assert.deepEqual(
       actions.map((action) => action.id),
-      ["investigate", "plan", "breakdown", "implement", "code_review", "new_session"]
+      ["research", "plan", "implement", "breakdown", "code_review"]
     );
     const firstAction = actions[0];
-    const implementAction = actions[3];
+    const implementAction = actions[2];
     assert.ok(firstAction);
     assert.ok(implementAction);
-    assert.equal(firstAction.label, "Investigate");
+    assert.equal(firstAction.label, "Research");
+    assert.equal(firstAction.isRecommended, true);
     assert.equal(implementAction.options?.worktree != null, true);
     assert.equal(firstAction.options, null);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+void test("task action recommendations are derived from task state", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-task-action-recommendations-"));
+  const databasePath = join(dir, "tasker.sqlite");
+  const app = await createApp({
+    databasePath,
+    linearApiKey: null
+  });
+  await seedTaskActionDefaults(databasePath);
+
+  try {
+    const expectations: ReadonlyArray<{
+      readonly recommendedIds: readonly string[];
+      readonly state: TaskState;
+    }> = [
+      { recommendedIds: ["research", "breakdown"], state: "ready" },
+      { recommendedIds: ["plan", "breakdown"], state: "research" },
+      { recommendedIds: ["implement", "breakdown"], state: "plan" },
+      { recommendedIds: ["code_review"], state: "implement" },
+      { recommendedIds: [], state: "code_review" },
+      { recommendedIds: [], state: "merged" },
+      { recommendedIds: [], state: "done" }
+    ];
+
+    for (const { recommendedIds, state } of expectations) {
+      const taskResponse = await app.inject({
+        method: "POST",
+        payload: {
+          title: `Action recommendation task ${state}`
+        },
+        url: "/tasks"
+      });
+      assert.equal(taskResponse.statusCode, 201);
+      const task = (
+        JSON.parse(taskResponse.body) as { readonly task: { readonly id: string } }
+      ).task;
+
+      updateTaskState(databasePath, task.id, state);
+
+      const actionsResponse = await app.inject({
+        method: "GET",
+        url: `/tasks/${task.id}/actions`
+      });
+      assert.equal(actionsResponse.statusCode, 200);
+      const actions = (JSON.parse(actionsResponse.body) as {
+        readonly actions: ReadonlyArray<{
+          readonly id: string;
+          readonly isRecommended: boolean;
+        }>;
+      }).actions;
+
+      assert.deepEqual(
+        actions.map((action) => action.id),
+        ["research", "plan", "implement", "breakdown", "code_review"]
+      );
+      assert.deepEqual(
+        actions.filter((action) => action.isRecommended).map((action) => action.id),
+        recommendedIds,
+        state
+      );
+    }
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });
@@ -131,6 +201,21 @@ void test("session prompt endpoint renders seeded templates", async () => {
     await rm(dir, { force: true, recursive: true });
   }
 });
+
+function updateTaskState(
+  databasePath: string,
+  taskId: string,
+  state: TaskState
+): void {
+  const database = new SqliteDatabase(databasePath);
+  try {
+    database
+      .prepare("UPDATE tasks SET state = ?, updated_at = updated_at WHERE id = ?")
+      .run(state, taskId);
+  } finally {
+    database.close();
+  }
+}
 
 void test("session create rejects unknown action ids", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-invalid-"));

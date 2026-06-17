@@ -1,7 +1,11 @@
 import { stat, readFile } from "node:fs/promises";
 import { basename, extname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { TaskAction } from "../domain/task-action.js";
+import type {
+  TaskAction,
+  TaskActionId,
+  TaskActionRecord
+} from "../domain/task-action.js";
 import type { CreateTaskArtifactInput, TaskArtifact } from "../domain/task-artifact.js";
 import type {
   CreateTaskPullRequestInput,
@@ -15,13 +19,23 @@ import type {
 import type { TaskActionPromptValues } from "../domain/task-action-prompt-values.js";
 import { resolveWorktreeForPrompt } from "../domain/task-action-prompt-values.js";
 import type { CreateTaskTicketInput, TaskTicket } from "../domain/task-ticket.js";
-import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../domain/task.js";
+import type {
+  CreateTaskInput,
+  Task,
+  TaskId,
+  TaskState,
+  UpdateTaskInput
+} from "../domain/task.js";
 import type { TaskArtifactRepository } from "../repository/task-artifact.repository.js";
 import type { TaskPullRequestRepository } from "../repository/task-pull-request.repository.js";
 import type { TaskSessionRepository } from "../repository/task-session.repository.js";
 import type { TaskTicketRepository } from "../repository/task-ticket.repository.js";
 import type { TaskActionRepository } from "../repository/task-action.repository.js";
-import { toTaskAction } from "../repository/task-action.repository.js";
+import {
+  isSupportedTaskActionRecord,
+  isTaskActionId,
+  toTaskAction
+} from "../repository/task-action.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 import { BadRequestError, NotFoundError } from "./errors.js";
 import { TaskSessionProviderRegistry } from "./session-provider.js";
@@ -61,6 +75,24 @@ export type ArtifactContent = {
 
 const maxTextArtifactBytes = 1024 * 1024;
 const maxBinaryArtifactBytes = 10 * 1024 * 1024;
+
+const recommendedActionIdsByState: Record<TaskState, readonly TaskActionId[]> = {
+  code_review: [],
+  done: [],
+  implement: ["code_review"],
+  merged: [],
+  plan: ["implement", "breakdown"],
+  ready: ["research", "breakdown"],
+  research: ["plan", "breakdown"]
+};
+
+const taskActionSortOrder: Record<TaskActionId, number> = {
+  research: 0,
+  plan: 1,
+  implement: 2,
+  breakdown: 3,
+  code_review: 4
+};
 
 export class TaskService {
   public constructor(
@@ -125,6 +157,9 @@ export class TaskService {
 
     const action = await this.actions.findById(session.actionId);
     if (action == null) {
+      throw new BadRequestError(`Task action ${session.actionId} not found`);
+    }
+    if (!isTaskActionId(action.id)) {
       throw new BadRequestError(`Task action ${session.actionId} not found`);
     }
 
@@ -268,9 +303,14 @@ export class TaskService {
   }
 
   public async listActions(taskId: TaskId): Promise<readonly TaskAction[]> {
-    await this.requireTask(taskId);
+    const task = await this.requireTask(taskId);
     const records = await this.actions.listEnabled();
-    return records.map(toTaskAction);
+    return records
+      .filter(isSupportedTaskActionRecord)
+      .sort((left, right) => taskActionSortOrder[left.id] - taskActionSortOrder[right.id])
+      .map((record) => {
+        return toRecommendedTaskAction(record, task.state);
+      });
   }
 
   public async getTask(taskId: TaskId): Promise<Task> {
@@ -346,7 +386,7 @@ export class TaskService {
 
   private async requireEnabledAction(actionId: string): Promise<void> {
     const action = await this.actions.findById(actionId);
-    if (action == null) {
+    if (action == null || !isTaskActionId(action.id)) {
       throw new BadRequestError(`Task action ${actionId} not found`);
     }
   }
@@ -361,7 +401,10 @@ export class TaskService {
       session.actionId == null ? null : await this.actions.findById(session.actionId);
 
     return {
-      action: action == null ? null : toTaskAction(action),
+      action:
+        action == null || !isTaskActionId(action.id)
+          ? null
+          : toRecommendedTaskAction(action, task.state),
       children,
       latestTaskActivityAt: latestDate([
         task.updatedAt,
@@ -400,6 +443,17 @@ function getLocalArtifactPath(uri: string): string {
   }
 
   throw new BadRequestError("Only local artifact file paths can be rendered");
+}
+
+function toRecommendedTaskAction(
+  record: TaskActionRecord,
+  state: TaskState
+): TaskAction {
+  const action = toTaskAction(record);
+  return {
+    ...action,
+    isRecommended: recommendedActionIdsByState[state].includes(action.id)
+  };
 }
 
 function getArtifactContentKind(fileName: string): ArtifactContentKind {

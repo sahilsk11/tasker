@@ -135,6 +135,7 @@ function TaskCard({
   const selectedGroup =
     groupedResources.find((group) => group.kind === selectedKind) ?? null;
   const description = bundle.task.description ?? "No description provided.";
+  const recommendedActions = bundle.actions.filter((action) => action.isRecommended);
   const stateMeta = getTaskStateMeta(bundle.task.state);
   const StateIcon = stateMeta.Icon;
 
@@ -229,7 +230,7 @@ function TaskCard({
               />
             </div>
             <TaskActionRow
-              actions={bundle.actions}
+              actions={recommendedActions}
               onSelectAction={selectAction}
               onViewAll={openAllActions}
             />

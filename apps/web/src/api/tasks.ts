@@ -96,9 +96,17 @@ export type ApiTaskActionOptions = {
   readonly worktree?: ApiTaskActionBooleanOption;
 };
 
+export type TaskActionId =
+  | "research"
+  | "plan"
+  | "implement"
+  | "breakdown"
+  | "code_review";
+
 export type ApiTaskAction = {
   readonly description: string;
-  readonly id: string;
+  readonly id: TaskActionId;
+  readonly isRecommended: boolean;
   readonly label: string;
   readonly options: ApiTaskActionOptions | null;
 };

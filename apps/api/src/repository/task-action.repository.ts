@@ -1,7 +1,7 @@
 import type { Kysely } from "kysely";
 import type { Database, TaskActionRow } from "../db/schema.js";
 import { parseTaskActionOptions } from "../domain/task-action-options.js";
-import type { TaskActionRecord } from "../domain/task-action.js";
+import type { TaskAction, TaskActionId, TaskActionRecord } from "../domain/task-action.js";
 
 export type TaskActionRepository = {
   readonly findById: (id: string) => Promise<TaskActionRecord | null>;
@@ -49,7 +49,27 @@ function toTaskActionRecord(row: TaskActionRow): TaskActionRecord {
   };
 }
 
-function toTaskActionSummary(record: TaskActionRecord) {
+export function isTaskActionId(id: string): id is TaskActionId {
+  return (
+    id === "research" ||
+    id === "plan" ||
+    id === "implement" ||
+    id === "breakdown" ||
+    id === "code_review"
+  );
+}
+
+export function isSupportedTaskActionRecord(
+  record: TaskActionRecord
+): record is TaskActionRecord & { readonly id: TaskActionId } {
+  return isTaskActionId(record.id);
+}
+
+function toTaskActionSummary(record: TaskActionRecord): Omit<TaskAction, "isRecommended"> {
+  if (!isTaskActionId(record.id)) {
+    throw new Error(`Unsupported task action ${record.id}`);
+  }
+
   return {
     description: record.description,
     id: record.id,
@@ -58,6 +78,6 @@ function toTaskActionSummary(record: TaskActionRecord) {
   };
 }
 
-export function toTaskAction(record: TaskActionRecord) {
+export function toTaskAction(record: TaskActionRecord): Omit<TaskAction, "isRecommended"> {
   return toTaskActionSummary(record);
 }

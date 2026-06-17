@@ -32,6 +32,12 @@ const renderSessionPromptSchema = z.object({
   promptOptions: taskActionPromptValuesSchema.optional()
 });
 
+const runSessionPromptSchema = z.object({
+  prompt: z.string().min(1),
+  provider: z.string().min(1).nullable().optional(),
+  workingPath: z.string().min(1)
+});
+
 const createTaskSchema = z.object({
   description: z.string().nullable().default(null),
   parentTaskId: z.string().nullable().default(null),
@@ -174,6 +180,16 @@ export function registerTaskResolver(
       parsed.promptOptions
     );
     return { prompt };
+  });
+
+  server.post("/tasks/:id/sessions/:sessionId/run", async (request) => {
+    const { id, sessionId } = taskSessionParamsSchema.parse(request.params);
+    const parsed = runSessionPromptSchema.parse(request.body);
+    return taskService.runSessionPrompt(id, sessionId, {
+      prompt: parsed.prompt,
+      ...(parsed.provider !== undefined ? { provider: parsed.provider } : {}),
+      workingPath: parsed.workingPath
+    });
   });
 
   server.post("/sessions/:sessionId/claim", async (request) => {

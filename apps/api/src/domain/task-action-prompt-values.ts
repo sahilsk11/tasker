@@ -11,11 +11,19 @@ const taskActionWorktreeValueSchema = z
 
 export const taskActionPromptValuesSchema = z
   .object({
+    workingPath: z.string().optional(),
     worktree: taskActionWorktreeValueSchema.optional()
   })
   .strict();
 
 export type TaskActionPromptValues = z.infer<typeof taskActionPromptValuesSchema>;
+
+export function resolveWorkingPathForPrompt(
+  values: TaskActionPromptValues | undefined
+): string | undefined {
+  const path = values?.workingPath?.trim();
+  return path == null || path.length === 0 ? undefined : path;
+}
 
 export function parseTaskActionPromptValues(value: unknown): TaskActionPromptValues {
   return taskActionPromptValuesSchema.parse(value);

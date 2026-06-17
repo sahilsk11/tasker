@@ -30,9 +30,11 @@ import {
 
 export function TaskGrid({
   bundles,
+  onSessionRun,
   pullRequestStatuses
 }: {
   readonly bundles: readonly TaskBundle[];
+  readonly onSessionRun: () => void;
   readonly pullRequestStatuses: PullRequestStatusMap;
 }): React.JSX.Element {
   if (bundles.length === 0) {
@@ -52,6 +54,7 @@ export function TaskGrid({
         <TaskCard
           key={bundle.task.id}
           bundle={bundle}
+          onSessionRun={onSessionRun}
           pullRequestStatuses={pullRequestStatuses}
         />
       ))}
@@ -119,9 +122,11 @@ export function TaskGridSkeleton(): React.JSX.Element {
 
 function TaskCard({
   bundle,
+  onSessionRun,
   pullRequestStatuses
 }: {
   readonly bundle: TaskBundle;
+  readonly onSessionRun: () => void;
   readonly pullRequestStatuses: PullRequestStatusMap;
 }): React.JSX.Element {
   const navigate = useNavigate();
@@ -264,6 +269,10 @@ function TaskCard({
             setSelectedAction(null);
             setSelectedSession(null);
           }
+        }}
+        onRunComplete={(session) => {
+          setSelectedSession(session);
+          onSessionRun();
         }}
         session={selectedSession}
         taskId={bundle.task.id}

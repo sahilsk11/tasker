@@ -115,6 +115,7 @@ void test("session prompt endpoint renders seeded templates", async () => {
       method: "POST",
       payload: {
         promptOptions: {
+          workingPath: "/tmp/tasker-project",
           worktree: {
             enabled: true,
             path: "~/custom-wt"
@@ -126,6 +127,8 @@ void test("session prompt endpoint renders seeded templates", async () => {
     assert.equal(promptResponse.statusCode, 200);
     const promptBody = JSON.parse(promptResponse.body) as { readonly prompt: string };
     assert.match(promptBody.prompt, /Create a practical implementation plan/);
+    assert.match(promptBody.prompt, /## Working path/);
+    assert.match(promptBody.prompt, /\/tmp\/tasker-project/);
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });

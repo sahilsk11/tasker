@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getLinearOptions,
   listLinearIssueStatuses,
@@ -20,6 +20,7 @@ import {
 import { usePullRequestStatuses } from "./use-pull-request-statuses";
 
 export function HomePage(): React.JSX.Element {
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<TaskFilter>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [hasLinearSelectionChanged, setHasLinearSelectionChanged] = useState(false);
@@ -141,6 +142,9 @@ export function HomePage(): React.JSX.Element {
             />
             <TaskGrid
               bundles={visibleBundles}
+              onSessionRun={() => {
+                void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+              }}
               pullRequestStatuses={pullRequestStatuses}
             />
           </>

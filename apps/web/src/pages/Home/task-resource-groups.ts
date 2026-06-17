@@ -114,12 +114,14 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
 }
 
 function resourceFromArtifact(artifact: ApiArtifact): Resource {
+  const createdAt = formatDate(artifact.createdAt);
+
   return resource(
     "artifact",
     getFileName(artifact.uri),
-    getArtifactLocation(artifact.uri),
+    createdAt,
     "Ready",
-    formatDate(artifact.createdAt),
+    createdAt,
     {
       href: null,
       id: artifact.id,
@@ -223,17 +225,6 @@ function getFileName(value: string): string {
   const path = getPathFromUri(value);
   const segments = path.split(/[\\/]/).filter(Boolean);
   return decodeUriPart(segments.at(-1) ?? value);
-}
-
-function getArtifactLocation(value: string): string {
-  const path = getPathFromUri(value);
-  const segments = path.split(/[\\/]/).filter(Boolean);
-  if (segments.length <= 1) {
-    return value;
-  }
-
-  const parent = segments.at(-2);
-  return parent == null ? value : `.../${parent}`;
 }
 
 function getPathFromUri(value: string): string {

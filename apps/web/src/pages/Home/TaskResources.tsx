@@ -339,13 +339,13 @@ function ResourceSummary({
 
   if (resource.kind === "artifact") {
     return (
-      <span className="flex min-w-0 items-center gap-2">
+      <span className="flex min-w-0 items-center justify-between gap-2">
         {resource.metaLabel == null ? null : (
           <Badge className="h-5 shrink-0 px-1.5 text-[11px]" variant="secondary">
             {resource.metaLabel}
           </Badge>
         )}
-        <span className="min-w-0 truncate text-xs text-muted-foreground">
+        <span className="shrink-0 text-xs text-muted-foreground">
           {resource.detail}
         </span>
       </span>

@@ -9,6 +9,8 @@ export type Database = {
   readonly task_sessions: TaskSessionsTable;
   readonly task_tickets: TaskTicketsTable;
   readonly tasks: TasksTable;
+  readonly working_directory_options: WorkingDirectoryOptionsTable;
+  readonly working_path_settings: WorkingPathSettingsTable;
 };
 
 export type TaskActionsTable = {
@@ -72,9 +74,27 @@ export type TaskTicketsTable = {
   readonly url: string | null;
 };
 
+export type WorkingDirectoryOptionsTable = {
+  readonly created_at: Generated<string>;
+  readonly id: string;
+  readonly label: string;
+  readonly path: string;
+  readonly sort_order: Generated<number>;
+  readonly updated_at: Generated<string>;
+};
+
+export type WorkingPathSettingsTable = {
+  readonly default_working_directory: string | null;
+  readonly default_worktree_path: Generated<string>;
+  readonly id: 1;
+  readonly updated_at: Generated<string>;
+};
+
 export type TaskActionRow = Selectable<TaskActionsTable>;
 export type TaskArtifactRow = Selectable<TaskArtifactsTable>;
 export type TaskPullRequestRow = Selectable<TaskPullRequestsTable>;
 export type TaskRow = Selectable<TasksTable>;
 export type TaskSessionRow = Selectable<TaskSessionsTable>;
 export type TaskTicketRow = Selectable<TaskTicketsTable>;
+export type WorkingDirectoryOptionRow = Selectable<WorkingDirectoryOptionsTable>;
+export type WorkingPathSettingsRow = Selectable<WorkingPathSettingsTable>;

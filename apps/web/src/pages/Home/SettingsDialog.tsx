@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   Code2,
   Eye,
+  FolderOpen,
   ListTree,
   LoaderCircle,
   MapIcon,
@@ -26,6 +27,7 @@ import type {
   UpdateTaskActionInput
 } from "@/api/tasks";
 import {
+  getWorkingPathConfig,
   listTaskActionSettings,
   updateTaskActionSettings
 } from "@/api/tasks";
@@ -63,6 +65,7 @@ import {
   type PreviewOptionValues
 } from "./action-options-utils";
 import { taskActionIcons } from "./task-action-icons";
+import { WorkingPathsSettings } from "./WorkingPathsSettings";
 
 type ActionDraft = {
   readonly description: string;
@@ -78,6 +81,8 @@ type RenderedPromptTemplate = {
   readonly error: string | null;
   readonly value: string;
 };
+
+type SettingsSection = "actions" | "working-paths";
 
 const iconOptions = [
   { Icon: Search, label: "Search", value: "search" },
@@ -95,6 +100,7 @@ const iconOptions = [
 
 export function SettingsDialog(): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedSection, setSelectedSection] = useState<SettingsSection>("actions");
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ActionDraft | null>(null);
   const queryClient = useQueryClient();
@@ -103,9 +109,16 @@ export function SettingsDialog(): React.JSX.Element {
     queryFn: listTaskActionSettings,
     queryKey: ["action-settings"]
   });
+  const workingPathsQuery = useQuery({
+    enabled: isOpen && selectedSection === "working-paths",
+    queryFn: getWorkingPathConfig,
+    queryKey: ["working-paths"]
+  });
   const actions = actionsQuery.data ?? [];
   const selectedAction =
-    actions.find((action) => action.id === selectedActionId) ?? null;
+    selectedSection === "actions"
+      ? actions.find((action) => action.id === selectedActionId) ?? null
+      : null;
   const saveMutation = useMutation({
     mutationFn: ({
       actionId,
@@ -204,10 +217,27 @@ export function SettingsDialog(): React.JSX.Element {
           </DialogHeader>
           <div className="grid min-h-0 border-t border-border md:grid-cols-[15rem_minmax(0,1fr)]">
             <SettingsSidebar
-              isSelected={selectedActionId == null}
-              onSelectActions={() => setSelectedActionId(null)}
+              selectedSection={selectedSection}
+              onSelectActions={() => {
+                setSelectedSection("actions");
+                setSelectedActionId(null);
+              }}
+              onSelectWorkingPaths={() => {
+                setSelectedSection("working-paths");
+                setSelectedActionId(null);
+              }}
             />
-            {selectedAction == null ? (
+            {selectedSection === "working-paths" ? (
+              <WorkingPathsSettings
+                config={workingPathsQuery.data ?? null}
+                error={
+                  workingPathsQuery.error instanceof Error
+                    ? workingPathsQuery.error.message
+                    : null
+                }
+                isLoading={workingPathsQuery.isLoading}
+              />
+            ) : selectedAction == null ? (
               <ActionSettingsOverview
                 actions={actions}
                 error={
@@ -242,19 +272,21 @@ export function SettingsDialog(): React.JSX.Element {
 }
 
 function SettingsSidebar({
-  isSelected,
-  onSelectActions
+  onSelectActions,
+  onSelectWorkingPaths,
+  selectedSection
 }: {
-  readonly isSelected: boolean;
   readonly onSelectActions: () => void;
+  readonly onSelectWorkingPaths: () => void;
+  readonly selectedSection: SettingsSection;
 }): React.JSX.Element {
   return (
-    <aside className="min-h-0 border-b border-border bg-secondary/30 p-2 md:border-b-0 md:border-r">
+    <aside className="grid min-h-0 content-start gap-1 border-b border-border bg-secondary/30 p-2 md:border-b-0 md:border-r">
       <button
         type="button"
         className={cn(
           "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
-          isSelected
+          selectedSection === "actions"
             ? "bg-background text-foreground shadow-sm"
             : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
         )}
@@ -262,6 +294,19 @@ function SettingsSidebar({
       >
         <Workflow className="size-4 text-muted-foreground" />
         <span>Actions</span>
+      </button>
+      <button
+        type="button"
+        className={cn(
+          "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
+          selectedSection === "working-paths"
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
+        )}
+        onClick={onSelectWorkingPaths}
+      >
+        <FolderOpen className="size-4 text-muted-foreground" />
+        <span>Working paths</span>
       </button>
     </aside>
   );

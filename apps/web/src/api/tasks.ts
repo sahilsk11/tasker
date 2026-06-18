@@ -229,6 +229,43 @@ export type UpdateTaskInput = {
   readonly workingDirectory?: string | null;
 };
 
+export type ApiWorkingPathSettings = {
+  readonly defaultWorkingDirectory: string | null;
+  readonly defaultWorktreePath: string;
+  readonly updatedAt: string;
+};
+
+export type ApiWorkingDirectoryOption = {
+  readonly createdAt: string;
+  readonly id: string;
+  readonly label: string;
+  readonly path: string;
+  readonly sortOrder: number;
+  readonly updatedAt: string;
+};
+
+export type WorkingPathConfig = {
+  readonly options: readonly ApiWorkingDirectoryOption[];
+  readonly settings: ApiWorkingPathSettings;
+};
+
+export type UpdateWorkingPathSettingsInput = {
+  readonly defaultWorkingDirectory?: string | null;
+  readonly defaultWorktreePath?: string;
+};
+
+export type CreateWorkingDirectoryOptionInput = {
+  readonly label: string;
+  readonly path: string;
+  readonly sortOrder?: number;
+};
+
+export type UpdateWorkingDirectoryOptionInput = {
+  readonly label?: string;
+  readonly path?: string;
+  readonly sortOrder?: number;
+};
+
 export type CreateTicketInput = {
   readonly externalId: string;
   readonly url: string | null;
@@ -329,6 +366,42 @@ export async function updateTaskActionSettings(
     readonly action: ApiTaskActionDetails;
   }>(`/actions/${actionId}`, input);
   return action;
+}
+
+export async function getWorkingPathConfig(): Promise<WorkingPathConfig> {
+  return apiClient.get<WorkingPathConfig>("/working-paths");
+}
+
+export async function updateWorkingPathSettings(
+  input: UpdateWorkingPathSettingsInput
+): Promise<ApiWorkingPathSettings> {
+  const { settings } = await apiClient.patch<{
+    readonly settings: ApiWorkingPathSettings;
+  }>("/working-paths/settings", input);
+  return settings;
+}
+
+export async function createWorkingDirectoryOption(
+  input: CreateWorkingDirectoryOptionInput
+): Promise<ApiWorkingDirectoryOption> {
+  const { option } = await apiClient.post<{
+    readonly option: ApiWorkingDirectoryOption;
+  }>("/working-paths/options", input);
+  return option;
+}
+
+export async function updateWorkingDirectoryOption(
+  optionId: string,
+  input: UpdateWorkingDirectoryOptionInput
+): Promise<ApiWorkingDirectoryOption> {
+  const { option } = await apiClient.patch<{
+    readonly option: ApiWorkingDirectoryOption;
+  }>(`/working-paths/options/${optionId}`, input);
+  return option;
+}
+
+export async function deleteWorkingDirectoryOption(optionId: string): Promise<void> {
+  await apiClient.delete(`/working-paths/options/${optionId}`);
 }
 
 export async function createTask(input: CreateTaskInput): Promise<ApiTask> {

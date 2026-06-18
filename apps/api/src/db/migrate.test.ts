@@ -111,7 +111,8 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000008_task_action_icons",
         "000009_task_state_phase_names",
         "000010_scope_action_defaults",
-        "000011_task_working_directory"
+        "000011_task_working_directory",
+        "000012_working_paths"
       ]);
 
       const taskActions = database

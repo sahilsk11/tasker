@@ -9,10 +9,12 @@ import { SqliteTaskPullRequestRepository } from "./repository/task-pull-request.
 import { SqliteTaskSessionRepository } from "./repository/task-session.repository.js";
 import { SqliteTaskTicketRepository } from "./repository/task-ticket.repository.js";
 import { SqliteTaskRepository } from "./repository/task.repository.js";
+import { SqliteWorkingPathRepository } from "./repository/working-path.repository.js";
 import { registerGitHubResolver } from "./resolver/github.resolver.js";
 import { registerLinearResolver } from "./resolver/linear.resolver.js";
 import { registerTaskBreakdownResolver } from "./resolver/task-breakdown.resolver.js";
 import { registerTaskResolver } from "./resolver/task.resolver.js";
+import { registerWorkingPathResolver } from "./resolver/working-path.resolver.js";
 import { CodexSessionProvider } from "./service/codex-session-provider.js";
 import { BadRequestError, ConflictError, NotFoundError } from "./service/errors.js";
 import { GitHubService, type GitHubServiceOptions } from "./service/github.service.js";
@@ -27,6 +29,7 @@ import {
   type TaskSessionProvider
 } from "./service/session-provider.js";
 import { TaskService } from "./service/task.service.js";
+import { WorkingPathService } from "./service/working-path.service.js";
 
 export type CreateAppOptions = {
   readonly agentRunProvider?: string | null;
@@ -91,6 +94,9 @@ export async function createApp(options: CreateAppOptions) {
     taskRepository,
     publicApiBaseUrl
   );
+  const workingPathService = new WorkingPathService(
+    new SqliteWorkingPathRepository(db)
+  );
   const linearService = new LinearService(options.linearApiKey, options.linear);
   const githubService = new GitHubService(options.github);
 
@@ -134,6 +140,7 @@ export async function createApp(options: CreateAppOptions) {
 
       registerTaskResolver(api, taskService);
       registerTaskBreakdownResolver(api, taskBreakdownService);
+      registerWorkingPathResolver(api, workingPathService);
       registerLinearResolver(api, taskService, linearService);
       registerGitHubResolver(api, githubService);
       done();

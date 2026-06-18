@@ -196,7 +196,6 @@ function TaskCard({
               <span className="size-2 rounded-full bg-current" aria-hidden="true" />
               {stateMeta.label}
             </Badge>
-            <TicketBadge bundle={bundle} />
           </div>
 
           <CardTitle className="mt-2.5 min-w-0 overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] text-lg font-semibold leading-6 text-[#f1f2f4]">
@@ -215,6 +214,9 @@ function TaskCard({
         </section>
 
         <aside className="flex min-w-0 flex-col justify-center border-t border-[#1c1d22] bg-[#0f1013] p-[15px_14px] lg:border-l lg:border-t-0">
+          <div className="mb-3 flex min-w-0 justify-center">
+            <TicketBadge bundle={bundle} />
+          </div>
           <TaskActionRow
             actions={bundle.actions}
             layout="rail"

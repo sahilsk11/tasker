@@ -117,7 +117,7 @@ const taskStateSegmentClassByState: Record<TaskState, string> = {
   done: "bg-success",
   implementation: "bg-warning",
   planning: "bg-[#a89eff]",
-  ready: "bg-[#6b6e76]",
+  ready: "bg-[#a1a1aa]",
   review: "bg-[#a78bfa]",
   scoping: "bg-info"
 };

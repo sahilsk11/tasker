@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { FileText, GitPullRequest, MessageSquareText } from "lucide-react";
+import { Check, FileText, GitPullRequest, MessageSquareText } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { createTaskSession } from "@/api/tasks";
+import { createTaskSession, taskStates, updateTask } from "@/api/tasks";
 import type { ApiSession, ApiTaskAction, TaskBundle, TaskState } from "@/api/tasks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { PullRequestStatusMap } from "./use-pull-request-statuses";
 import { TaskEventLog } from "./TaskEventLog";
@@ -117,17 +119,53 @@ function TaskCard({
   readonly pullRequestStatuses: PullRequestStatusMap;
 }): React.JSX.Element {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const groupedResources = getResourceGroupsForBundle(bundle);
   const timelineResources = getTimelineResourcesForBundle(bundle);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
+  const [isStateOpen, setIsStateOpen] = useState(false);
+  const [stateError, setStateError] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<ApiSession | null>(null);
   const [selectedKind, setSelectedKind] = useState<ResourceKind | null>(null);
   const [selectedAction, setSelectedAction] = useState<ApiTaskAction | null>(null);
   const [showAllActions, setShowAllActions] = useState(false);
   const selectedGroup =
     groupedResources.find((group) => group.kind === selectedKind) ?? null;
-  const stateMeta = getTaskStateMeta(bundle.task.state);
+  const stateMutation = useMutation({
+    mutationFn: (state: TaskState) => updateTask(bundle.task.id, { state }),
+    onError: (error, _state, previousBundles) => {
+      if (previousBundles != null) {
+        queryClient.setQueryData(["tasks"], previousBundles);
+      }
+      setStateError(error instanceof Error ? error.message : "Failed to update state.");
+    },
+    onMutate: async (state) => {
+      setStateError(null);
+      setIsStateOpen(false);
+      await queryClient.cancelQueries({ queryKey: ["tasks"] });
+      const previousBundles =
+        queryClient.getQueryData<readonly TaskBundle[]>(["tasks"]) ?? undefined;
+      queryClient.setQueryData<readonly TaskBundle[]>(["tasks"], (current) =>
+        current?.map((candidate) =>
+          candidate.task.id === bundle.task.id
+            ? {
+                ...candidate,
+                task: {
+                  ...candidate.task,
+                  state,
+                  updatedAt: new Date().toISOString()
+                }
+              }
+            : candidate
+        )
+      );
+      return previousBundles;
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    }
+  });
 
   async function openActionPrompt(
     action: ApiTaskAction,
@@ -169,6 +207,15 @@ function TaskCard({
     setShowAllActions(true);
   }
 
+  function selectState(state: TaskState): void {
+    if (state === bundle.task.state || stateMutation.isPending) {
+      setIsStateOpen(false);
+      return;
+    }
+
+    stateMutation.mutate(state);
+  }
+
   function openResource(resource: Resource): void {
     if (resource.kind === "artifact") {
       void navigate(`/tasks/${resource.taskId}/artifacts/${resource.id}`);
@@ -184,18 +231,20 @@ function TaskCard({
     <>
       <Card className="grid h-full overflow-hidden rounded-[14px] border-[#1f2025] transition-colors hover:border-[#2c2d34] hover:bg-card lg:grid-cols-[minmax(0,1fr)_9.875rem]">
         <section className="flex min-w-0 flex-col p-4 md:min-h-48">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <Badge
-              className={cn(
-                "h-7 rounded-full px-3 text-[13px]",
-                stateMeta.iconClassName
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <TaskStatePicker
+                currentState={bundle.task.state}
+                disabled={stateMutation.isPending}
+                onOpenChange={setIsStateOpen}
+                onSelectState={selectState}
+                open={isStateOpen}
+              />
+              {stateError == null ? null : (
+                <span className="text-sm text-destructive">{stateError}</span>
               )}
-              title={`Task state: ${stateMeta.label}`}
-              variant="outline"
-            >
-              <span className="size-2 rounded-full bg-current" aria-hidden="true" />
-              {stateMeta.label}
-            </Badge>
+            </div>
+            <TicketBadge bundle={bundle} />
           </div>
 
           <CardTitle className="mt-2.5 min-w-0 overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] text-lg font-semibold leading-6 text-[#f1f2f4]">
@@ -214,9 +263,6 @@ function TaskCard({
         </section>
 
         <aside className="flex min-w-0 flex-col justify-center border-t border-[#1c1d22] bg-[#0f1013] p-[15px_14px] lg:border-l lg:border-t-0">
-          <div className="mb-3 flex min-w-0 justify-center">
-            <TicketBadge bundle={bundle} />
-          </div>
           <TaskActionRow
             actions={bundle.actions}
             layout="rail"
@@ -275,6 +321,69 @@ function TaskCard({
         }}
       />
     </>
+  );
+}
+
+function TaskStatePicker({
+  currentState,
+  disabled,
+  onOpenChange,
+  onSelectState,
+  open
+}: {
+  readonly currentState: TaskState;
+  readonly disabled: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly onSelectState: (state: TaskState) => void;
+  readonly open: boolean;
+}): React.JSX.Element {
+  const stateMeta = getTaskStateMeta(currentState);
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          className={cn(
+            "h-7 rounded-full px-3 text-[13px] font-semibold",
+            stateMeta.iconClassName
+          )}
+          title={`Task state: ${stateMeta.label}`}
+        >
+          <span className="size-2 rounded-full bg-current" aria-hidden="true" />
+          {stateMeta.label}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-52 border-[#1f2025] bg-[#111216] p-1.5">
+        <div className="flex flex-col gap-1">
+          {taskStates.map((state) => {
+            const optionMeta = getTaskStateMeta(state);
+            const isSelected = state === currentState;
+
+            return (
+              <Button
+                key={state}
+                type="button"
+                variant="ghost"
+                className="h-8 justify-start rounded-[7px] px-2 text-sm font-medium text-[#cdd0d6] hover:bg-[#191a20] hover:text-[#f1f2f4]"
+                onClick={() => onSelectState(state)}
+              >
+                <span
+                  className={cn("size-2 rounded-full", optionMeta.iconClassName)}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1 truncate text-left">
+                  {optionMeta.label}
+                </span>
+                {isSelected ? <Check className="size-4 text-[#7c6cff]" /> : null}
+              </Button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

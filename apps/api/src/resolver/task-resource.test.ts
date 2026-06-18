@@ -61,6 +61,35 @@ void test("artifact and pull request endpoints infer task state", async () => {
   }
 });
 
+void test("task state can be manually updated", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-manual-state-"));
+  const app = await createApp({
+    databasePath: join(dir, "tasker.sqlite"),
+    linearApiKey: null
+  });
+
+  try {
+    const task = await createTask(app, "Manual state");
+    const response = await app.inject({
+      method: "PATCH",
+      payload: { state: "done" },
+      url: `/tasks/${task.id}`
+    });
+
+    assert.equal(response.statusCode, 200);
+    const updated = (readJson(response.body) as {
+      readonly task: { readonly id: string; readonly state: string };
+    }).task;
+
+    assert.equal(updated.id, task.id);
+    assert.equal(updated.state, "done");
+    assert.equal(await getTaskState(app, task.id), "done");
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 void test("task artifacts expose renderable local file content", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-artifact-content-"));
   const app = await createApp({

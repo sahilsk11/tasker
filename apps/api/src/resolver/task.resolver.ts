@@ -53,6 +53,9 @@ const createTaskSchema = z.object({
 const updateTaskSchema = z.object({
   description: z.string().nullable().optional(),
   parentTaskId: z.string().nullable().optional(),
+  state: z
+    .enum(["ready", "research", "plan", "implement", "code_review", "merged", "done"])
+    .optional(),
   title: z.string().min(1).optional()
 });
 
@@ -323,6 +326,7 @@ function parseUpdateTaskInput(body: unknown): UpdateTaskInput {
   return {
     ...(parsed.description !== undefined ? { description: parsed.description } : {}),
     ...(parsed.parentTaskId !== undefined ? { parentTaskId: parsed.parentTaskId } : {}),
+    ...(parsed.state !== undefined ? { state: parsed.state } : {}),
     ...(parsed.title !== undefined ? { title: parsed.title } : {})
   };
 }

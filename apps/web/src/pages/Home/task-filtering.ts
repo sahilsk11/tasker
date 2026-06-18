@@ -4,10 +4,11 @@ import {
   getPullRequestsForBundle
 } from "./task-resource-groups";
 
-export type TaskFilter = "all" | "has-pr" | "has-ticket" | "root" | "subtask";
+export type TaskFilter = "all" | "has-pr" | "has-ticket";
 
 export type TaskViewOptions = {
   readonly filter: TaskFilter;
+  readonly parentTaskId: string | null;
   readonly query: string;
   readonly taskAllStates: readonly TaskState[];
   readonly taskStates: readonly TaskState[];
@@ -25,6 +26,7 @@ export function getVisibleTaskBundles(
 ): readonly TaskBundle[] {
   const documents = bundles.map(toSearchDocument);
   const matched = documents
+    .filter((document) => matchesParentTask(document.bundle, options.parentTaskId))
     .filter((document) => matchesFilter(document.bundle, options.filter))
     .filter((document) => matchesTaskState(document.bundle, options))
     .filter((document) => matchesQuery(document, options.query))
@@ -44,16 +46,16 @@ function matchesTaskState(bundle: TaskBundle, options: TaskViewOptions): boolean
   return options.taskStates.includes(bundle.task.state);
 }
 
+function matchesParentTask(bundle: TaskBundle, parentTaskId: string | null): boolean {
+  return bundle.task.parentTaskId === parentTaskId;
+}
+
 function matchesFilter(bundle: TaskBundle, filter: TaskFilter): boolean {
   switch (filter) {
     case "has-pr":
       return getPullRequestsForBundle(bundle).length > 0;
     case "has-ticket":
       return bundle.resources.tickets.length > 0;
-    case "root":
-      return bundle.task.parentTaskId == null;
-    case "subtask":
-      return bundle.task.parentTaskId != null;
     case "all":
       return true;
   }

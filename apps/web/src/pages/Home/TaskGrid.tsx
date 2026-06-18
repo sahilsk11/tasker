@@ -329,7 +329,7 @@ function TaskCard({
           <ResourceCounters
             groups={groupedResources}
             onOpen={setSelectedKind}
-            onOpenSubtasks={() => setSelectedKind("subtask")}
+            onOpenSubtasks={() => void navigate(`/?parentTask=${bundle.task.id}`)}
             subtasks={bundle.children}
           />
         </section>

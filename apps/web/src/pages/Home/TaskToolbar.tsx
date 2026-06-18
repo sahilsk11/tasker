@@ -10,8 +10,6 @@ import type { TaskFilter } from "./task-filtering";
 
 const filters: ReadonlyArray<{ readonly label: string; readonly value: TaskFilter }> = [
   { label: "All tasks", value: "all" },
-  { label: "Root tasks", value: "root" },
-  { label: "Subtasks", value: "subtask" },
   { label: "Has PR", value: "has-pr" },
   { label: "Has ticket", value: "has-ticket" }
 ];

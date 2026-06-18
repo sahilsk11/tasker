@@ -11,7 +11,7 @@ import type { CreateTaskArtifactInput } from "../domain/task-artifact.js";
 import type { CreateTaskPullRequestInput } from "../domain/task-pull-request.js";
 import type { CreateTaskTicketInput } from "../domain/task-ticket.js";
 import type { UpdateTaskActionInput } from "../domain/task-action.js";
-import { taskStates } from "../domain/task.js";
+import { taskStateDefinitions, taskStates } from "../domain/task.js";
 import type { UpdateTaskInput } from "../domain/task.js";
 import type { TaskService } from "../service/task.service.js";
 
@@ -113,6 +113,10 @@ export function registerTaskResolver(
 
   server.get("/actions", async () => ({
     actions: await taskService.listActionSettings()
+  }));
+
+  server.get("/task-states", () => ({
+    states: taskStateDefinitions
   }));
 
   server.patch("/actions/:actionId", async (request) => {

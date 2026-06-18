@@ -1,10 +1,5 @@
-import {
-  Check,
-  ChevronDown,
-  Search,
-  SlidersHorizontal
-} from "lucide-react";
-import type { LinearOptions, LinearTeamOption } from "@/api/tasks";
+import { Check, ChevronDown, Search, SlidersHorizontal } from "lucide-react";
+import type { TaskState, TaskStateDefinition } from "@/api/tasks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,40 +19,28 @@ const filters: ReadonlyArray<{ readonly label: string; readonly value: TaskFilte
 export function TaskToolbar({
   filter,
   isFilterOpen,
-  isLinearLoading,
-  linearOptions,
-  linearStateIds,
-  linearTeamId,
-  linearTeams,
   onFilterChange,
   onFilterOpenChange,
-  onLinearStateIdsChange,
-  onLinearTeamChange,
+  onTaskStatesChange,
   onQueryChange,
-  query
+  query,
+  selectedTaskStates,
+  taskStates
 }: {
   readonly filter: TaskFilter;
   readonly isFilterOpen: boolean;
-  readonly isLinearLoading: boolean;
-  readonly linearOptions: LinearOptions | null;
-  readonly linearStateIds: readonly string[];
-  readonly linearTeamId: string;
-  readonly linearTeams: readonly LinearTeamOption[];
   readonly onFilterChange: (filter: TaskFilter) => void;
   readonly onFilterOpenChange: (isOpen: boolean) => void;
-  readonly onLinearStateIdsChange: (stateIds: readonly string[]) => void;
-  readonly onLinearTeamChange: (teamId: string) => void;
+  readonly onTaskStatesChange: (states: readonly TaskState[]) => void;
   readonly onQueryChange: (query: string) => void;
   readonly query: string;
+  readonly selectedTaskStates: readonly TaskState[];
+  readonly taskStates: readonly TaskStateDefinition[];
 }): React.JSX.Element {
-  const selectedLinearTeam =
-    linearTeams.find((team) => team.id === linearTeamId) ?? linearTeams[0] ?? null;
-  const hasPartialLinearStatusFilter =
-    selectedLinearTeam != null &&
-    linearStateIds.length > 0 &&
-    linearStateIds.length !== selectedLinearTeam.states.length;
+  const hasPartialTaskStateFilter =
+    selectedTaskStates.length > 0 && selectedTaskStates.length !== taskStates.length;
   const activeFilterCount =
-    (filter === "all" ? 0 : 1) + (hasPartialLinearStatusFilter ? 1 : 0);
+    (filter === "all" ? 0 : 1) + (hasPartialTaskStateFilter ? 1 : 0);
 
   return (
     <section className="mx-auto flex w-full max-w-[76rem] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -89,14 +72,10 @@ export function TaskToolbar({
           <PopoverContent align="end" className="w-80 p-0">
             <FilterContent
               filter={filter}
-              isLinearLoading={isLinearLoading}
-              linearOptions={linearOptions}
-              linearStateIds={linearStateIds}
-              linearTeam={selectedLinearTeam}
-              linearTeams={linearTeams}
               onFilterChange={onFilterChange}
-              onLinearStateIdsChange={onLinearStateIdsChange}
-              onLinearTeamChange={onLinearTeamChange}
+              onTaskStatesChange={onTaskStatesChange}
+              selectedTaskStates={selectedTaskStates}
+              taskStates={taskStates}
             />
           </PopoverContent>
         </Popover>
@@ -107,24 +86,16 @@ export function TaskToolbar({
 
 function FilterContent({
   filter,
-  isLinearLoading,
-  linearOptions,
-  linearStateIds,
-  linearTeam,
-  linearTeams,
   onFilterChange,
-  onLinearStateIdsChange,
-  onLinearTeamChange
+  onTaskStatesChange,
+  selectedTaskStates,
+  taskStates
 }: {
   readonly filter: TaskFilter;
-  readonly isLinearLoading: boolean;
-  readonly linearOptions: LinearOptions | null;
-  readonly linearStateIds: readonly string[];
-  readonly linearTeam: LinearTeamOption | null;
-  readonly linearTeams: readonly LinearTeamOption[];
   readonly onFilterChange: (filter: TaskFilter) => void;
-  readonly onLinearStateIdsChange: (stateIds: readonly string[]) => void;
-  readonly onLinearTeamChange: (teamId: string) => void;
+  readonly onTaskStatesChange: (states: readonly TaskState[]) => void;
+  readonly selectedTaskStates: readonly TaskState[];
+  readonly taskStates: readonly TaskStateDefinition[];
 }): React.JSX.Element {
   return (
     <div className="grid gap-4 p-3">
@@ -136,14 +107,10 @@ function FilterContent({
         />
       </FilterSection>
       <Separator />
-      <LinearStatusFilter
-        isLoading={isLinearLoading}
-        linearOptions={linearOptions}
-        selectedStateIds={linearStateIds}
-        selectedTeam={linearTeam}
-        teams={linearTeams}
-        onSelectedStateIdsChange={onLinearStateIdsChange}
-        onTeamChange={onLinearTeamChange}
+      <TaskStateFilter
+        onSelectedStatesChange={onTaskStatesChange}
+        selectedStates={selectedTaskStates}
+        states={taskStates}
       />
     </div>
   );
@@ -194,123 +161,55 @@ function SegmentedOptions<TValue extends string>({
   );
 }
 
-function LinearStatusFilter({
-  isLoading,
-  linearOptions,
-  onSelectedStateIdsChange,
-  onTeamChange,
-  selectedStateIds,
-  selectedTeam,
-  teams
+function TaskStateFilter({
+  onSelectedStatesChange,
+  selectedStates,
+  states
 }: {
-  readonly isLoading: boolean;
-  readonly linearOptions: LinearOptions | null;
-  readonly onSelectedStateIdsChange: (stateIds: readonly string[]) => void;
-  readonly onTeamChange: (teamId: string) => void;
-  readonly selectedStateIds: readonly string[];
-  readonly selectedTeam: LinearTeamOption | null;
-  readonly teams: readonly LinearTeamOption[];
+  readonly onSelectedStatesChange: (states: readonly TaskState[]) => void;
+  readonly selectedStates: readonly TaskState[];
+  readonly states: readonly TaskStateDefinition[];
 }): React.JSX.Element {
-  if (isLoading) {
+  if (states.length === 0) {
     return (
-      <FilterSection title="Linear status">
-        <p className="text-sm text-muted-foreground">Loading Linear...</p>
-      </FilterSection>
-    );
-  }
-
-  if (linearOptions?.configured === false) {
-    return (
-      <FilterSection title="Linear status">
-        <p className="text-sm text-muted-foreground">LINEAR_API_KEY is not configured.</p>
-      </FilterSection>
-    );
-  }
-
-  if (teams.length === 0 || selectedTeam == null) {
-    return (
-      <FilterSection title="Linear status">
-        <p className="text-sm text-muted-foreground">No Linear tickets on this board.</p>
+      <FilterSection title="Task state">
+        <p className="text-sm text-muted-foreground">Loading states...</p>
       </FilterSection>
     );
   }
 
   return (
-    <FilterSection title="Linear status">
-      <div className="grid gap-2">
-        <TeamSelector
-          onTeamChange={onTeamChange}
-          selectedTeam={selectedTeam}
-          teams={teams}
-        />
-        <div className="grid max-h-48 gap-1 overflow-y-auto pr-1">
-          {selectedTeam.states.map((state) => {
-            const isSelected = selectedStateIds.includes(state.id);
-            return (
-              <button
-                key={state.id}
-                aria-pressed={isSelected}
-                data-linear-state-id={state.id}
-                type="button"
-                onClick={() =>
-                  onSelectedStateIdsChange(
-                    isSelected
-                      ? selectedStateIds.filter((stateId) => stateId !== state.id)
-                      : [...selectedStateIds, state.id]
-                  )
-                }
-                className={cn(
-                  "flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm",
-                  "transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  isSelected ? "text-foreground" : "text-muted-foreground"
-                )}
-              >
-                <span className="flex size-4 items-center justify-center">
-                  {isSelected ? <Check className="size-4" /> : null}
-                </span>
-                <span className="truncate">{state.name}</span>
-              </button>
-            );
-          })}
-        </div>
+    <FilterSection title="Task state">
+      <div className="grid max-h-48 gap-1 overflow-y-auto pr-1">
+        {states.map((state) => {
+          const isSelected = selectedStates.includes(state.value);
+          return (
+            <button
+              key={state.value}
+              aria-pressed={isSelected}
+              data-task-state={state.value}
+              type="button"
+              onClick={() =>
+                onSelectedStatesChange(
+                  isSelected
+                    ? selectedStates.filter((value) => value !== state.value)
+                    : [...selectedStates, state.value]
+                )
+              }
+              className={cn(
+                "flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm",
+                "transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                isSelected ? "text-foreground" : "text-muted-foreground"
+              )}
+            >
+              <span className="flex size-4 items-center justify-center">
+                {isSelected ? <Check className="size-4" /> : null}
+              </span>
+              <span className="truncate">{state.label}</span>
+            </button>
+          );
+        })}
       </div>
     </FilterSection>
-  );
-}
-
-function TeamSelector({
-  onTeamChange,
-  selectedTeam,
-  teams
-}: {
-  readonly onTeamChange: (teamId: string) => void;
-  readonly selectedTeam: LinearTeamOption;
-  readonly teams: readonly LinearTeamOption[];
-}): React.JSX.Element {
-  if (teams.length === 1) {
-    return (
-      <div className="flex items-center justify-between rounded-md border border-border bg-secondary/30 px-2 py-1.5">
-        <span className="text-xs text-muted-foreground">Using states from</span>
-        <Badge variant="outline">{selectedTeam.key}</Badge>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid gap-1.5">
-      <span className="text-xs text-muted-foreground">Using states from</span>
-      <div className="flex flex-wrap gap-1">
-        {teams.map((team) => (
-          <Button
-            key={team.id}
-            size="sm"
-            variant={team.id === selectedTeam.id ? "default" : "outline"}
-            onClick={() => onTeamChange(team.id)}
-          >
-            {team.key}
-          </Button>
-        ))}
-      </div>
-    </div>
   );
 }

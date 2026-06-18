@@ -425,20 +425,6 @@ export async function getLinearOptions(): Promise<LinearOptions> {
   return linear;
 }
 
-export async function listLinearIssueStatuses(
-  identifiers: readonly string[]
-): Promise<readonly LinearIssueStatus[]> {
-  const uniqueIdentifiers = Array.from(new Set(identifiers));
-  if (uniqueIdentifiers.length === 0) {
-    return [];
-  }
-
-  const { issues } = await apiClient.post<{
-    readonly issues: readonly LinearIssueStatus[];
-  }>("/linear/issues/statuses", { identifiers: uniqueIdentifiers });
-  return issues;
-}
-
 export async function resolveLinearIssue(
   identifier: string
 ): Promise<LinearIssueDetails> {

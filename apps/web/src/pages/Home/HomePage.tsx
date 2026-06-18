@@ -1,14 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  getLinearOptions,
-  listLinearIssueStatuses,
   listTaskBundles,
   listTaskStates,
-  type LinearIssueStatus,
-  type LinearOptions,
-  type LinearTeamOption,
-  type TaskBundle
+  type TaskState
 } from "@/api/tasks";
 import { NewTaskDialog } from "./NewTaskDialog";
 import { SettingsDialog } from "./SettingsDialog";
@@ -21,10 +16,10 @@ export function HomePage(): React.JSX.Element {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<TaskFilter>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [hasLinearSelectionChanged, setHasLinearSelectionChanged] = useState(false);
-  const [linearStateIds, setLinearStateIds] = useState<readonly string[]>([]);
-  const [linearTeamId, setLinearTeamId] = useState("");
+  const [hasTaskStateSelectionChanged, setHasTaskStateSelectionChanged] =
+    useState(false);
   const [query, setQuery] = useState("");
+  const [taskStates, setTaskStates] = useState<readonly TaskState[]>([]);
   const tasksQuery = useQuery({
     queryFn: listTaskBundles,
     queryKey: ["tasks"]
@@ -33,68 +28,29 @@ export function HomePage(): React.JSX.Element {
     queryFn: listTaskStates,
     queryKey: ["task-states"]
   });
-  const ticketIdentifiers = useMemo(
-    () => (tasksQuery.isSuccess ? getTicketIdentifiers(tasksQuery.data) : []),
-    [tasksQuery.data, tasksQuery.isSuccess]
-  );
-  const linearOptionsQuery = useQuery({
-    queryFn: getLinearOptions,
-    queryKey: ["linear-options"]
-  });
-  const linearStatusesQuery = useQuery({
-    enabled: ticketIdentifiers.length > 0,
-    queryFn: () => listLinearIssueStatuses(ticketIdentifiers),
-    queryKey: ["linear-issue-statuses", ticketIdentifiers]
-  });
-  const linearTeams = useMemo(
-    () =>
-      getLinearTeamsForTickets({
-        identifiers: ticketIdentifiers,
-        options: linearOptionsQuery.data ?? null,
-        statuses: linearStatusesQuery.data ?? []
-      }),
-    [linearOptionsQuery.data, linearStatusesQuery.data, ticketIdentifiers]
-  );
-  const selectedLinearTeam =
-    linearTeams.find((team) => team.id === linearTeamId) ?? linearTeams[0] ?? null;
-  const selectedTeamStateIds = useMemo(
-    () => selectedLinearTeam?.states.map((state) => state.id) ?? [],
-    [selectedLinearTeam]
+  const allTaskStates = useMemo(
+    () => taskStatesQuery.data?.map((state) => state.value) ?? [],
+    [taskStatesQuery.data]
   );
   const visibleBundles = useMemo(
     () =>
       tasksQuery.isSuccess
         ? getVisibleTaskBundles(tasksQuery.data, {
             filter,
-            linearAllStateIds: selectedTeamStateIds,
-            linearIssueStatuses: linearStatusesQuery.data ?? [],
-            linearStateIds,
-            query
+            query,
+            taskAllStates: allTaskStates,
+            taskStates
           })
         : [],
-    [
-      filter,
-      linearStateIds,
-      linearStatusesQuery.data,
-      query,
-      selectedTeamStateIds,
-      tasksQuery.data,
-      tasksQuery.isSuccess
-    ]
+    [allTaskStates, filter, query, taskStates, tasksQuery.data, tasksQuery.isSuccess]
   );
   const pullRequestStatuses = usePullRequestStatuses(visibleBundles);
 
   useEffect(() => {
-    if (linearTeamId.length === 0 && linearTeams[0] != null) {
-      setLinearTeamId(linearTeams[0].id);
+    if (!hasTaskStateSelectionChanged && allTaskStates.length > 0) {
+      setTaskStates(allTaskStates);
     }
-  }, [linearTeamId, linearTeams]);
-
-  useEffect(() => {
-    if (!hasLinearSelectionChanged && selectedTeamStateIds.length > 0) {
-      setLinearStateIds(selectedTeamStateIds);
-    }
-  }, [hasLinearSelectionChanged, selectedTeamStateIds]);
+  }, [allTaskStates, hasTaskStateSelectionChanged]);
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -119,27 +75,16 @@ export function HomePage(): React.JSX.Element {
             <TaskToolbar
               filter={filter}
               isFilterOpen={isFilterOpen}
-              isLinearLoading={
-                linearOptionsQuery.isLoading || linearStatusesQuery.isLoading
-              }
-              linearOptions={linearOptionsQuery.data ?? null}
-              linearStateIds={linearStateIds}
-              linearTeamId={linearTeamId}
-              linearTeams={linearTeams}
               onFilterChange={setFilter}
               onFilterOpenChange={setIsFilterOpen}
-              onLinearStateIdsChange={(stateIds) => {
-                setHasLinearSelectionChanged(true);
-                setLinearStateIds(stateIds);
-              }}
-              onLinearTeamChange={(teamId) => {
-                setLinearTeamId(teamId);
-                const team = linearTeams.find((candidate) => candidate.id === teamId);
-                setLinearStateIds(team?.states.map((state) => state.id) ?? []);
-                setHasLinearSelectionChanged(false);
+              onTaskStatesChange={(states) => {
+                setHasTaskStateSelectionChanged(true);
+                setTaskStates(states);
               }}
               onQueryChange={setQuery}
               query={query}
+              selectedTaskStates={taskStates}
+              taskStates={taskStatesQuery.data ?? []}
             />
             <TaskGrid
               bundles={visibleBundles}
@@ -153,42 +98,6 @@ export function HomePage(): React.JSX.Element {
         ) : null}
       </div>
     </main>
-  );
-}
-
-function getTicketIdentifiers(bundles: readonly TaskBundle[]): readonly string[] {
-  const identifiers = new Set<string>();
-  for (const bundle of bundles) {
-    for (const ticket of bundle.resources.tickets) {
-      identifiers.add(ticket.externalId.toUpperCase());
-    }
-  }
-
-  return Array.from(identifiers).sort();
-}
-
-function getLinearTeamsForTickets({
-  identifiers,
-  options,
-  statuses
-}: {
-  readonly identifiers: readonly string[];
-  readonly options: LinearOptions | null;
-  readonly statuses: readonly LinearIssueStatus[];
-}): readonly LinearTeamOption[] {
-  if (options == null) {
-    return [];
-  }
-
-  const statusTeamIds = new Set(statuses.map((issue) => issue.state.team.id));
-  const ticketKeys = new Set(
-    identifiers
-      .map((identifier) => identifier.split("-")[0])
-      .filter((key): key is string => key != null && key.length > 0)
-  );
-
-  return options.teams.filter(
-    (team) => statusTeamIds.has(team.id) || ticketKeys.has(team.key)
   );
 }
 

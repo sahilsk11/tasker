@@ -1,14 +1,14 @@
 import { renderTaskActionTemplate } from "@tasker/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ChevronLeft,
-  Check,
   ClipboardCheck,
   Code2,
+  Eye,
   ListTree,
   LoaderCircle,
   MapIcon,
   MessageSquareText,
+  Pencil,
   Save,
   Search,
   Settings,
@@ -26,6 +26,7 @@ import {
 } from "@/api/tasks";
 import { MarkdownDocument } from "@/components/MarkdownDocument";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { taskActionIcons } from "./task-action-icons";
@@ -118,7 +120,7 @@ export function SettingsDialog(): React.JSX.Element {
         sessionId: "preview-session",
         taskDescription: "Preview task description.",
         taskId: "preview-task",
-        taskTitle: "Preview task",
+        taskTitle: "Example task",
         ...(draft.options?.worktree?.default
           ? { worktree: { enabled: true, path: "~/wt/tasker-preview" } }
           : {})
@@ -201,7 +203,6 @@ export function SettingsDialog(): React.JSX.Element {
                 isSaving={saveMutation.isPending}
                 preview={preview}
                 selectedAction={selectedAction}
-                onBack={() => setSelectedActionId(null)}
                 onDraftChange={setDraft}
                 onSave={saveSelectedAction}
               />
@@ -277,7 +278,6 @@ function ActionEditor({
   error,
   isSaving,
   onDraftChange,
-  onBack,
   onSave,
   preview,
   selectedAction
@@ -285,12 +285,17 @@ function ActionEditor({
   readonly draft: ActionDraft | null;
   readonly error: string | null;
   readonly isSaving: boolean;
-  readonly onBack: () => void;
   readonly onDraftChange: (draft: ActionDraft) => void;
   readonly onSave: () => void;
   readonly preview: string;
   readonly selectedAction: ApiTaskActionDetails | null;
 }): React.JSX.Element {
+  const [mode, setMode] = useState<"editor" | "preview">("editor");
+
+  useEffect(() => {
+    setMode("editor");
+  }, [selectedAction?.id]);
+
   if (draft == null || selectedAction == null) {
     return (
       <section className="flex min-h-72 items-center justify-center p-6 text-sm text-muted-foreground">
@@ -303,25 +308,21 @@ function ActionEditor({
 
   return (
     <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-border px-5 py-3 text-sm">
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
-          onClick={onBack}
-        >
-          <ChevronLeft className="size-4" />
-          <span>Actions</span>
-        </button>
-        <span className="text-muted-foreground">/</span>
-        <span className="min-w-0 truncate font-medium">{draft.label}</span>
-      </div>
-      <div className="grid min-h-0 gap-0 overflow-y-auto lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
-        <div className="grid content-start gap-4 border-b border-border p-5 lg:border-b-0 lg:border-r">
-        <div className="flex min-w-0 items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <SelectedIcon className="size-5 shrink-0 text-muted-foreground" />
-            <h3 className="truncate text-base font-semibold">{draft.label}</h3>
-          </div>
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-secondary/20 px-5 py-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <SelectedIcon className="size-5 shrink-0 text-muted-foreground" />
+          <h3 className="truncate text-base font-semibold leading-6">{draft.label}</h3>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setMode(mode === "editor" ? "preview" : "editor")}
+          >
+            {mode === "editor" ? <Eye className="size-4" /> : <Pencil className="size-4" />}
+            <span>{mode === "editor" ? "Preview" : "Editor"}</span>
+          </Button>
           <Button
             type="button"
             variant="default"
@@ -337,92 +338,87 @@ function ActionEditor({
             <span>Save</span>
           </Button>
         </div>
-        {error == null ? null : <p className="text-sm text-destructive">{error}</p>}
-        <div className="grid gap-4">
-          <Field label="Label" id="action-label">
-            <Input
-              id="action-label"
-              value={draft.label}
-              onChange={(event) =>
-                onDraftChange({ ...draft, label: event.target.value })
-              }
-            />
-          </Field>
-          <Field label="Description" id="action-description">
-            <Textarea
-              id="action-description"
-              value={draft.description}
-              onChange={(event) =>
-                onDraftChange({ ...draft, description: event.target.value })
-              }
-            />
-          </Field>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Icon" id="action-icon">
-              <select
-                id="action-icon"
-                className="h-9 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/40"
-                value={draft.iconName}
-                onChange={(event) =>
-                  onDraftChange({ ...draft, iconName: event.target.value })
-                }
-              >
-                {iconOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Sort order" id="action-sort-order">
+      </div>
+      <div className="min-h-0 overflow-y-auto p-5">
+        {error == null ? null : <p className="mb-4 text-sm text-destructive">{error}</p>}
+        {mode === "editor" ? (
+          <div className="grid max-w-4xl gap-4">
+            <Field label="Label" id="action-label">
               <Input
-                id="action-sort-order"
-                min={0}
-                type="number"
-                value={draft.sortOrder}
+                id="action-label"
+                value={draft.label}
                 onChange={(event) =>
-                  onDraftChange({ ...draft, sortOrder: event.target.value })
+                  onDraftChange({ ...draft, label: event.target.value })
+                }
+              />
+            </Field>
+            <Field label="Description" id="action-description">
+              <Textarea
+                id="action-description"
+                value={draft.description}
+                onChange={(event) =>
+                  onDraftChange({ ...draft, description: event.target.value })
+                }
+              />
+            </Field>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Icon" id="action-icon">
+                <NativeSelect
+                  id="action-icon"
+                  value={draft.iconName}
+                  onChange={(event) =>
+                    onDraftChange({ ...draft, iconName: event.target.value })
+                  }
+                >
+                  {iconOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <Field label="Sort order" id="action-sort-order">
+                <Input
+                  id="action-sort-order"
+                  min={0}
+                  type="number"
+                  value={draft.sortOrder}
+                  onChange={(event) =>
+                    onDraftChange({ ...draft, sortOrder: event.target.value })
+                  }
+                />
+              </Field>
+            </div>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <Checkbox
+                checked={draft.enabled}
+                onChange={(event) =>
+                  onDraftChange({ ...draft, enabled: event.target.checked })
+                }
+              />
+              <span>Enabled</span>
+            </label>
+            <WorktreeOptions draft={draft} onDraftChange={onDraftChange} />
+            <Field label="Prompt template" id="action-prompt-template">
+              <Textarea
+                id="action-prompt-template"
+                className="min-h-72 font-mono"
+                value={draft.promptTemplate}
+                onChange={(event) =>
+                  onDraftChange({ ...draft, promptTemplate: event.target.value })
                 }
               />
             </Field>
           </div>
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <input
-              type="checkbox"
-              checked={draft.enabled}
-              onChange={(event) =>
-                onDraftChange({ ...draft, enabled: event.target.checked })
-              }
-              className="size-4 rounded border border-input accent-primary"
-            />
-            <span>Enabled</span>
-          </label>
-          <WorktreeOptions draft={draft} onDraftChange={onDraftChange} />
-          <Field label="Prompt template" id="action-prompt-template">
-            <Textarea
-              id="action-prompt-template"
-              className="min-h-72 font-mono"
-              value={draft.promptTemplate}
-              onChange={(event) =>
-                onDraftChange({ ...draft, promptTemplate: event.target.value })
-              }
-            />
-          </Field>
-        </div>
-      </div>
-      <div className="flex min-h-[34rem] flex-col overflow-hidden p-5">
-        <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-          <Check className="size-4 text-muted-foreground" />
-          <span>Preview</span>
-        </div>
-        <MarkdownDocument
-          value={preview}
-          mode="view"
-          onChange={() => undefined}
-          className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-card"
-          previewClassName="px-5 py-5"
-        />
-      </div>
+        ) : (
+          <MarkdownDocument
+            value={preview}
+            mode="view"
+            onChange={() => undefined}
+            className="min-h-[32rem] overflow-hidden rounded-lg border border-border bg-card"
+            previewClassName="px-5 py-5 [&_h1]:mb-3 [&_h1]:text-base [&_h1]:leading-6 [&_h2]:mt-5 [&_h2]:text-base [&_h2]:leading-6"
+          />
+        )}
       </div>
     </section>
   );
@@ -473,8 +469,7 @@ function WorktreeOptions({
   return (
     <section className="grid gap-3 rounded-lg border border-border bg-secondary/30 p-3">
       <label className="flex items-center gap-2 text-sm font-medium">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={worktree != null}
           onChange={(event) =>
             onDraftChange({
@@ -490,15 +485,13 @@ function WorktreeOptions({
                 : null
             })
           }
-          className="size-4 rounded border border-input accent-primary"
         />
         <span>Worktree option</span>
       </label>
       {worktree == null ? null : (
         <>
           <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={worktree.default}
               onChange={(event) =>
                 onDraftChange({
@@ -511,7 +504,6 @@ function WorktreeOptions({
                   }
                 })
               }
-              className="size-4 rounded border border-input accent-primary"
             />
             <span>Default on</span>
           </label>

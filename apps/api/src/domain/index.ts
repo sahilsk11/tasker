@@ -15,3 +15,7 @@ export type {
 } from "./task-session.js";
 export type { CreateTaskTicketInput, TaskTicket, TaskTicketId } from "./task-ticket.js";
 export type { CreateTaskInput, Task, TaskId, TaskState, UpdateTaskInput } from "./task.js";
+export type {
+  UpdateWorkingPathSettingsInput,
+  WorkingPathSettings
+} from "./working-paths.js";

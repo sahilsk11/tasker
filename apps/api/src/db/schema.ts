@@ -10,6 +10,7 @@ export type Database = {
   readonly task_sessions: TaskSessionsTable;
   readonly task_tickets: TaskTicketsTable;
   readonly tasks: TasksTable;
+  readonly working_path_settings: WorkingPathSettingsTable;
 };
 
 export type TaskDependenciesTable = {
@@ -79,6 +80,13 @@ export type TaskTicketsTable = {
   readonly url: string | null;
 };
 
+export type WorkingPathSettingsTable = {
+  readonly default_working_directory: string | null;
+  readonly default_worktree_path: Generated<string>;
+  readonly id: 1;
+  readonly updated_at: Generated<string>;
+};
+
 export type TaskActionRow = Selectable<TaskActionsTable>;
 export type TaskArtifactRow = Selectable<TaskArtifactsTable>;
 export type TaskDependencyRow = Selectable<TaskDependenciesTable>;
@@ -86,3 +94,4 @@ export type TaskPullRequestRow = Selectable<TaskPullRequestsTable>;
 export type TaskRow = Selectable<TasksTable>;
 export type TaskSessionRow = Selectable<TaskSessionsTable>;
 export type TaskTicketRow = Selectable<TaskTicketsTable>;
+export type WorkingPathSettingsRow = Selectable<WorkingPathSettingsTable>;

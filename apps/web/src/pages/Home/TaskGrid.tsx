@@ -84,6 +84,7 @@ export function TaskGrid({
 
 type TaskStateMeta = {
   readonly iconClassName: string;
+  readonly segmentClassName: string;
 };
 
 type PendingDuplicateAction = {
@@ -94,32 +95,29 @@ type PendingDuplicateAction = {
 
 const taskStateMetaByState: Record<TaskState, TaskStateMeta> = {
   done: {
-    iconClassName: "border-success/25 bg-success/10 text-success"
+    iconClassName: "border-success/25 bg-success/10 text-success",
+    segmentClassName: "bg-success"
   },
   implementation: {
-    iconClassName: "border-warning/25 bg-warning/10 text-warning"
+    iconClassName: "border-warning/25 bg-warning/10 text-warning",
+    segmentClassName: "bg-warning"
   },
   planning: {
-    iconClassName: "border-accent/25 bg-accent/10 text-[#a89eff]"
+    iconClassName: "border-accent/25 bg-accent/10 text-[#a89eff]",
+    segmentClassName: "bg-[#a89eff]"
   },
   ready: {
-    iconClassName: "border-border bg-[#a1a1aa]/10 text-[#a1a1aa]"
+    iconClassName: "border-border bg-[#a1a1aa]/10 text-[#a1a1aa]",
+    segmentClassName: "bg-[#a1a1aa]"
   },
   review: {
-    iconClassName: "border-[#a78bfa]/25 bg-[#a78bfa]/10 text-[#a78bfa]"
+    iconClassName: "border-[#a78bfa]/25 bg-[#a78bfa]/10 text-[#a78bfa]",
+    segmentClassName: "bg-[#a78bfa]"
   },
   scoping: {
-    iconClassName: "border-info/25 bg-info/10 text-info"
+    iconClassName: "border-info/25 bg-info/10 text-info",
+    segmentClassName: "bg-info"
   }
-};
-
-const taskStateSegmentClassByState: Record<TaskState, string> = {
-  done: "bg-success",
-  implementation: "bg-warning",
-  planning: "bg-[#a89eff]",
-  ready: "bg-[#a1a1aa]",
-  review: "bg-[#a78bfa]",
-  scoping: "bg-info"
 };
 
 function getTaskStateLabel(
@@ -651,7 +649,7 @@ function SubtaskProgress({
           key={subtask.id}
           className={cn(
             "h-1.5 w-5 rounded-full",
-            taskStateSegmentClassByState[subtask.state]
+            taskStateMetaByState[subtask.state].segmentClassName
           )}
         />
       ))}

@@ -82,13 +82,18 @@ function TaskEventRow({
       type="button"
       onClick={onOpen}
       className={cn(
-        "grid min-h-9 min-w-0 grid-cols-[1.5rem_1fr_auto] items-center gap-[9px] rounded-md border border-transparent px-2 py-1 text-left",
+        "grid min-h-11 min-w-0 grid-cols-[1.75rem_minmax(0,1fr)] items-start gap-[9px] rounded-md border border-transparent px-2 py-1 text-left",
         "transition-colors hover:border-[#2c2d34] hover:bg-[#16171c] hover:text-[#cdd0d6]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       )}
     >
-      <span className={cn("flex size-6 items-center justify-center", iconClassName)}>
-        <Icon className="size-4" />
+      <span className="flex min-w-0 flex-col items-center gap-0.5 pt-0.5">
+        <span className={cn("flex size-6 items-center justify-center", iconClassName)}>
+          <Icon className="size-4" />
+        </span>
+        <span className="max-w-7 truncate font-mono text-[9px] leading-none text-[#5c5f68]">
+          {resource.updatedAt}
+        </span>
       </span>
       <span className="grid min-w-0 gap-0.5">
         <span className="flex min-w-0 items-center gap-1.5 text-sm text-[#a9abb2]">
@@ -98,9 +103,6 @@ function TaskEventRow({
           <span className="min-w-0 truncate font-medium">{title}</span>
         </span>
         {note == null ? null : <span className="min-w-0">{note}</span>}
-      </span>
-      <span className="ml-1 shrink-0 font-mono text-xs text-[#5c5f68]">
-        {resource.updatedAt}
       </span>
     </button>
   );

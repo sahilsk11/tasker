@@ -10,24 +10,19 @@ export type ApiTask = {
   readonly updatedAt: string;
 };
 
+export type TaskStateDefinition = {
+  readonly label: string;
+  readonly rank: number;
+  readonly value: TaskState;
+};
+
 export type TaskState =
   | "ready"
-  | "research"
-  | "plan"
-  | "implement"
-  | "code_review"
-  | "merged"
+  | "scoping"
+  | "planning"
+  | "implementation"
+  | "review"
   | "done";
-
-export const taskStates = [
-  "ready",
-  "research",
-  "plan",
-  "implement",
-  "code_review",
-  "merged",
-  "done"
-] as const satisfies readonly TaskState[];
 
 export type ApiArtifact = {
   readonly createdAt: string;
@@ -309,6 +304,13 @@ export async function listTaskBundles(): Promise<readonly TaskBundle[]> {
   );
 }
 
+export async function listTaskStates(): Promise<readonly TaskStateDefinition[]> {
+  const { states } = await apiClient.get<{
+    readonly states: readonly TaskStateDefinition[];
+  }>("/task-states");
+  return states;
+}
+
 export async function listTaskActionSettings(): Promise<readonly ApiTaskActionDetails[]> {
   const { actions } = await apiClient.get<{
     readonly actions: readonly ApiTaskActionDetails[];
@@ -431,20 +433,6 @@ export async function getLinearOptions(): Promise<LinearOptions> {
     "/linear/options"
   );
   return linear;
-}
-
-export async function listLinearIssueStatuses(
-  identifiers: readonly string[]
-): Promise<readonly LinearIssueStatus[]> {
-  const uniqueIdentifiers = Array.from(new Set(identifiers));
-  if (uniqueIdentifiers.length === 0) {
-    return [];
-  }
-
-  const { issues } = await apiClient.post<{
-    readonly issues: readonly LinearIssueStatus[];
-  }>("/linear/issues/statuses", { identifiers: uniqueIdentifiers });
-  return issues;
 }
 
 export async function resolveLinearIssue(

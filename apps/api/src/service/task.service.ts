@@ -22,7 +22,13 @@ import {
   renderOptionsForPrompt
 } from "../domain/task-action-prompt-values.js";
 import type { CreateTaskTicketInput, TaskTicket } from "../domain/task-ticket.js";
-import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../domain/task.js";
+import type {
+  CreateTaskInput,
+  Task,
+  TaskId,
+  TaskState,
+  UpdateTaskInput
+} from "../domain/task.js";
 import type { TaskArtifactRepository } from "../repository/task-artifact.repository.js";
 import type { TaskPullRequestRepository } from "../repository/task-pull-request.repository.js";
 import type { TaskSessionRepository } from "../repository/task-session.repository.js";
@@ -114,9 +120,7 @@ export class TaskService {
     input: CreateTaskPullRequestInput
   ): Promise<TaskPullRequest> {
     await this.requireTask(taskId);
-    const pullRequest = await this.pullRequests.createForTask(taskId, input);
-    await this.tasks.updateStateAtLeast(taskId, "code_review");
-    return pullRequest;
+    return this.pullRequests.createForTask(taskId, input);
   }
 
   public async addSession(
@@ -469,7 +473,20 @@ export class TaskService {
       return;
     }
 
-    await this.tasks.updateStateAtLeast(taskId, artifact.label);
+    await this.tasks.updateStateAtLeast(taskId, getTaskStateForArtifact(artifact));
+  }
+}
+
+function getTaskStateForArtifact(artifact: TaskArtifact): TaskState {
+  switch (artifact.label) {
+    case "implement":
+      return "implementation";
+    case "plan":
+      return "planning";
+    case "research":
+      return "scoping";
+    case "other":
+      return "ready";
   }
 }
 

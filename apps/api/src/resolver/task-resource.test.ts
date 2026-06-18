@@ -5,6 +5,31 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { createApp } from "../app.js";
+import { taskStateDefinitions } from "../domain/task.js";
+
+void test("task state options are exposed in canonical order", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-state-options-"));
+  const app = await createApp({
+    databasePath: join(dir, "tasker.sqlite"),
+    linearApiKey: null
+  });
+
+  try {
+    const response = await app.inject({
+      method: "GET",
+      url: "/task-states"
+    });
+
+    assert.equal(response.statusCode, 200);
+    const body = readJson(response.body) as {
+      readonly states: typeof taskStateDefinitions;
+    };
+    assert.deepEqual(body.states, taskStateDefinitions);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
 
 void test("artifact and pull request endpoints infer task state", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-resource-state-"));
@@ -23,38 +48,38 @@ void test("artifact and pull request endpoints infer task state", async () => {
     });
     assert.equal(research.label, "research");
     assert.equal(research.taskId, task.id);
-    assert.equal(await getTaskState(app, task.id), "research");
+    assert.equal(await getTaskState(app, task.id), "scoping");
 
     await createArtifact(app, task.id, {
       label: "plan",
       uri: "/tmp/plan.md"
     });
-    assert.equal(await getTaskState(app, task.id), "plan");
+    assert.equal(await getTaskState(app, task.id), "planning");
 
     await createArtifact(app, task.id, {
       label: "implement",
       uri: "/tmp/implementation.md"
     });
-    assert.equal(await getTaskState(app, task.id), "implement");
+    assert.equal(await getTaskState(app, task.id), "implementation");
 
     const pullRequest = await createPullRequest(app, task.id, {
       url: "https://github.com/sahilsk11/tasker/pull/21"
     });
     assert.equal(pullRequest.taskId, task.id);
     assert.equal(pullRequest.url, "https://github.com/sahilsk11/tasker/pull/21");
-    assert.equal(await getTaskState(app, task.id), "code_review");
+    assert.equal(await getTaskState(app, task.id), "implementation");
 
     await createArtifact(app, task.id, {
       label: "other",
       uri: "/tmp/other.md"
     });
-    assert.equal(await getTaskState(app, task.id), "code_review");
+    assert.equal(await getTaskState(app, task.id), "implementation");
 
     await createArtifact(app, task.id, {
       label: "plan",
       uri: "/tmp/late-plan.md"
     });
-    assert.equal(await getTaskState(app, task.id), "code_review");
+    assert.equal(await getTaskState(app, task.id), "implementation");
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });
@@ -84,6 +109,13 @@ void test("task state can be manually updated", async () => {
     assert.equal(updated.id, task.id);
     assert.equal(updated.state, "done");
     assert.equal(await getTaskState(app, task.id), "done");
+
+    const invalidResponse = await app.inject({
+      method: "PATCH",
+      payload: { state: "running" },
+      url: `/tasks/${task.id}`
+    });
+    assert.equal(invalidResponse.statusCode, 400);
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });

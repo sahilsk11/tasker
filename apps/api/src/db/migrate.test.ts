@@ -55,7 +55,7 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
       assert.deepEqual(tasks, [
         {
           id: "task-1",
-          state: "code_review"
+          state: "review"
         }
       ]);
 
@@ -109,7 +109,8 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000006_task_state_and_pull_requests",
         "000007_task_actions",
         "000008_task_action_icons",
-        "000009_scope_action_defaults"
+        "000009_task_state_phase_names",
+        "000010_scope_action_defaults"
       ]);
 
       const taskActions = database
@@ -185,7 +186,8 @@ void test("migrations rename legacy investigate action state to scope", async ()
         "000005_resource_attribution_and_dedupe",
         "000006_task_state_and_pull_requests",
         "000007_task_actions",
-        "000008_task_action_icons"
+        "000008_task_action_icons",
+        "000009_task_state_phase_names"
       ]) {
         database.exec(readFileSync(join(migrationsDirectory, `${version}.up.sql`), "utf8"));
         database.prepare("INSERT INTO schema_migrations (version) VALUES (?)").run(

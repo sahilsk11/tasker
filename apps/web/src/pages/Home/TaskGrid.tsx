@@ -2,8 +2,14 @@ import { useState } from "react";
 import { Check, FileText, GitPullRequest, MessageSquareText } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { createTaskSession, taskStates, updateTask } from "@/api/tasks";
-import type { ApiSession, ApiTaskAction, TaskBundle, TaskState } from "@/api/tasks";
+import { createTaskSession, updateTask } from "@/api/tasks";
+import type {
+  ApiSession,
+  ApiTaskAction,
+  TaskBundle,
+  TaskState,
+  TaskStateDefinition
+} from "@/api/tasks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -28,11 +34,13 @@ import {
 export function TaskGrid({
   bundles,
   onSessionRun,
-  pullRequestStatuses
+  pullRequestStatuses,
+  taskStateDefinitions
 }: {
   readonly bundles: readonly TaskBundle[];
   readonly onSessionRun: () => void;
   readonly pullRequestStatuses: PullRequestStatusMap;
+  readonly taskStateDefinitions: readonly TaskStateDefinition[];
 }): React.JSX.Element {
   if (bundles.length === 0) {
     return (
@@ -53,6 +61,7 @@ export function TaskGrid({
           bundle={bundle}
           onSessionRun={onSessionRun}
           pullRequestStatuses={pullRequestStatuses}
+          taskStateDefinitions={taskStateDefinitions}
         />
       ))}
     </section>
@@ -61,42 +70,37 @@ export function TaskGrid({
 
 type TaskStateMeta = {
   readonly iconClassName: string;
-  readonly label: string;
 };
 
-const taskStateMeta: Record<TaskState, TaskStateMeta> = {
-  code_review: {
-    iconClassName: "border-[#a78bfa]/25 bg-[#a78bfa]/10 text-[#a78bfa]",
-    label: "In review"
-  },
+const taskStateMetaByState: Record<TaskState, TaskStateMeta> = {
   done: {
-    iconClassName: "border-success/25 bg-success/10 text-success",
-    label: "Done"
+    iconClassName: "border-success/25 bg-success/10 text-success"
   },
-  implement: {
-    iconClassName: "border-warning/25 bg-warning/10 text-warning",
-    label: "Implementing"
+  implementation: {
+    iconClassName: "border-warning/25 bg-warning/10 text-warning"
   },
-  merged: {
-    iconClassName: "border-[#a78bfa]/25 bg-[#a78bfa]/10 text-[#a78bfa]",
-    label: "Merged"
-  },
-  plan: {
-    iconClassName: "border-accent/25 bg-accent/10 text-[#a89eff]",
-    label: "Plan"
+  planning: {
+    iconClassName: "border-accent/25 bg-accent/10 text-[#a89eff]"
   },
   ready: {
-    iconClassName: "border-border bg-[#a1a1aa]/10 text-[#a1a1aa]",
-    label: "Ready"
+    iconClassName: "border-border bg-[#a1a1aa]/10 text-[#a1a1aa]"
   },
-  research: {
-    iconClassName: "border-info/25 bg-info/10 text-info",
-    label: "Researching"
+  review: {
+    iconClassName: "border-[#a78bfa]/25 bg-[#a78bfa]/10 text-[#a78bfa]"
+  },
+  scoping: {
+    iconClassName: "border-info/25 bg-info/10 text-info"
   }
 };
 
-function getTaskStateMeta(state: TaskState | undefined): TaskStateMeta {
-  return state == null ? taskStateMeta.ready : taskStateMeta[state];
+function getTaskStateLabel(
+  state: TaskState,
+  definitions: readonly TaskStateDefinition[]
+): string {
+  return (
+    definitions.find((definition) => definition.value === state)?.label ??
+    state.replaceAll("_", " ")
+  );
 }
 
 export function TaskGridSkeleton(): React.JSX.Element {
@@ -112,11 +116,13 @@ export function TaskGridSkeleton(): React.JSX.Element {
 function TaskCard({
   bundle,
   onSessionRun,
-  pullRequestStatuses
+  pullRequestStatuses,
+  taskStateDefinitions
 }: {
   readonly bundle: TaskBundle;
   readonly onSessionRun: () => void;
   readonly pullRequestStatuses: PullRequestStatusMap;
+  readonly taskStateDefinitions: readonly TaskStateDefinition[];
 }): React.JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -238,10 +244,11 @@ function TaskCard({
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <TaskStatePicker
                 currentState={bundle.task.state}
-                disabled={stateMutation.isPending}
+                disabled={stateMutation.isPending || taskStateDefinitions.length === 0}
                 onOpenChange={setIsStateOpen}
                 onSelectState={selectState}
                 open={isStateOpen}
+                stateDefinitions={taskStateDefinitions}
               />
               {stateError == null ? null : (
                 <span className="text-sm text-destructive">{stateError}</span>
@@ -326,15 +333,22 @@ function TaskStatePicker({
   disabled,
   onOpenChange,
   onSelectState,
-  open
+  open,
+  stateDefinitions
 }: {
   readonly currentState: TaskState;
   readonly disabled: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly onSelectState: (state: TaskState) => void;
   readonly open: boolean;
+  readonly stateDefinitions: readonly TaskStateDefinition[];
 }): React.JSX.Element {
-  const stateMeta = getTaskStateMeta(currentState);
+  const stateMeta = taskStateMetaByState[currentState];
+  const stateLabel = getTaskStateLabel(currentState, stateDefinitions);
+  const orderedStateDefinitions = [...stateDefinitions].sort((left, right) => {
+    const rankComparison = left.rank - right.rank;
+    return rankComparison === 0 ? left.value.localeCompare(right.value) : rankComparison;
+  });
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -347,32 +361,32 @@ function TaskStatePicker({
             "h-7 rounded-full px-3 text-[13px] font-semibold",
             stateMeta.iconClassName
           )}
-          title={`Task state: ${stateMeta.label}`}
+          title={`Task state: ${stateLabel}`}
         >
           <span className="size-2 rounded-full bg-current" aria-hidden="true" />
-          {stateMeta.label}
+          {stateLabel}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-52 border-[#1f2025] bg-[#111216] p-1.5">
         <div className="flex flex-col gap-1">
-          {taskStates.map((state) => {
-            const optionMeta = getTaskStateMeta(state);
-            const isSelected = state === currentState;
+          {orderedStateDefinitions.map((definition) => {
+            const optionMeta = taskStateMetaByState[definition.value];
+            const isSelected = definition.value === currentState;
 
             return (
               <Button
-                key={state}
+                key={definition.value}
                 type="button"
                 variant="ghost"
                 className="h-8 justify-start rounded-[7px] px-2 text-sm font-medium text-[#cdd0d6] hover:bg-[#191a20] hover:text-[#f1f2f4]"
-                onClick={() => onSelectState(state)}
+                onClick={() => onSelectState(definition.value)}
               >
                 <span
                   className={cn("size-2 rounded-full", optionMeta.iconClassName)}
                   aria-hidden="true"
                 />
                 <span className="min-w-0 flex-1 truncate text-left">
-                  {optionMeta.label}
+                  {definition.label}
                 </span>
                 {isSelected ? <Check className="size-4 text-[#7c6cff]" /> : null}
               </Button>

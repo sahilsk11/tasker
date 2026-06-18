@@ -1,14 +1,16 @@
-import type { LinearIssueStatus, TaskBundle } from "@/api/tasks";
-import { getPullRequestsForBundle } from "./task-resource-groups";
+import type { TaskBundle, TaskState } from "@/api/tasks";
+import {
+  getLatestResourceActivityAt,
+  getPullRequestsForBundle
+} from "./task-resource-groups";
 
 export type TaskFilter = "all" | "has-pr" | "has-ticket" | "root" | "subtask";
 
 export type TaskViewOptions = {
   readonly filter: TaskFilter;
-  readonly linearAllStateIds: readonly string[];
-  readonly linearIssueStatuses: readonly LinearIssueStatus[];
-  readonly linearStateIds: readonly string[];
   readonly query: string;
+  readonly taskAllStates: readonly TaskState[];
+  readonly taskStates: readonly TaskState[];
 };
 
 type TaskSearchDocument = {
@@ -24,32 +26,22 @@ export function getVisibleTaskBundles(
   const documents = bundles.map(toSearchDocument);
   const matched = documents
     .filter((document) => matchesFilter(document.bundle, options.filter))
-    .filter((document) => matchesLinearStatus(document.bundle, options))
+    .filter((document) => matchesTaskState(document.bundle, options))
     .filter((document) => matchesQuery(document, options.query))
     .map((document) => document.bundle);
 
-  return [...matched].sort((left, right) =>
-    compareDate(right.task.updatedAt, left.task.updatedAt)
-  );
+  return [...matched].sort(compareTaskBundleActivity);
 }
 
-function matchesLinearStatus(bundle: TaskBundle, options: TaskViewOptions): boolean {
+function matchesTaskState(bundle: TaskBundle, options: TaskViewOptions): boolean {
   if (
-    options.linearStateIds.length === 0 ||
-    options.linearStateIds.length === options.linearAllStateIds.length
+    options.taskStates.length === 0 ||
+    options.taskStates.length === options.taskAllStates.length
   ) {
     return true;
   }
 
-  const selectedStateIds = new Set(options.linearStateIds);
-  const statusByIdentifier = new Map(
-    options.linearIssueStatuses.map((issue) => [issue.identifier, issue])
-  );
-
-  return bundle.resources.tickets.some((ticket) => {
-    const issue = statusByIdentifier.get(ticket.externalId.toUpperCase());
-    return issue == null ? false : selectedStateIds.has(issue.state.id);
-  });
+  return options.taskStates.includes(bundle.task.state);
 }
 
 function matchesFilter(bundle: TaskBundle, filter: TaskFilter): boolean {
@@ -94,6 +86,20 @@ function toSearchDocument(bundle: TaskBundle): TaskSearchDocument {
   };
 }
 
-function compareDate(left: string, right: string): number {
-  return new Date(left).getTime() - new Date(right).getTime();
+function compareTaskBundleActivity(left: TaskBundle, right: TaskBundle): number {
+  const rightActivityAt = getLatestResourceActivityAt(right) ?? right.task.createdAt;
+  const leftActivityAt = getLatestResourceActivityAt(left) ?? left.task.createdAt;
+  const activityDifference =
+    getSortableTime(new Date(rightActivityAt).getTime()) -
+    getSortableTime(new Date(leftActivityAt).getTime());
+
+  if (activityDifference !== 0) {
+    return activityDifference;
+  }
+
+  return left.task.id.localeCompare(right.task.id);
+}
+
+function getSortableTime(value: number): number {
+  return Number.isNaN(value) ? 0 : value;
 }

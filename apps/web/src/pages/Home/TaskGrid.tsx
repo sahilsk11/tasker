@@ -319,13 +319,12 @@ function TaskCard({
             />
           </div>
 
-          <div className="mt-2.5 flex min-w-0 flex-wrap items-center justify-between gap-2">
-            <ResourceCounters groups={groupedResources} onOpen={setSelectedKind} />
-            <SubtaskToggle
-              onOpen={() => setSelectedKind("subtask")}
-              subtasks={bundle.children}
-            />
-          </div>
+          <ResourceCounters
+            groups={groupedResources}
+            onOpen={setSelectedKind}
+            onOpenSubtasks={() => setSelectedKind("subtask")}
+            subtasks={bundle.children}
+          />
         </section>
 
         <aside className="flex min-w-0 flex-col justify-center border-t border-[#1c1d22] bg-[#0f1013] p-[15px_14px] lg:border-l lg:border-t-0">
@@ -559,10 +558,14 @@ function TaskStatePicker({
 
 function ResourceCounters({
   groups,
-  onOpen
+  onOpen,
+  onOpenSubtasks,
+  subtasks
 }: {
   readonly groups: readonly ResourceGroupView[];
   readonly onOpen: (kind: ResourceKind) => void;
+  readonly onOpenSubtasks: () => void;
+  readonly subtasks: readonly ApiTask[];
 }): React.JSX.Element {
   const counters: ReadonlyArray<{
     readonly Icon: typeof MessageSquareText;
@@ -574,7 +577,7 @@ function ResourceCounters({
   ];
 
   return (
-    <div className="flex min-w-0 flex-wrap gap-1.5">
+    <div className="mt-2.5 flex min-w-0 flex-wrap gap-1.5">
       {counters.map(({ Icon, kind }) => {
         const group = groups.find((candidate) => candidate.kind === kind) ?? {
           items: [],
@@ -595,6 +598,7 @@ function ResourceCounters({
           </Button>
         );
       })}
+      <SubtaskToggle onOpen={onOpenSubtasks} subtasks={subtasks} />
     </div>
   );
 }

@@ -173,7 +173,7 @@ async function createUnclaimedSession(
   const response = await app.inject({
     method: "POST",
     payload: {
-      actionId: "investigate",
+      actionId: "scope",
       claimed: false,
       provider: "codex"
     },

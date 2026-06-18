@@ -18,29 +18,26 @@ const baseContext: TaskActionPromptContext = {
 
 void test("renderTaskActionTemplate substitutes known placeholders", () => {
   const rendered = renderTaskActionTemplate(
-    "{{taskHeader}}\n\n{{registerSession}}",
+    "{{taskTitle}}\n\n{{taskDescription}}\n\n{{registerSession}}",
     baseContext
   );
 
-  assert.match(rendered, /^# Example task/);
-  assert.match(rendered, /## Description\nBuild the feature/);
+  assert.match(rendered, /^Example task/);
+  assert.match(rendered, /Example task\n\nBuild the feature/);
   assert.match(rendered, /## Tasker session claim/);
   assert.match(rendered, /\/sessions\/session-1\/claim/);
 });
 
-void test("renderTaskActionTemplate leaves worktree empty when disabled", () => {
-  const rendered = renderTaskActionTemplate("Before\n{{worktree}}\nAfter", baseContext);
+void test("renderTaskActionTemplate leaves options empty when no option text exists", () => {
+  const rendered = renderTaskActionTemplate("Before\n{{options}}\nAfter", baseContext);
 
   assert.equal(rendered, "Before\n\nAfter");
 });
 
-void test("renderTaskActionTemplate includes worktree when enabled", () => {
-  const rendered = renderTaskActionTemplate("{{worktree}}", {
+void test("renderTaskActionTemplate includes rendered option text", () => {
+  const rendered = renderTaskActionTemplate("{{options}}", {
     ...baseContext,
-    worktree: {
-      enabled: true,
-      path: "~/wt/feature"
-    }
+    optionsText: "## Worktree\n\nUse `~/wt/feature`."
   });
 
   assert.match(rendered, /## Worktree/);
@@ -55,5 +52,5 @@ void test("renderTaskActionTemplate rejects unknown placeholders", () => {
 });
 
 void test("findUnknownPlaceholders reports unsupported names", () => {
-  assert.deepEqual(findUnknownPlaceholders("{{taskHeader}} {{madeUp}}"), ["madeUp"]);
+  assert.deepEqual(findUnknownPlaceholders("{{taskTitle}} {{madeUp}}"), ["madeUp"]);
 });

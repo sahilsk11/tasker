@@ -1,12 +1,11 @@
 export {
-  buildArtifactAttributionSection,
+  buildArtifactRegistrationSection,
   buildBreakdownWorkflowSection,
+  buildOptionsSection,
   buildPullRequestRegistrationSection,
   buildSessionClaimSection,
-  buildTaskHeaderSection,
-  buildTaskNotesRegistrationSection,
-  buildWorktreeSection,
-  defaultWorktreePath
+  buildTaskDescriptionSection,
+  buildTaskTitleSection
 } from "./prompt-sections.js";
 export { renderTaskActionTemplate } from "./render-template.js";
 export {

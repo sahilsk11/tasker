@@ -9,12 +9,12 @@ import {
   Save,
   Workflow
 } from "lucide-react";
-import { defaultWorktreePath } from "@tasker/core";
 import { useEffect, useState } from "react";
 import type { ApiSession, ApiTaskAction, TaskActionPromptValues } from "@/api/tasks";
 import { renderTaskSessionPrompt, runTaskSessionPrompt } from "@/api/tasks";
 import { MarkdownDocument } from "@/components/MarkdownDocument";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import {
+  defaultPreviewOptionValue,
+  humanizeOptionId,
+  mergePreviewOptionValues,
+  optionEntriesFor,
+  type PreviewOptionValues
+} from "./action-options-utils";
 import { taskActionIcons } from "./task-action-icons";
 
 const railActionCount = 3;
@@ -152,24 +159,20 @@ export function TaskActionPromptDialog({
   readonly taskId: string;
 }): React.JSX.Element {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
-  const [createWorktree, setCreateWorktree] = useState(false);
   const [isRunningAgent, setIsRunningAgent] = useState(false);
   const [markdownMode, setMarkdownMode] = useState<"edit" | "view">("view");
+  const [optionValues, setOptionValues] = useState<PreviewOptionValues>({});
   const [promptDraft, setPromptDraft] = useState("");
   const [promptError, setPromptError] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [workingPath, setWorkingPath] = useState("");
-  const [worktreePath, setWorktreePath] = useState(defaultWorktreePath);
-
-  const worktreeOption = action?.options?.worktree ?? null;
-  const defaultWorktreePathValue =
-    worktreeOption?.fields?.path?.default ?? defaultWorktreePath;
+  const optionEntries = optionEntriesFor(action?.options ?? null);
 
   useEffect(() => {
     setCopiedPrompt(false);
     setRunError(null);
-  }, [action, createWorktree, promptDraft, session, workingPath, worktreePath]);
+  }, [action, optionValues, promptDraft, session, workingPath]);
 
   useEffect(() => {
     if (action == null || session == null) {
@@ -177,13 +180,20 @@ export function TaskActionPromptDialog({
       return;
     }
 
-    setCreateWorktree(worktreeOption?.default ?? false);
     setMarkdownMode("view");
+    setOptionValues((currentValues) =>
+      mergePreviewOptionValues(action.options, currentValues)
+    );
     setPromptError(null);
     setRunError(null);
     setWorkingPath("");
-    setWorktreePath(defaultWorktreePathValue);
-  }, [action, defaultWorktreePathValue, session, worktreeOption?.default]);
+  }, [action, session]);
+
+  useEffect(() => {
+    setOptionValues((currentValues) =>
+      mergePreviewOptionValues(action?.options ?? null, currentValues)
+    );
+  }, [action?.options]);
 
   useEffect(() => {
     if (action == null || session == null) {
@@ -195,9 +205,9 @@ export function TaskActionPromptDialog({
     setPromptError(null);
 
     const promptOptions = buildPromptOptions({
-      createWorktree,
+      optionValues,
       workingPath,
-      worktreePath
+      action
     });
 
     void renderTaskSessionPrompt(taskId, session.id, promptOptions)
@@ -223,7 +233,7 @@ export function TaskActionPromptDialog({
     return () => {
       cancelled = true;
     };
-  }, [action, createWorktree, session, taskId, workingPath, worktreePath]);
+  }, [action, optionValues, session, taskId, workingPath]);
 
   async function copyPrompt(): Promise<void> {
     if (promptDraft.length === 0 || workingPath.trim().length === 0) {
@@ -292,30 +302,59 @@ export function TaskActionPromptDialog({
         </DialogHeader>
 
         <div className="grid min-h-0 gap-4 overflow-y-auto border-t border-border p-5">
-          {worktreeOption == null ? null : (
+          {optionEntries.length === 0 ? null : (
             <section className="grid gap-3 rounded-lg border border-border bg-secondary/30 p-4">
-              <label className="flex min-w-0 items-center gap-3 text-sm font-medium text-foreground">
-                <input
-                  type="checkbox"
-                  checked={createWorktree}
-                  onChange={(event) => setCreateWorktree(event.target.checked)}
-                  className={cn(
-                    "size-4 shrink-0 rounded border border-input bg-background accent-primary",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  )}
-                />
-                <span>{worktreeOption.label}</span>
-              </label>
-              <div className="grid gap-2">
-                <Label htmlFor="action-worktree-path">Worktree location</Label>
-                <Input
-                  id="action-worktree-path"
-                  value={worktreePath}
-                  disabled={!createWorktree}
-                  placeholder={defaultWorktreePathValue}
-                  onChange={(event) => setWorktreePath(event.target.value)}
-                />
-              </div>
+              {optionEntries.map(([optionId, option]) => {
+                const value = optionValues[optionId] ?? defaultPreviewOptionValue(option);
+                const fieldEntries = Object.entries(option.fields ?? {});
+                return (
+                  <div key={optionId} className="grid gap-3">
+                    <label className="flex min-w-0 items-center gap-3 text-sm font-medium text-foreground">
+                      <Checkbox
+                        checked={value.enabled}
+                        onChange={(event) =>
+                          setOptionValues({
+                            ...optionValues,
+                            [optionId]: {
+                              ...value,
+                              enabled: event.target.checked
+                            }
+                          })
+                        }
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                    {!value.enabled || fieldEntries.length === 0 ? null : (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {fieldEntries.map(([fieldId, field]) => (
+                          <div key={fieldId} className="grid gap-2">
+                            <Label htmlFor={`action-option-${optionId}-${fieldId}`}>
+                              {field.label ?? humanizeOptionId(fieldId)}
+                            </Label>
+                            <Input
+                              id={`action-option-${optionId}-${fieldId}`}
+                              value={value.fields[fieldId] ?? field.default}
+                              placeholder={field.default}
+                              onChange={(event) =>
+                                setOptionValues({
+                                  ...optionValues,
+                                  [optionId]: {
+                                    ...value,
+                                    fields: {
+                                      ...value.fields,
+                                      [fieldId]: event.target.value
+                                    }
+                                  }
+                                })
+                              }
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </section>
           )}
 
@@ -415,20 +454,30 @@ export function TaskActionPromptDialog({
 }
 
 function buildPromptOptions({
-  createWorktree,
+  action,
+  optionValues,
   workingPath,
-  worktreePath
 }: {
-  readonly createWorktree: boolean;
+  readonly action: ApiTaskAction | null;
+  readonly optionValues: PreviewOptionValues;
   readonly workingPath: string;
-  readonly worktreePath: string;
 }): TaskActionPromptValues {
+  const options = Object.fromEntries(
+    optionEntriesFor(action?.options ?? null).map(([optionId, option]) => {
+      const value = optionValues[optionId] ?? defaultPreviewOptionValue(option);
+      return [
+        optionId,
+        {
+          enabled: value.enabled,
+          ...(Object.keys(value.fields).length === 0 ? {} : { fields: value.fields })
+        }
+      ];
+    })
+  );
+
   return {
-    ...(workingPath.trim().length === 0 ? {} : { workingPath: workingPath.trim() }),
-    worktree: {
-      enabled: createWorktree,
-      ...(createWorktree ? { path: worktreePath } : {})
-    }
+    ...(Object.keys(options).length === 0 ? {} : { options }),
+    ...(workingPath.trim().length === 0 ? {} : { workingPath: workingPath.trim() })
   };
 }
 

@@ -1,18 +1,17 @@
 import { z } from "zod";
-import { defaultWorktreePath } from "@tasker/core";
 import type { TaskActionOptions } from "./task-action-options.js";
 
-const taskActionWorktreeValueSchema = z
+const taskActionOptionValueSchema = z
   .object({
     enabled: z.boolean(),
-    path: z.string().optional()
+    fields: z.record(z.string(), z.string()).optional()
   })
   .strict();
 
 export const taskActionPromptValuesSchema = z
   .object({
-    workingPath: z.string().optional(),
-    worktree: taskActionWorktreeValueSchema.optional()
+    options: z.record(z.string(), taskActionOptionValueSchema).optional(),
+    workingPath: z.string().optional()
   })
   .strict();
 
@@ -29,26 +28,32 @@ export function parseTaskActionPromptValues(value: unknown): TaskActionPromptVal
   return taskActionPromptValuesSchema.parse(value);
 }
 
-export function resolveWorktreeForPrompt(
+export function renderOptionsForPrompt(
   actionOptions: TaskActionOptions | null,
   values: TaskActionPromptValues | undefined
-): { readonly enabled: boolean; readonly path: string } | undefined {
-  if (actionOptions?.worktree == null) {
-    return undefined;
+): string | undefined {
+  if (actionOptions == null) {
+    return "";
   }
 
-  const worktreeValues = values?.worktree;
-  const enabled = worktreeValues?.enabled ?? actionOptions.worktree.default;
-  if (!enabled) {
-    return undefined;
-  }
+  return Object.entries(actionOptions)
+    .map(([optionId, option]) => {
+      const optionValues = values?.options?.[optionId];
+      const enabled = optionValues?.enabled ?? option.default;
+      const template = enabled ? option.prompt?.enabled : option.prompt?.disabled;
+      if (template == null || template.trim().length === 0) {
+        return "";
+      }
 
-  const defaultPath =
-    actionOptions.worktree.fields?.path?.default ?? defaultWorktreePath;
-  const path = worktreeValues?.path?.trim();
+      return template.replace(/\{\{(\w+)\}\}/g, (_match, fieldId: string) => {
+        const submittedValue = optionValues?.fields?.[fieldId]?.trim();
+        if (submittedValue != null && submittedValue.length > 0) {
+          return submittedValue;
+        }
 
-  return {
-    enabled: true,
-    path: path == null || path.length === 0 ? defaultPath : path
-  };
+        return option.fields?.[fieldId]?.default ?? "";
+      });
+    })
+    .filter((section) => section.trim().length > 0)
+    .join("\n\n");
 }

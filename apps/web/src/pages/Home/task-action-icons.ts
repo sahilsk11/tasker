@@ -5,6 +5,7 @@ import {
   MapIcon,
   MessageSquareText,
   Search,
+  Target,
   Workflow
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -22,5 +23,7 @@ export const taskActionIcons: Record<string, LucideIcon> = {
   new_session: MessageSquareText,
   plan: MapIcon,
   search: Search,
+  scope: Target,
+  target: Target,
   workflow: Workflow
 };

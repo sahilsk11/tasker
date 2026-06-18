@@ -19,7 +19,7 @@ import type {
 import type { TaskActionPromptValues } from "../domain/task-action-prompt-values.js";
 import {
   resolveWorkingPathForPrompt,
-  resolveWorktreeForPrompt
+  renderOptionsForPrompt
 } from "../domain/task-action-prompt-values.js";
 import type { CreateTaskTicketInput, TaskTicket } from "../domain/task-ticket.js";
 import type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "../domain/task.js";
@@ -153,7 +153,7 @@ export class TaskService {
     }
 
     const task = await this.requireTask(taskId);
-    const worktree = resolveWorktreeForPrompt(action.options, options);
+    const optionsText = renderOptionsForPrompt(action.options, options);
     const workingPath = resolveWorkingPathForPrompt(options);
     const basePrompt = renderActionPrompt(action, {
       action: {
@@ -165,7 +165,7 @@ export class TaskService {
       taskDescription: task.description,
       taskId,
       taskTitle: task.title,
-      ...(worktree === undefined ? {} : { worktree })
+      optionsText
     });
 
     return workingPath === undefined

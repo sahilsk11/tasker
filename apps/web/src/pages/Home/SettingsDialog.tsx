@@ -50,6 +50,18 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import {
+  ActionOptionsEditor,
+  ActionOptionsPreview
+} from "./ActionOptionsEditor";
+import {
+  areOptionsValid,
+  defaultPreviewOptionValue,
+  mergePreviewOptionValues,
+  optionEntriesFor,
+  renderOptionPromptText,
+  type PreviewOptionValues
+} from "./action-options-utils";
 import { taskActionIcons } from "./task-action-icons";
 
 type ActionDraft = {
@@ -128,8 +140,7 @@ export function SettingsDialog(): React.JSX.Element {
 
     return buildPreviewContext({
       actionId: selectedAction.id,
-      label: draft.label,
-      worktreeEnabled: draft.options?.worktree?.default === true
+      label: draft.label
     });
   }, [draft, selectedAction]);
 
@@ -295,7 +306,7 @@ function ActionEditor({
   isSaving,
   onDraftChange,
   onSave,
-  preview,
+  preview: fallbackPreview,
   previewContext,
   selectedAction
 }: {
@@ -309,10 +320,51 @@ function ActionEditor({
   readonly selectedAction: ApiTaskActionDetails | null;
 }): React.JSX.Element {
   const [mode, setMode] = useState<"editor" | "preview">("editor");
+  const [previewOptionValues, setPreviewOptionValues] = useState<PreviewOptionValues>(
+    {}
+  );
 
   useEffect(() => {
     setMode("editor");
   }, [selectedAction?.id]);
+
+  useEffect(() => {
+    setPreviewOptionValues((currentValues) =>
+      mergePreviewOptionValues(draft?.options ?? null, currentValues)
+    );
+  }, [draft?.options]);
+
+  const previewContextWithOptions = useMemo(() => {
+    if (draft == null || previewContext == null) {
+      return null;
+    }
+
+    const optionsText = optionEntriesFor(draft.options)
+      .map(([optionId, option]) =>
+        renderOptionPromptText(
+          option,
+          previewOptionValues[optionId] ?? defaultPreviewOptionValue(option)
+        )
+      )
+      .filter((section) => section.trim().length > 0)
+      .join("\n\n");
+
+    return {
+      ...previewContext,
+      optionsText
+    } satisfies TaskActionPromptContext;
+  }, [draft, previewContext, previewOptionValues]);
+  const preview = useMemo(() => {
+    if (draft == null || previewContextWithOptions == null) {
+      return fallbackPreview;
+    }
+
+    try {
+      return renderTaskActionTemplate(draft.promptTemplate, previewContextWithOptions);
+    } catch (error) {
+      return error instanceof Error ? error.message : "Unable to render preview.";
+    }
+  }, [draft, fallbackPreview, previewContextWithOptions]);
 
   if (draft == null || selectedAction == null) {
     return (
@@ -416,7 +468,7 @@ function ActionEditor({
               />
               <span>Enabled</span>
             </label>
-            <WorktreeOptions draft={draft} onDraftChange={onDraftChange} />
+            <ActionOptionsEditor draft={draft} onDraftChange={onDraftChange} />
             <Field label="Prompt template" id="action-prompt-template">
               <Textarea
                 id="action-prompt-template"
@@ -433,13 +485,20 @@ function ActionEditor({
             />
           </div>
         ) : (
-          <MarkdownDocument
-            value={preview}
-            mode="view"
-            onChange={() => undefined}
-            className="min-h-[32rem] overflow-hidden rounded-lg border border-border bg-card"
-            previewClassName="px-5 py-5 [&_h1]:mb-3 [&_h1]:text-base [&_h1]:leading-6 [&_h2]:mt-5 [&_h2]:text-base [&_h2]:leading-6"
-          />
+          <div className="grid gap-4">
+            <ActionOptionsPreview
+              options={draft.options}
+              values={previewOptionValues}
+              onValuesChange={setPreviewOptionValues}
+            />
+            <MarkdownDocument
+              value={preview}
+              mode="view"
+              onChange={() => undefined}
+              className="min-h-[32rem] overflow-hidden rounded-lg border border-border bg-card"
+              previewClassName="px-5 py-5 [&_h1]:mb-3 [&_h1]:text-base [&_h1]:leading-6 [&_h2]:mt-5 [&_h2]:text-base [&_h2]:leading-6"
+            />
+          </div>
         )}
       </div>
     </section>
@@ -458,8 +517,7 @@ function TemplateReference({
       previewContext ??
       buildPreviewContext({
         actionId: selectedAction.id,
-        label: selectedAction.label,
-        worktreeEnabled: true
+        label: selectedAction.label
       }),
     [previewContext, selectedAction]
   );
@@ -542,101 +600,6 @@ function ActionSettingsCard({
   );
 }
 
-function WorktreeOptions({
-  draft,
-  onDraftChange
-}: {
-  readonly draft: ActionDraft;
-  readonly onDraftChange: (draft: ActionDraft) => void;
-}): React.JSX.Element {
-  const worktree = draft.options?.worktree ?? null;
-
-  return (
-    <section className="grid gap-3 rounded-lg border border-border bg-secondary/30 p-3">
-      <label className="flex items-center gap-2 text-sm font-medium">
-        <Checkbox
-          checked={worktree != null}
-          onChange={(event) =>
-            onDraftChange({
-              ...draft,
-              options: event.target.checked
-                ? {
-                    worktree: {
-                      default: false,
-                      label: "Create worktree",
-                      type: "boolean"
-                    }
-                  }
-                : null
-            })
-          }
-        />
-        <span>Worktree option</span>
-      </label>
-      {worktree == null ? null : (
-        <>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={worktree.default}
-              onChange={(event) =>
-                onDraftChange({
-                  ...draft,
-                  options: {
-                    worktree: {
-                      ...worktree,
-                      default: event.target.checked
-                    }
-                  }
-                })
-              }
-            />
-            <span>Default on</span>
-          </label>
-          <Field label="Option label" id="action-worktree-label">
-            <Input
-              id="action-worktree-label"
-              value={worktree.label}
-              onChange={(event) =>
-                onDraftChange({
-                  ...draft,
-                  options: {
-                    worktree: {
-                      ...worktree,
-                      label: event.target.value
-                    }
-                  }
-                })
-              }
-            />
-          </Field>
-          <Field label="Default path" id="action-worktree-path">
-            <Input
-              id="action-worktree-path"
-              value={worktree.fields?.path?.default ?? ""}
-              onChange={(event) =>
-                onDraftChange({
-                  ...draft,
-                  options: {
-                    worktree: {
-                      ...worktree,
-                      fields: {
-                        path: {
-                          default: event.target.value,
-                          type: "text"
-                        }
-                      }
-                    }
-                  }
-                })
-              }
-            />
-          </Field>
-        </>
-      )}
-    </section>
-  );
-}
-
 function Field({
   children,
   id,
@@ -681,18 +644,16 @@ function canSave(draft: ActionDraft): boolean {
     draft.promptTemplate.trim().length > 0 &&
     Number.isInteger(Number.parseInt(draft.sortOrder, 10)) &&
     Number.parseInt(draft.sortOrder, 10) >= 0 &&
-    (draft.options?.worktree == null || draft.options.worktree.label.trim().length > 0)
+    areOptionsValid(draft.options)
   );
 }
 
 function buildPreviewContext({
   actionId,
-  label,
-  worktreeEnabled
+  label
 }: {
   readonly actionId: string;
   readonly label: string;
-  readonly worktreeEnabled: boolean;
 }): TaskActionPromptContext {
   return {
     action: {
@@ -703,10 +664,7 @@ function buildPreviewContext({
     sessionId: "preview-session",
     taskDescription: "Preview task description.",
     taskId: "preview-task",
-    taskTitle: "Example task",
-    ...(worktreeEnabled
-      ? { worktree: { enabled: true, path: "~/wt/tasker-preview" } }
-      : {})
+    taskTitle: "Example task"
   };
 }
 
@@ -717,12 +675,7 @@ function renderTemplatePlaceholder(
   try {
     return {
       error: null,
-      value: renderTaskActionTemplate(`{{${placeholder}}}`, {
-        ...context,
-        ...(placeholder === "worktree"
-          ? { worktree: { enabled: true, path: context.worktree?.path ?? "~/wt/tasker-preview" } }
-          : {})
-      })
+      value: renderTaskActionTemplate(`{{${placeholder}}}`, context)
     };
   } catch (error) {
     return {

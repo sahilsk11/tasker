@@ -61,7 +61,6 @@ export type Task = z.infer<typeof taskSchema>;
 export type TaskStatus = z.infer<typeof taskStatusSchema>;
 
 export {
-  defaultWorktreePath,
   findTemplatePlaceholders,
   findUnknownPlaceholders,
   knownPromptPlaceholders,
@@ -69,4 +68,3 @@ export {
   UnknownPromptPlaceholderError
 } from "./task-actions/index.js";
 export type { KnownPromptPlaceholder, TaskActionPromptContext } from "./task-actions/index.js";
-

@@ -173,6 +173,52 @@ void test("task working directory persists on create and update", async () => {
   }
 });
 
+void test("tasks endpoint scopes results by parent task", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-parent-scope-"));
+  const app = await createApp({
+    databasePath: join(dir, "tasker.sqlite"),
+    linearApiKey: null
+  });
+
+  try {
+    const firstRoot = await createTask(app, "First root");
+    const secondRoot = await createTask(app, "Second root");
+    const firstChild = await createTask(app, "First child", firstRoot.id);
+    await createTask(app, "Second child", firstRoot.id);
+    await createTask(app, "Nested child", firstChild.id);
+
+    const rootResponse = await app.inject({
+      method: "GET",
+      url: "/tasks"
+    });
+    assert.equal(rootResponse.statusCode, 200);
+    assert.deepEqual(taskTitles(rootResponse.body), ["First root", "Second root"]);
+
+    const childResponse = await app.inject({
+      method: "GET",
+      url: `/tasks?parentTaskId=${firstRoot.id}`
+    });
+    assert.equal(childResponse.statusCode, 200);
+    assert.deepEqual(taskTitles(childResponse.body), ["First child", "Second child"]);
+
+    const otherRootChildResponse = await app.inject({
+      method: "GET",
+      url: `/tasks?parentTaskId=${secondRoot.id}`
+    });
+    assert.equal(otherRootChildResponse.statusCode, 200);
+    assert.deepEqual(taskTitles(otherRootChildResponse.body), []);
+
+    const missingParentResponse = await app.inject({
+      method: "GET",
+      url: "/tasks?parentTaskId=missing"
+    });
+    assert.equal(missingParentResponse.statusCode, 404);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 void test("task artifacts expose renderable local file content", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-artifact-content-"));
   const app = await createApp({
@@ -368,17 +414,24 @@ function readJson(body: string): unknown {
 
 async function createTask(
   app: Awaited<ReturnType<typeof createApp>>,
-  title: string
+  title: string,
+  parentTaskId: string | null = null
 ): Promise<{ readonly id: string; readonly state: string }> {
   const response = await app.inject({
     method: "POST",
-    payload: { title },
+    payload: { parentTaskId, title },
     url: "/tasks"
   });
   assert.equal(response.statusCode, 201);
   return (readJson(response.body) as {
     readonly task: { readonly id: string; readonly state: string };
   }).task;
+}
+
+function taskTitles(body: string): readonly string[] {
+  return (readJson(body) as {
+    readonly tasks: ReadonlyArray<{ readonly title: string }>;
+  }).tasks.map((task) => task.title).sort();
 }
 
 async function getTaskState(

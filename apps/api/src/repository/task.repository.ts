@@ -15,7 +15,7 @@ export type TaskRepository = {
   readonly createSubtasks: (input: CreateSubtasksInput) => Promise<readonly Task[]>;
   readonly findById: (id: TaskId) => Promise<Task | null>;
   readonly findChildren: (parentTaskId: TaskId) => Promise<readonly Task[]>;
-  readonly list: () => Promise<readonly Task[]>;
+  readonly listByParentTaskId: (parentTaskId: TaskId | null) => Promise<readonly Task[]>;
   readonly updateStateAtLeast: (id: TaskId, state: TaskState) => Promise<Task | null>;
   readonly update: (id: TaskId, input: UpdateTaskInput) => Promise<Task | null>;
 };
@@ -129,12 +129,18 @@ export class SqliteTaskRepository implements TaskRepository {
     return rows.map(toTask);
   }
 
-  public async list(): Promise<readonly Task[]> {
-    const rows = await this.db
+  public async listByParentTaskId(
+    parentTaskId: TaskId | null
+  ): Promise<readonly Task[]> {
+    const query = this.db
       .selectFrom("tasks")
       .selectAll()
-      .orderBy("created_at", "desc")
-      .execute();
+      .orderBy("created_at", "desc");
+
+    const rows =
+      parentTaskId == null
+        ? await query.where("parent_task_id", "is", null).execute()
+        : await query.where("parent_task_id", "=", parentTaskId).execute();
 
     return rows.map(toTask);
   }

@@ -8,7 +8,6 @@ export type TaskFilter = "all" | "has-pr" | "has-ticket";
 
 export type TaskViewOptions = {
   readonly filter: TaskFilter;
-  readonly parentTaskId: string | null;
   readonly query: string;
   readonly taskAllStates: readonly TaskState[];
   readonly taskStates: readonly TaskState[];
@@ -26,7 +25,6 @@ export function getVisibleTaskBundles(
 ): readonly TaskBundle[] {
   const documents = bundles.map(toSearchDocument);
   const matched = documents
-    .filter((document) => matchesParentTask(document.bundle, options.parentTaskId))
     .filter((document) => matchesFilter(document.bundle, options.filter))
     .filter((document) => matchesTaskState(document.bundle, options))
     .filter((document) => matchesQuery(document, options.query))
@@ -44,10 +42,6 @@ function matchesTaskState(bundle: TaskBundle, options: TaskViewOptions): boolean
   }
 
   return options.taskStates.includes(bundle.task.state);
-}
-
-function matchesParentTask(bundle: TaskBundle, parentTaskId: string | null): boolean {
-  return bundle.task.parentTaskId === parentTaskId;
 }
 
 function matchesFilter(bundle: TaskBundle, filter: TaskFilter): boolean {

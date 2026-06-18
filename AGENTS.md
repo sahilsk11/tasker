@@ -10,6 +10,7 @@ How to operate in this repo. Read once, internalize, then go.
 - For anything non-trivial, spin up a subagent to test it in isolation: stub auth where needed, call the real API, assert the real behavior, report back. Subagent runs are cheap; a false "done" the user finds later is not.
 - Type-checks and unit tests verify _correctness_, not _feature behavior_. UI changes need a browser. Backend changes need a wire. Lint rule changes need a file that violates the rule.
 - For browser testing, use the `agent-browser` CLI unless the user explicitly asks for a different browser tool.
+- For Tasker browser verification from a worktree, prefer `pnpm worktree:setup`. It creates a temporary SQLite database, applies migrations and task action defaults, allocates API/web ports, writes a `.tasker/dev-runs/*.json` manifest, and prints the exact API/web URLs. Use that clean app for scenario-specific seed data and browser checks.
 - If you genuinely can't test something (no creds, no hardware, no env), say so explicitly. Do not ship hope.
 
 The cost of one extra verification step is minutes. The cost of a false "done" is the user finding it broken later.

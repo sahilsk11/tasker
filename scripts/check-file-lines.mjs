@@ -6,6 +6,7 @@ const root = process.cwd();
 const ignoredDirectories = new Set([
   ".git",
   ".kanna",
+  ".tasker",
   ".turbo",
   "coverage",
   "dist",

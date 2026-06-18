@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { resolve } from "node:path";
 import { ZodError } from "zod";
 import { createDb } from "./db/client.js";
 import { migrate } from "./db/migrate.js";
@@ -116,6 +117,16 @@ export async function createApp(options: CreateAppOptions) {
 
   await server.register(
     (api, _options, done) => {
+      api.get("/runtime", () => ({
+        databasePath: resolve(options.databasePath),
+        nodeVersion: process.version,
+        ok: true,
+        pid: process.pid,
+        publicApiBaseUrl,
+        service: "tasker-api",
+        uptimeSeconds: Math.round(process.uptime())
+      }));
+
       registerTaskResolver(api, taskService);
       registerTaskBreakdownResolver(api, taskBreakdownService);
       registerLinearResolver(api, taskService, linearService);

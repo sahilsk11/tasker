@@ -113,6 +113,15 @@ const taskStateMetaByState: Record<TaskState, TaskStateMeta> = {
   }
 };
 
+const taskStateSegmentClassByState: Record<TaskState, string> = {
+  done: "bg-success",
+  implementation: "bg-warning",
+  planning: "bg-[#a89eff]",
+  ready: "bg-[#6b6e76]",
+  review: "bg-[#a78bfa]",
+  scoping: "bg-info"
+};
+
 function getTaskStateLabel(
   state: TaskState,
   definitions: readonly TaskStateDefinition[]
@@ -614,7 +623,7 @@ function SubtaskToggle({
     return null;
   }
 
-  const doneCount = subtasks.filter((subtask) => subtask.state === "done").length;
+  const orderedSubtasks = getOrderedSubtasks(subtasks);
 
   return (
     <Button
@@ -625,34 +634,45 @@ function SubtaskToggle({
       aria-label={`Open ${String(subtasks.length)} subtasks`}
       title="Open subtasks"
     >
-      <SubtaskProgress value={doneCount} total={subtasks.length} />
+      <SubtaskProgress subtasks={orderedSubtasks} />
     </Button>
   );
 }
 
 function SubtaskProgress({
-  total,
-  value
+  subtasks
 }: {
-  readonly total: number;
-  readonly value: number;
+  readonly subtasks: readonly ApiTask[];
 }): React.JSX.Element {
-  const segmentCount = Math.min(total, 5);
-  const filledSegments = Math.round((value / total) * segmentCount);
-
   return (
     <span className="flex shrink-0 gap-1" aria-hidden="true">
-      {Array.from({ length: segmentCount }, (_, index) => (
+      {subtasks.map((subtask) => (
         <span
-          key={index}
+          key={subtask.id}
           className={cn(
             "h-1.5 w-5 rounded-full",
-            index < filledSegments ? "bg-success" : "bg-[#2a2b31]"
+            taskStateSegmentClassByState[subtask.state]
           )}
         />
       ))}
     </span>
   );
+}
+
+function getOrderedSubtasks(subtasks: readonly ApiTask[]): readonly ApiTask[] {
+  return [...subtasks].sort((left, right) => {
+    const createdAtComparison =
+      getTaskTime(left.createdAt) - getTaskTime(right.createdAt);
+
+    return createdAtComparison === 0
+      ? left.id.localeCompare(right.id)
+      : createdAtComparison;
+  });
+}
+
+function getTaskTime(value: string): number {
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
 }
 
 function TicketBadge({

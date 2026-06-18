@@ -56,15 +56,26 @@ Use this schema:
     {
       "id": "backend-contract",
       "title": "Add the backend contract",
-      "description": "What this subtask should accomplish.",
+      "description": "What this subtask should accomplish, including any useful verification notes.",
       "dependsOn": []
     }
   ]
 }
 \`\`\`
 
-Keep the breakdown one level deep. Use stable item IDs and put dependency IDs in
+Keep the breakdown one level deep. Use stable kebab-case item IDs, order
+dependencies before the items that depend on them, and put dependency IDs in
 \`dependsOn\`. Do not create child tasks directly.
+
+Shape the breakdown as a handoff for future agents:
+
+- Prefer 3-8 child tasks unless the work is genuinely smaller or larger.
+- Make each title actionable and specific.
+- Make each description self-contained enough for a fresh session to execute.
+- Split by deliverable or verification boundary, not by arbitrary file edits.
+- Preserve existing subtasks. If the parent already has children, avoid
+  duplicating them and break down only the remaining work or the dependencies
+  around those children.
 
 After writing or editing the JSON file, validate it:
 
@@ -81,10 +92,16 @@ curl -sS -X POST "${validateUrl}" \\
 EOF
 \`\`\`
 
-If validation returns \`valid: true\`, give the user the returned \`previewUrl\`.
-The user can review that page and accept it to create first-party subtasks.
+If validation returns errors, revise the JSON and validate again. Do not finish
+with an invalid breakdown.
+
 If validation returns warnings about existing subtasks, adjust the breakdown to
-work around them unless the user explicitly asked to append more work.
+work around them unless the user explicitly asked to append more work. If the
+warning is intentional, call it out in your final response.
+
+If validation returns \`valid: true\`, give the user the returned \`previewUrl\`
+and summarize the proposed child tasks. The user can review that page and accept
+it to create first-party subtasks.
 
 Only call the accept endpoint yourself if the user explicitly asks you to lock in
 the breakdown:

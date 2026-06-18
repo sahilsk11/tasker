@@ -1,5 +1,8 @@
 import type { TaskBundle, TaskState } from "@/api/tasks";
-import { getPullRequestsForBundle } from "./task-resource-groups";
+import {
+  getLatestResourceActivityAt,
+  getPullRequestsForBundle
+} from "./task-resource-groups";
 
 export type TaskFilter = "all" | "has-pr" | "has-ticket" | "root" | "subtask";
 
@@ -27,9 +30,7 @@ export function getVisibleTaskBundles(
     .filter((document) => matchesQuery(document, options.query))
     .map((document) => document.bundle);
 
-  return [...matched].sort((left, right) =>
-    compareDate(right.task.updatedAt, left.task.updatedAt)
-  );
+  return [...matched].sort(compareTaskBundleActivity);
 }
 
 function matchesTaskState(bundle: TaskBundle, options: TaskViewOptions): boolean {
@@ -85,6 +86,20 @@ function toSearchDocument(bundle: TaskBundle): TaskSearchDocument {
   };
 }
 
-function compareDate(left: string, right: string): number {
-  return new Date(left).getTime() - new Date(right).getTime();
+function compareTaskBundleActivity(left: TaskBundle, right: TaskBundle): number {
+  const rightActivityAt = getLatestResourceActivityAt(right) ?? right.task.createdAt;
+  const leftActivityAt = getLatestResourceActivityAt(left) ?? left.task.createdAt;
+  const activityDifference =
+    getSortableTime(new Date(rightActivityAt).getTime()) -
+    getSortableTime(new Date(leftActivityAt).getTime());
+
+  if (activityDifference !== 0) {
+    return activityDifference;
+  }
+
+  return left.task.id.localeCompare(right.task.id);
+}
+
+function getSortableTime(value: number): number {
+  return Number.isNaN(value) ? 0 : value;
 }

@@ -84,6 +84,7 @@ export function TaskGrid({
 
 type TaskStateMeta = {
   readonly iconClassName: string;
+  readonly segmentClassName: string;
 };
 
 type PendingDuplicateAction = {
@@ -94,22 +95,28 @@ type PendingDuplicateAction = {
 
 const taskStateMetaByState: Record<TaskState, TaskStateMeta> = {
   done: {
-    iconClassName: "border-success/25 bg-success/10 text-success"
+    iconClassName: "border-success/25 bg-success/10 text-success",
+    segmentClassName: "bg-success"
   },
   implementation: {
-    iconClassName: "border-warning/25 bg-warning/10 text-warning"
+    iconClassName: "border-warning/25 bg-warning/10 text-warning",
+    segmentClassName: "bg-warning"
   },
   planning: {
-    iconClassName: "border-accent/25 bg-accent/10 text-[#a89eff]"
+    iconClassName: "border-accent/25 bg-accent/10 text-[#a89eff]",
+    segmentClassName: "bg-[#a89eff]"
   },
   ready: {
-    iconClassName: "border-border bg-[#a1a1aa]/10 text-[#a1a1aa]"
+    iconClassName: "border-border bg-[#a1a1aa]/10 text-[#a1a1aa]",
+    segmentClassName: "bg-[#a1a1aa]"
   },
   review: {
-    iconClassName: "border-[#a78bfa]/25 bg-[#a78bfa]/10 text-[#a78bfa]"
+    iconClassName: "border-[#a78bfa]/25 bg-[#a78bfa]/10 text-[#a78bfa]",
+    segmentClassName: "bg-[#a78bfa]"
   },
   scoping: {
-    iconClassName: "border-info/25 bg-info/10 text-info"
+    iconClassName: "border-info/25 bg-info/10 text-info",
+    segmentClassName: "bg-info"
   }
 };
 
@@ -322,7 +329,7 @@ function TaskCard({
           <ResourceCounters
             groups={groupedResources}
             onOpen={setSelectedKind}
-            onOpenSubtasks={() => setSelectedKind("subtask")}
+            onOpenSubtasks={() => void navigate(`/?parentTask=${bundle.task.id}`)}
             subtasks={bundle.children}
           />
         </section>
@@ -614,7 +621,7 @@ function SubtaskToggle({
     return null;
   }
 
-  const doneCount = subtasks.filter((subtask) => subtask.state === "done").length;
+  const orderedSubtasks = getOrderedSubtasks(subtasks);
 
   return (
     <Button
@@ -625,34 +632,45 @@ function SubtaskToggle({
       aria-label={`Open ${String(subtasks.length)} subtasks`}
       title="Open subtasks"
     >
-      <SubtaskProgress value={doneCount} total={subtasks.length} />
+      <SubtaskProgress subtasks={orderedSubtasks} />
     </Button>
   );
 }
 
 function SubtaskProgress({
-  total,
-  value
+  subtasks
 }: {
-  readonly total: number;
-  readonly value: number;
+  readonly subtasks: readonly ApiTask[];
 }): React.JSX.Element {
-  const segmentCount = Math.min(total, 5);
-  const filledSegments = Math.round((value / total) * segmentCount);
-
   return (
     <span className="flex shrink-0 gap-1" aria-hidden="true">
-      {Array.from({ length: segmentCount }, (_, index) => (
+      {subtasks.map((subtask) => (
         <span
-          key={index}
+          key={subtask.id}
           className={cn(
             "h-1.5 w-5 rounded-full",
-            index < filledSegments ? "bg-success" : "bg-[#2a2b31]"
+            taskStateMetaByState[subtask.state].segmentClassName
           )}
         />
       ))}
     </span>
   );
+}
+
+function getOrderedSubtasks(subtasks: readonly ApiTask[]): readonly ApiTask[] {
+  return [...subtasks].sort((left, right) => {
+    const createdAtComparison =
+      getTaskTime(left.createdAt) - getTaskTime(right.createdAt);
+
+    return createdAtComparison === 0
+      ? left.id.localeCompare(right.id)
+      : createdAtComparison;
+  });
+}
+
+function getTaskTime(value: string): number {
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
 }
 
 function TicketBadge({

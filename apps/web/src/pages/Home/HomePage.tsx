@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router";
 import {
   listTaskBundles,
   listTaskStates,
@@ -14,6 +15,8 @@ import { usePullRequestStatuses } from "./use-pull-request-statuses";
 
 export function HomePage(): React.JSX.Element {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const parentTaskId = searchParams.get("parentTask");
   const [filter, setFilter] = useState<TaskFilter>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [hasTaskStateSelectionChanged, setHasTaskStateSelectionChanged] =
@@ -37,12 +40,21 @@ export function HomePage(): React.JSX.Element {
       tasksQuery.isSuccess
         ? getVisibleTaskBundles(tasksQuery.data, {
             filter,
+            parentTaskId,
             query,
             taskAllStates: allTaskStates,
             taskStates
           })
         : [],
-    [allTaskStates, filter, query, taskStates, tasksQuery.data, tasksQuery.isSuccess]
+    [
+      allTaskStates,
+      filter,
+      parentTaskId,
+      query,
+      taskStates,
+      tasksQuery.data,
+      tasksQuery.isSuccess
+    ]
   );
   const pullRequestStatuses = usePullRequestStatuses(visibleBundles);
 

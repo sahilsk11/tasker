@@ -25,7 +25,7 @@ const eventIcons: Partial<Record<ResourceKind, LucideIcon>> = {
 const eventVerbs: Partial<Record<ResourceKind, string>> = {
   artifact: "Artifact saved",
   pr: "Opened",
-  session: "Session ran",
+  session: "Session started",
   subtask: "Subtask created",
   ticket: "Ticket linked"
 };

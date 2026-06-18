@@ -1,11 +1,15 @@
 import {
   buildArtifactAttributionSection,
+  buildArtifactRegistrationSection,
   buildBreakdownWorkflowSection,
+  buildLegacyWorktreeSection,
+  buildOptionsSection,
   buildPullRequestRegistrationSection,
   buildSessionClaimSection,
+  buildTaskDescriptionSection,
   buildTaskHeaderSection,
   buildTaskNotesRegistrationSection,
-  buildWorktreeSection
+  buildTaskTitleSection
 } from "./prompt-sections.js";
 import type { KnownPromptPlaceholder, TaskActionPromptContext } from "./types.js";
 import { UnknownPromptPlaceholderError } from "./validate-template.js";
@@ -16,11 +20,15 @@ const substitutionRegistry: Record<
 > = {
   artifactAttribution: buildArtifactAttributionSection,
   breakdownWorkflow: buildBreakdownWorkflowSection,
+  options: buildOptionsSection,
   registerDoc: buildTaskNotesRegistrationSection,
+  registerArtifact: buildArtifactRegistrationSection,
   registerPr: buildPullRequestRegistrationSection,
   registerSession: buildSessionClaimSection,
+  taskDescription: buildTaskDescriptionSection,
   taskHeader: buildTaskHeaderSection,
-  worktree: buildWorktreeSection
+  taskTitle: buildTaskTitleSection,
+  worktree: buildLegacyWorktreeSection
 };
 
 export function renderTaskActionTemplate(

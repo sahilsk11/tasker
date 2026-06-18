@@ -37,21 +37,22 @@ void test("task actions are loaded from the database", async () => {
         readonly description: string;
         readonly id: string;
         readonly label: string;
-        readonly options: { readonly worktree?: unknown } | null;
+        readonly options: Record<string, unknown> | null;
       }>;
     }).actions;
 
     assert.equal(actions.length, 6);
     assert.deepEqual(
       actions.map((action) => action.id),
-      ["investigate", "plan", "breakdown", "implement", "code_review", "new_session"]
+      ["scope", "plan", "breakdown", "implement", "code_review", "new_session"]
     );
     const firstAction = actions[0];
     const implementAction = actions[3];
     assert.ok(firstAction);
     assert.ok(implementAction);
-    assert.equal(firstAction.label, "Investigate");
-    assert.equal(implementAction.options?.worktree != null, true);
+    assert.equal(firstAction.label, "Scope");
+    assert.match(firstAction.description, /codebase surface/);
+    assert.equal(implementAction.options?.["worktree"] != null, true);
     assert.equal(firstAction.options, null);
   } finally {
     await app.close();
@@ -85,7 +86,7 @@ void test("session prompt endpoint renders seeded templates", async () => {
     const sessionResponse = await app.inject({
       method: "POST",
       payload: {
-        actionId: "plan",
+        actionId: "scope",
         claimed: false,
         provider: "codex"
       },
@@ -106,7 +107,8 @@ void test("session prompt endpoint renders seeded templates", async () => {
     const defaultPromptBody = JSON.parse(defaultPromptResponse.body) as {
       readonly prompt: string;
     };
-    assert.match(defaultPromptBody.prompt, /Create a practical implementation plan/);
+    assert.match(defaultPromptBody.prompt, /Scope this task before planning or implementation/);
+    assert.match(defaultPromptBody.prompt, /Relevant codebase areas/);
     assert.match(defaultPromptBody.prompt, /Prompt endpoint task/);
     assert.match(defaultPromptBody.prompt, /Prompt endpoint description/);
     assert.match(defaultPromptBody.prompt, /http:\/\/127\.0\.0\.1:3000/);
@@ -115,18 +117,14 @@ void test("session prompt endpoint renders seeded templates", async () => {
       method: "POST",
       payload: {
         promptOptions: {
-          workingPath: "/tmp/tasker-project",
-          worktree: {
-            enabled: true,
-            path: "~/custom-wt"
-          }
+          workingPath: "/tmp/tasker-project"
         }
       },
       url: `/tasks/${task.id}/sessions/${created.session.id}/prompt`
     });
     assert.equal(promptResponse.statusCode, 200);
     const promptBody = JSON.parse(promptResponse.body) as { readonly prompt: string };
-    assert.match(promptBody.prompt, /Create a practical implementation plan/);
+    assert.match(promptBody.prompt, /Scope this task before planning or implementation/);
     assert.match(promptBody.prompt, /## Working path/);
     assert.match(promptBody.prompt, /\/tmp\/tasker-project/);
   } finally {

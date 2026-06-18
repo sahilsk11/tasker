@@ -1,10 +1,10 @@
 [
   {
-    "id": "investigate",
-    "label": "Investigate",
-    "iconName": "search",
-    "description": "Inspect the task and produce a concise recommendation.",
-    "promptTemplate": "{{taskHeader}}\n\n## Action\nInvestigate this task and summarize what should happen next.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
+    "id": "scope",
+    "label": "Scope",
+    "iconName": "target",
+    "description": "Map the relevant codebase surface and work with the user to finalize scope.",
+    "promptTemplate": "# [scoping] {{taskTitle}}\n\nScope this task before planning or implementation.\n\nYour job is to figure out what parts of the codebase matter, what existing patterns should be followed, and what decisions the user needs to make before the final system shape is locked.\n\nDo not implement product code. Do not write a detailed implementation plan yet. Produce a bounded, codebase-aware scope and keep the user in the loop.\n\n## Process\n1. Read the task title, description, existing resources, child tasks, and directly mentioned files.\n2. Inspect the relevant codebase surface. Identify modules, routes, components, services, persistence layers, tests, and design-system patterns that matter for this task.\n3. Summarize the current system as it exists today. Prefer concrete file references and existing patterns over speculation.\n4. Create or update a cohesive scope artifact. It should include:\n   - Problem shape\n   - Relevant codebase areas\n   - Patterns to follow\n   - Likely in scope\n   - Likely out of scope\n   - Decisions needed\n   - Recommended next step\n5. Ask the user exactly one high-leverage scope question at a time. When useful, offer two or three options with tradeoffs and a recommendation grounded in the codebase.\n6. After each user answer, revise the scope artifact so it reads like a current scope document, not a Q&A transcript.\n7. Stop when the scope is clear enough to hand off to research, design, planning, or implementation.\n\n## Guardrails\n- Stay focused on scope and system shape.\n- Do not accept the initial request blindly if codebase patterns suggest a better boundary.\n- For frontend work, inspect the local UI and design-system conventions before recommending a shape.\n- For backend work, identify the owning layer and existing test patterns before recommending a shape.\n- Treat the most recent task artifact as higher precedence than older notes when they conflict.\n\n## Task Description\n{{taskDescription}}\n\n\n{{registerSession}}\n\n{{registerArtifact}}\n\n{{registerPr}}",
     "options": null,
     "enabled": true,
     "sortOrder": 0
@@ -13,8 +13,8 @@
     "id": "plan",
     "label": "Plan",
     "iconName": "map",
-    "description": "Turn the task into a concrete plan before implementation.",
-    "promptTemplate": "{{taskHeader}}\n\n## Action\nCreate a practical implementation plan for this task.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
+    "description": "Turn the task and available artifacts into a phased implementation plan.",
+    "promptTemplate": "# [planning] {{taskTitle}}\n\nCreate a practical implementation plan for this task.\n\nYou are planning this task, not implementing it.\n\nUse the task overview, relevant artifacts, docs, and source files to understand the current scope. Prefer newer artifacts when they conflict. If a scope artifact exists, treat it as the primary input. If no scope artifact exists, plan directly from the task and available context.\n\nDo not force a question phase. Only stop for user input if the task is too ambiguous to plan responsibly.\n\n## Planning focus\nInspect the relevant codebase surface enough to identify:\n- Current flows and ownership boundaries\n- Existing patterns to follow\n- Likely files or modules touched\n- Testing and verification patterns\n- External docs only when they materially affect the plan\n\n## Plan artifact\nWrite or update a detailed implementation plan artifact for future agents. It should include:\n- Overview\n- Current state\n- Desired end state\n- Scope cuts and non-goals\n- Recommended implementation approach\n- Phased implementation checklist\n- Per-phase file or module changes\n- Per-phase automated verification\n- Manual verification only when useful\n- Open assumptions, if any\n\nStructure phases as vertical slices where possible. Each phase should be independently verifiable. If the request is too large, plan the smallest useful first slice and explicitly defer the rest.\n\nDo not implement code. Do not open a pull request.\n\n## Task Description\n{{taskDescription}}\n\n{{registerSession}}\n\n{{registerArtifact}}\n\n{{registerPr}}",
     "options": null,
     "enabled": true,
     "sortOrder": 1
@@ -24,7 +24,7 @@
     "label": "Break down",
     "iconName": "list-tree",
     "description": "Break the task into smaller child tasks or a dependency outline.",
-    "promptTemplate": "{{taskHeader}}\n\n## Action\nBreak this task down into smaller subtasks and dependencies.\n\n{{breakdownWorkflow}}\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
+    "promptTemplate": "# {{taskTitle}}\n\n## Description\n{{taskDescription}}\n\n## Action\nBreak this task down into smaller subtasks and dependencies.\n\n{{breakdownWorkflow}}\n\n{{registerSession}}\n\n{{registerArtifact}}\n\n{{registerPr}}",
     "options": null,
     "enabled": true,
     "sortOrder": 2
@@ -33,8 +33,8 @@
     "id": "implement",
     "label": "Implement",
     "iconName": "code-2",
-    "description": "Start implementing the task from the available context.",
-    "promptTemplate": "{{taskHeader}}\n\n## Action\nImplement this task using the current repository context.\n\n{{worktree}}\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
+    "description": "Implement the task from the latest plan or available context, then prove the behavior.",
+    "promptTemplate": "# [implement] {{taskTitle}}\n\nImplement this task from the available context.\n\nYou are implementing, not planning or scoping. Use the task overview, relevant artifacts, source files, and current repository state to decide what to do. If a plan artifact exists, treat it as the primary input. If no plan exists, make a concise internal phased plan before editing code.\n\nPrefer newer artifacts when they conflict.\n\n{{options}}\n\n## Implementation rules\n- Keep the change aligned with the task and latest plan.\n- Preserve existing behavior unless the task intentionally changes it.\n- Follow existing repository patterns before adding new abstractions.\n- Refactor only when it directly supports the implementation.\n- Do not leave partially wired behavior.\n- Do not use phase boundaries as user-facing checkpoints.\n- Continue until the implementation is complete, verified, or genuinely blocked.\n\n## Execution approach\nFor non-trivial work, implement in focused phases. Use subagents sequentially when useful. Each implementer should inspect relevant files before editing, run focused checks, and report changed files, validation, discoveries, and blockers.\n\nAfter each phase, review the work yourself. If implementation discoveries change the plan materially, update the artifact and continue only if the user-visible scope still matches the task.\n\n## Verification\nBefore finishing, prove the integrated behavior. Typecheck, lint, and unit tests are not enough for user-facing or backend behavior.\n\nUse the strongest applicable verification:\n- Browser flow for UI changes\n- Local API request for backend changes\n- Probe script or harness for library/service behavior\n- Build, typecheck, lint, and tests as supporting checks\n\nRecord what was verified and any remaining risk.\n\n## Pull request\nIf the implementation is complete and this repository uses pull requests, prepare a branch or pull request when practical and register it with Tasker. Do not claim the work is done without either opening/registering the pull request or explaining why that was not possible.\n\n## Task Description\n{{taskDescription}}\n\n{{registerSession}}\n\n{{registerArtifact}}\n\n{{registerPr}}",
     "options": {
       "worktree": {
         "type": "boolean",
@@ -43,8 +43,12 @@
         "fields": {
           "path": {
             "type": "text",
-            "default": "~/wt"
+            "default": "~/wt",
+            "label": "Path"
           }
+        },
+        "prompt": {
+          "enabled": "## Worktree\n\nBefore editing files, create an isolated git worktree for this implementation. Use this location unless it is unavailable:\n\n`{{path}}`\n\nBase the worktree on the latest fetched `origin/main` or `origin/master`, not on the current checkout's local branch. Leave existing uncommitted changes in the primary checkout untouched. Do all implementation, verification, commit, push, and pull request work from inside the worktree."
         }
       }
     },
@@ -56,7 +60,7 @@
     "label": "Code review",
     "iconName": "clipboard-check",
     "description": "Review the current work and identify issues or missing tests.",
-    "promptTemplate": "{{taskHeader}}\n\n## Action\nReview the work attached to this task and call out concrete issues.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
+    "promptTemplate": "# {{taskTitle}}\n\n## Description\n{{taskDescription}}\n\n## Action\nReview the work attached to this task and call out concrete issues.\n\n{{registerSession}}\n\n{{registerArtifact}}\n\n{{registerPr}}",
     "options": null,
     "enabled": true,
     "sortOrder": 4
@@ -66,7 +70,7 @@
     "label": "New session",
     "iconName": "message-square-text",
     "description": "Open a general-purpose agent session attached to this task.",
-    "promptTemplate": "{{taskHeader}}\n\n## Action\nStart a new session for this task.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
+    "promptTemplate": "# {{taskTitle}}\n\n## Description\n{{taskDescription}}\n\n## Action\nStart a new session for this task.\n\n{{registerSession}}\n\n{{registerArtifact}}\n\n{{registerPr}}",
     "options": null,
     "enabled": true,
     "sortOrder": 5

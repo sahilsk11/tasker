@@ -39,7 +39,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
     const createSessionResponse = await app.inject({
       method: "POST",
       payload: {
-        actionId: "investigate",
+        actionId: "scope",
         claimed: false,
         provider: "codex"
       },
@@ -54,7 +54,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
         readonly provider: string;
       };
     }).session;
-    assert.equal(createdSession.actionId, "investigate");
+    assert.equal(createdSession.actionId, "scope");
     assert.equal(createdSession.claimedAt, null);
     assert.equal(createdSession.provider, "codex");
 
@@ -201,8 +201,8 @@ void test("external task sessions can be claimed with flexible metadata", async 
       "Context that should reach the claiming agent."
     );
     assert.ok(taskOverview.action);
-    assert.equal(taskOverview.action.id, "investigate");
-    assert.equal(taskOverview.action.label, "Investigate");
+    assert.equal(taskOverview.action.id, "scope");
+    assert.equal(taskOverview.action.label, "Scope");
     assert.deepEqual(
       taskOverview.resources.artifacts.map((artifact) => ({
         label: artifact.label,

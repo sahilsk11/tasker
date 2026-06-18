@@ -1,6 +1,16 @@
 import type { TaskActionPromptContext } from "./types.js";
 
-export const defaultWorktreePath = "~/wt";
+export function buildOptionsSection(
+  context: Pick<TaskActionPromptContext, "optionsText">
+): string {
+  return context.optionsText?.trim() ?? "";
+}
+
+export function buildTaskTitleSection(
+  context: Pick<TaskActionPromptContext, "taskDescription" | "taskTitle">
+): string {
+  return context.taskTitle;
+}
 
 export function buildTaskHeaderSection(
   context: Pick<TaskActionPromptContext, "taskDescription" | "taskTitle">
@@ -13,27 +23,15 @@ export function buildTaskHeaderSection(
   return `# ${context.taskTitle}\n\n## Description\n${description}`;
 }
 
-export function buildWorktreeSection(context: TaskActionPromptContext): string {
-  if (context.worktree?.enabled !== true) {
+export function buildTaskDescriptionSection(
+  context: Pick<TaskActionPromptContext, "taskDescription" | "taskTitle">
+): string {
+  const description = context.taskDescription?.trim();
+  if (description == null || description.length === 0) {
     return "";
   }
 
-  const path =
-    context.worktree.path.trim().length === 0
-      ? defaultWorktreePath
-      : context.worktree.path.trim();
-
-  return `## Worktree
-
-Before editing files, create an isolated git worktree for this implementation.
-Use this location unless it is unavailable:
-
-\`${path}\`
-
-Base the worktree on the latest fetched \`origin/main\` or \`origin/master\`, not on
-the current checkout's local branch. Leave existing uncommitted changes in the
-primary checkout untouched. Do all implementation, verification, commit, push,
-and pull request work from inside the worktree.`;
+  return description;
 }
 
 export function buildBreakdownWorkflowSection(context: TaskActionPromptContext): string {
@@ -122,6 +120,30 @@ selected action, existing resources, child tasks, and \`latestTaskActivityAt\`.
 Use that returned overview before deciding what to inspect or change.`;
 }
 
+export function buildArtifactRegistrationSection(context: TaskActionPromptContext): string {
+  const artifactCommand = buildCodexArtifactResourceCommand({
+    apiBaseUrl: context.apiBaseUrl,
+    sessionId: context.sessionId,
+    taskId: context.taskId
+  });
+
+  return `## Optional artifact registration
+
+If you publish any durable planning, research, design, or implementation artifact,
+register it with Tasker before finishing.
+
+Use one of these labels: \`research\`, \`plan\`, \`implement\`, or \`other\`.
+Include the current session ID as \`createdBySessionId\`.
+
+Run this command after replacing \`artifact_label\` and \`artifact_uri\`:
+
+\`\`\`bash
+${artifactCommand}
+\`\`\`
+
+If artifact registration fails, still finish the task and report the failure.`;
+}
+
 export function buildArtifactAttributionSection(context: TaskActionPromptContext): string {
   return `## Tasker artifact attribution
 
@@ -131,32 +153,11 @@ attribution.`;
 }
 
 export function buildTaskNotesRegistrationSection(context: TaskActionPromptContext): string {
-  const taskNotesPath = buildSessionTaskNotesPath(context.taskId, context.sessionId);
-  const taskNotesCommand = buildCodexTaskNotesResourceCommand({
-    actionId: context.action.id,
-    actionLabel: context.action.label,
-    apiBaseUrl: context.apiBaseUrl,
-    sessionId: context.sessionId,
-    taskId: context.taskId,
-    taskNotesPath
-  });
+  return buildArtifactRegistrationSection(context);
+}
 
-  return `## Tasker task notes
-
-Before finishing, write durable findings and next-step context to:
-
-\`${taskNotesPath}\`
-
-Keep the artifact concise and useful for the next agent. Include decisions made,
-files inspected or changed, verification performed, and any remaining risks.
-
-After writing the artifact, register it with Tasker:
-
-\`\`\`bash
-${taskNotesCommand}
-\`\`\`
-
-If artifact registration fails, still finish the task and report the failure.`;
+export function buildLegacyWorktreeSection(context: TaskActionPromptContext): string {
+  return buildOptionsSection(context);
 }
 
 export function buildPullRequestRegistrationSection(context: TaskActionPromptContext): string {
@@ -195,51 +196,27 @@ function buildCodexClaimCommand(apiBaseUrl: string, sessionId: string): string {
 EOF`;
 }
 
-function buildSessionTaskNotesPath(taskId: string, sessionId: string): string {
-  return `$HOME/.tasker/artifacts/${taskId}/${sessionId}/notes.md`;
-}
-
-function buildCodexTaskNotesResourceCommand({
-  actionId,
-  actionLabel,
+function buildCodexArtifactResourceCommand({
   apiBaseUrl,
   sessionId,
-  taskId,
-  taskNotesPath
+  taskId
 }: {
-  readonly actionId: string;
-  readonly actionLabel: string;
   readonly apiBaseUrl: string;
   readonly sessionId: string;
   readonly taskId: string;
-  readonly taskNotesPath: string;
 }): string {
   const artifactUrl = `${apiBaseUrl}/tasks/${taskId}/artifacts`;
-  const resourceLabel = `${actionLabel} notes`;
 
-  return `notes_path="${taskNotesPath}"
-mkdir -p "$(dirname "$notes_path")"
-
-# Replace this template with the durable context you discovered.
-cat > "$notes_path" <<'TASKER_NOTES'
-# ${resourceLabel}
-
-## Summary
-
-## Decisions
-
-## Verification
-
-## Remaining risks
-TASKER_NOTES
+  return `artifact_label="other"
+artifact_uri="/absolute/path/to/artifact.md"
 
 curl -sS -X POST "${artifactUrl}" \\
   -H "Content-Type: application/json" \\
   --data-binary @- <<EOF
 {
   "createdBySessionId": ${JSON.stringify(sessionId)},
-  "label": ${JSON.stringify(getArtifactLabelForAction(actionId))},
-  "uri": "$notes_path"
+  "label": "$artifact_label",
+  "uri": "$artifact_uri"
 }
 EOF`;
 }
@@ -262,14 +239,4 @@ curl -sS -X POST "${pullRequestUrl}" \\
   "url": "$pr_url"
 }
 EOF`;
-}
-
-function getArtifactLabelForAction(
-  actionId: string
-): "implement" | "other" | "plan" | "research" {
-  if (actionId === "research" || actionId === "plan" || actionId === "implement") {
-    return actionId;
-  }
-
-  return "other";
 }

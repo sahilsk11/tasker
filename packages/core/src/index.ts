@@ -14,7 +14,6 @@ export type AgentProvider = z.infer<typeof agentProviderSchema>;
 export type RunEvent = z.infer<typeof runEventSchema>;
 
 export {
-  defaultWorktreePath,
   findTemplatePlaceholders,
   findUnknownPlaceholders,
   knownPromptPlaceholders,

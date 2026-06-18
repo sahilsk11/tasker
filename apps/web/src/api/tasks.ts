@@ -66,11 +66,14 @@ export type ApiSession = {
 };
 
 export type TaskActionPromptValues = {
+  readonly options?: Record<
+    string,
+    {
+      readonly enabled: boolean;
+      readonly fields?: Record<string, string>;
+    }
+  >;
   readonly workingPath?: string;
-  readonly worktree?: {
-    readonly enabled: boolean;
-    readonly path?: string;
-  };
 };
 
 export type CreateTaskSessionInput = {
@@ -104,19 +107,26 @@ export type ApiTicket = {
 
 export type ApiTaskActionBooleanOption = {
   readonly default: boolean;
-  readonly fields?: {
-    readonly path?: {
+  readonly fields?: Record<
+    string,
+    {
       readonly default: string;
+      readonly label?: string;
       readonly type: "text";
-    };
-  };
+    }
+  >;
   readonly label: string;
+  readonly prompt?: {
+    readonly disabled?: string;
+    readonly enabled: string;
+  };
   readonly type: "boolean";
 };
 
-export type ApiTaskActionOptions = {
-  readonly worktree?: ApiTaskActionBooleanOption;
-};
+export type ApiTaskActionOptions = Record<
+  string,
+  ApiTaskActionBooleanOption | undefined
+>;
 
 export type ApiTaskAction = {
   readonly description: string;

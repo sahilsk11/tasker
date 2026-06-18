@@ -8,19 +8,20 @@ export type TaskActionPromptContext = {
   readonly taskDescription: string | null;
   readonly taskId: string;
   readonly taskTitle: string;
-  readonly worktree?: {
-    readonly enabled: boolean;
-    readonly path: string;
-  };
+  readonly optionsText?: string | undefined;
 };
 
 export const knownPromptPlaceholders = [
   "artifactAttribution",
   "breakdownWorkflow",
+  "options",
   "registerDoc",
+  "registerArtifact",
   "registerPr",
   "registerSession",
+  "taskDescription",
   "taskHeader",
+  "taskTitle",
   "worktree"
 ] as const;
 

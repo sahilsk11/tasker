@@ -53,6 +53,10 @@ export type TaskResources = {
   readonly tickets: readonly TaskTicket[];
 };
 
+export type ListTasksInput = {
+  readonly parentTaskId: TaskId | null;
+};
+
 export type TaskOverview = {
   readonly action: TaskAction | null;
   readonly children: readonly Task[];
@@ -379,8 +383,12 @@ export class TaskService {
     );
   }
 
-  public async listTasks(): Promise<readonly Task[]> {
-    return this.tasks.list();
+  public async listTasks(input: ListTasksInput): Promise<readonly Task[]> {
+    if (input.parentTaskId != null) {
+      await this.requireTask(input.parentTaskId);
+    }
+
+    return this.tasks.listByParentTaskId(input.parentTaskId);
   }
 
   public async listTickets(taskId: TaskId): Promise<readonly TaskTicket[]> {

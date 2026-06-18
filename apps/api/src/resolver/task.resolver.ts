@@ -19,6 +19,10 @@ const taskIdParamsSchema = z.object({
   id: z.string().min(1)
 });
 
+const listTasksQuerySchema = z.object({
+  parentTaskId: z.string().min(1).optional()
+});
+
 const actionIdParamsSchema = z.object({
   actionId: z.string().min(1)
 });
@@ -109,9 +113,12 @@ export function registerTaskResolver(
 ): void {
   server.get("/health", () => ({ ok: true }));
 
-  server.get("/tasks", async () => ({
-    tasks: await taskService.listTasks()
-  }));
+  server.get("/tasks", async (request) => {
+    const { parentTaskId } = listTasksQuerySchema.parse(request.query);
+    return {
+      tasks: await taskService.listTasks({ parentTaskId: parentTaskId ?? null })
+    };
+  });
 
   server.get("/actions", async () => ({
     actions: await taskService.listActionSettings()

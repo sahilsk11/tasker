@@ -290,8 +290,14 @@ export type CreateTaskFromLinearTicketInput = {
   readonly identifier: string;
 };
 
-export async function listTaskBundles(): Promise<readonly TaskBundle[]> {
-  const { tasks } = await apiClient.get<{ readonly tasks: readonly ApiTask[] }>("/tasks");
+export async function listTaskBundles(
+  parentTaskId: string | null
+): Promise<readonly TaskBundle[]> {
+  const path =
+    parentTaskId == null
+      ? "/tasks"
+      : `/tasks?parentTaskId=${encodeURIComponent(parentTaskId)}`;
+  const { tasks } = await apiClient.get<{ readonly tasks: readonly ApiTask[] }>(path);
   return Promise.all(
     tasks.map(async (task) => {
       const [{ actions }, { resources }, { tasks: children }] = await Promise.all([

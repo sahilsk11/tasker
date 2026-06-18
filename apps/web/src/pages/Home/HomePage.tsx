@@ -24,8 +24,8 @@ export function HomePage(): React.JSX.Element {
   const [query, setQuery] = useState("");
   const [taskStates, setTaskStates] = useState<readonly TaskState[]>([]);
   const tasksQuery = useQuery({
-    queryFn: listTaskBundles,
-    queryKey: ["tasks"]
+    queryFn: () => listTaskBundles(parentTaskId),
+    queryKey: ["tasks", parentTaskId]
   });
   const taskStatesQuery = useQuery({
     queryFn: listTaskStates,
@@ -40,7 +40,6 @@ export function HomePage(): React.JSX.Element {
       tasksQuery.isSuccess
         ? getVisibleTaskBundles(tasksQuery.data, {
             filter,
-            parentTaskId,
             query,
             taskAllStates: allTaskStates,
             taskStates
@@ -49,7 +48,6 @@ export function HomePage(): React.JSX.Element {
     [
       allTaskStates,
       filter,
-      parentTaskId,
       query,
       taskStates,
       tasksQuery.data,

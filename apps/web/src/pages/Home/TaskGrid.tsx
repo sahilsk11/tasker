@@ -124,6 +124,7 @@ function TaskCard({
   const timelineResources = getTimelineResourcesForBundle(bundle);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
+  const [preparingActionId, setPreparingActionId] = useState<string | null>(null);
   const [isStateOpen, setIsStateOpen] = useState(false);
   const [stateError, setStateError] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<ApiSession | null>(null);
@@ -177,6 +178,7 @@ function TaskCard({
   ): Promise<void> {
     setActionError(null);
     setIsCreatingPrompt(true);
+    setPreparingActionId(action.id);
 
     try {
       const session = await createTaskSession(bundle.task.id, {
@@ -195,6 +197,7 @@ function TaskCard({
       );
     } finally {
       setIsCreatingPrompt(false);
+      setPreparingActionId(null);
     }
   }
 
@@ -265,18 +268,12 @@ function TaskCard({
         <aside className="flex min-w-0 flex-col justify-center border-t border-[#1c1d22] bg-[#0f1013] p-[15px_14px] lg:border-l lg:border-t-0">
           <TaskActionRow
             actions={bundle.actions}
+            isPreparingPrompt={isCreatingPrompt}
             layout="rail"
             onSelectAction={selectAction}
             onViewAll={openAllActions}
+            preparingActionId={preparingActionId}
           />
-          <div className="mt-4">
-            {actionError == null ? null : (
-              <p className="text-sm text-destructive">{actionError}</p>
-            )}
-            {isCreatingPrompt && !showAllActions ? (
-              <p className="text-sm text-muted-foreground">Preparing prompt...</p>
-            ) : null}
-          </div>
         </aside>
       </Card>
 

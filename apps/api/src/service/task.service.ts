@@ -165,7 +165,7 @@ export class TaskService {
       taskDescription: task.description,
       taskId,
       taskTitle: task.title,
-      optionsText
+      ...(optionsText === undefined ? {} : { optionsText })
     });
 
     return workingPath === undefined

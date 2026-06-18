@@ -1,10 +1,14 @@
 import {
+  buildArtifactAttributionSection,
   buildArtifactRegistrationSection,
   buildBreakdownWorkflowSection,
+  buildLegacyWorktreeSection,
   buildOptionsSection,
   buildPullRequestRegistrationSection,
   buildSessionClaimSection,
   buildTaskDescriptionSection,
+  buildTaskHeaderSection,
+  buildTaskNotesRegistrationSection,
   buildTaskTitleSection
 } from "./prompt-sections.js";
 import type { KnownPromptPlaceholder, TaskActionPromptContext } from "./types.js";
@@ -14,13 +18,17 @@ const substitutionRegistry: Record<
   KnownPromptPlaceholder,
   (context: TaskActionPromptContext) => string
 > = {
+  artifactAttribution: buildArtifactAttributionSection,
   breakdownWorkflow: buildBreakdownWorkflowSection,
   options: buildOptionsSection,
+  registerDoc: buildTaskNotesRegistrationSection,
   registerArtifact: buildArtifactRegistrationSection,
   registerPr: buildPullRequestRegistrationSection,
   registerSession: buildSessionClaimSection,
   taskDescription: buildTaskDescriptionSection,
-  taskTitle: buildTaskTitleSection
+  taskHeader: buildTaskHeaderSection,
+  taskTitle: buildTaskTitleSection,
+  worktree: buildLegacyWorktreeSection
 };
 
 export function renderTaskActionTemplate(

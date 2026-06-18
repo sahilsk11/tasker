@@ -108,7 +108,8 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000005_resource_attribution_and_dedupe",
         "000006_task_state_and_pull_requests",
         "000007_task_actions",
-        "000008_task_action_icons"
+        "000008_task_action_icons",
+        "000009_scope_action_defaults"
       ]);
 
       const taskActions = database
@@ -158,6 +159,116 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
       ]);
     } finally {
       database.close();
+    }
+  } finally {
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+void test("migrations rename legacy investigate action state to scope", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-migrate-scope-action-"));
+  const databasePath = join(dir, "tasker.sqlite");
+
+  try {
+    const database = new SqliteDatabase(databasePath);
+    try {
+      database.exec(`
+        CREATE TABLE schema_migrations (
+          version text PRIMARY KEY,
+          applied_at text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );
+      `);
+
+      for (const version of [
+        "000001_initial",
+        "000004_task_session_tracking_metadata",
+        "000005_resource_attribution_and_dedupe",
+        "000006_task_state_and_pull_requests",
+        "000007_task_actions",
+        "000008_task_action_icons"
+      ]) {
+        database.exec(readFileSync(join(migrationsDirectory, `${version}.up.sql`), "utf8"));
+        database.prepare("INSERT INTO schema_migrations (version) VALUES (?)").run(
+          version
+        );
+      }
+
+      database
+        .prepare(
+          `
+            INSERT INTO tasks (id, title, state, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+          `
+        )
+        .run(
+          "task-1",
+          "Legacy action task",
+          "ready",
+          "2026-01-01T00:00:00.000Z",
+          "2026-01-01T00:00:00.000Z"
+        );
+      database
+        .prepare(
+          `
+            INSERT INTO task_actions (
+              id,
+              label,
+              icon_name,
+              description,
+              prompt_template,
+              enabled,
+              sort_order,
+              created_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `
+        )
+        .run(
+          "investigate",
+          "Investigate",
+          "search",
+          "Inspect the task and produce a concise recommendation.",
+          "{{taskHeader}}",
+          1,
+          0,
+          "2026-01-01T00:00:00.000Z",
+          "2026-01-01T00:00:00.000Z"
+        );
+      database
+        .prepare(
+          `
+            INSERT INTO task_sessions (id, task_id, provider, action_id, created_at)
+            VALUES (?, ?, ?, ?, ?)
+          `
+        )
+        .run(
+          "session-1",
+          "task-1",
+          "codex",
+          "investigate",
+          "2026-01-01T00:00:00.000Z"
+        );
+    } finally {
+      database.close();
+    }
+
+    migrate({ databasePath, migrationsDirectory });
+
+    const migrated = new SqliteDatabase(databasePath);
+    try {
+      assert.deepEqual(migrated.prepare("SELECT id FROM task_actions").all(), [
+        {
+          id: "scope"
+        }
+      ]);
+      assert.deepEqual(migrated.prepare("SELECT action_id FROM task_sessions").all(), [
+        {
+          action_id: "scope"
+        }
+      ]);
+    } finally {
+      migrated.close();
     }
   } finally {
     await rm(dir, { force: true, recursive: true });

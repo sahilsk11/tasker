@@ -3,6 +3,8 @@ import type {
   ApiTaskActionOptions
 } from "@/api/tasks";
 
+const optionFieldPlaceholderPattern = /\{\{([a-zA-Z0-9_-]+)\}\}/g;
+
 export type PreviewOptionValues = Record<
   string,
   {
@@ -83,7 +85,7 @@ export function renderOptionPromptText(
     return "";
   }
 
-  return template.replace(/\{\{(\w+)\}\}/g, (_match, fieldId: string) => {
+  return template.replace(optionFieldPlaceholderPattern, (_match, fieldId: string) => {
     const field = option.fields?.[fieldId];
     return value.fields[fieldId] ?? field?.default ?? "";
   });

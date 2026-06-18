@@ -12,6 +12,17 @@ export function buildTaskTitleSection(
   return context.taskTitle;
 }
 
+export function buildTaskHeaderSection(
+  context: Pick<TaskActionPromptContext, "taskDescription" | "taskTitle">
+): string {
+  const description = context.taskDescription?.trim();
+  if (description == null || description.length === 0) {
+    return `# ${context.taskTitle}`;
+  }
+
+  return `# ${context.taskTitle}\n\n## Description\n${description}`;
+}
+
 export function buildTaskDescriptionSection(
   context: Pick<TaskActionPromptContext, "taskDescription" | "taskTitle">
 ): string {
@@ -121,8 +132,8 @@ export function buildArtifactRegistrationSection(context: TaskActionPromptContex
 If you publish any durable planning, research, design, or implementation artifact,
 register it with Tasker before finishing.
 
-Use a concise label such as \`scope\`, \`research\`, \`plan\`, \`implement\`, or
-\`other\`. Include the current session ID as \`createdBySessionId\`.
+Use one of these labels: \`research\`, \`plan\`, \`implement\`, or \`other\`.
+Include the current session ID as \`createdBySessionId\`.
 
 Run this command after replacing \`artifact_label\` and \`artifact_uri\`:
 
@@ -131,6 +142,22 @@ ${artifactCommand}
 \`\`\`
 
 If artifact registration fails, still finish the task and report the failure.`;
+}
+
+export function buildArtifactAttributionSection(context: TaskActionPromptContext): string {
+  return `## Tasker artifact attribution
+
+When registering artifacts created by this session, include \`"createdBySessionId": "${context.sessionId}"\`
+in the artifact resource payload. Tickets and PR resources do not use session
+attribution.`;
+}
+
+export function buildTaskNotesRegistrationSection(context: TaskActionPromptContext): string {
+  return buildArtifactRegistrationSection(context);
+}
+
+export function buildLegacyWorktreeSection(context: TaskActionPromptContext): string {
+  return buildOptionsSection(context);
 }
 
 export function buildPullRequestRegistrationSection(context: TaskActionPromptContext): string {
@@ -180,7 +207,7 @@ function buildCodexArtifactResourceCommand({
 }): string {
   const artifactUrl = `${apiBaseUrl}/tasks/${taskId}/artifacts`;
 
-  return `artifact_label="scope"
+  return `artifact_label="other"
 artifact_uri="/absolute/path/to/artifact.md"
 
 curl -sS -X POST "${artifactUrl}" \\

@@ -44,6 +44,29 @@ void test("renderTaskActionTemplate includes rendered option text", () => {
   assert.match(rendered, /`~\/wt\/feature`/);
 });
 
+void test("renderTaskActionTemplate supports legacy placeholders", () => {
+  const rendered = renderTaskActionTemplate(
+    "{{taskHeader}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{worktree}}",
+    {
+      ...baseContext,
+      optionsText: "## Worktree\n\nUse `~/wt/legacy`."
+    }
+  );
+
+  assert.match(rendered, /^# Example task/);
+  assert.match(rendered, /## Description\nBuild the feature/);
+  assert.match(rendered, /## Tasker artifact attribution/);
+  assert.match(rendered, /\/tasks\/task-1\/artifacts/);
+  assert.match(rendered, /## Worktree/);
+});
+
+void test("renderTaskActionTemplate uses valid artifact labels in registration sample", () => {
+  const rendered = renderTaskActionTemplate("{{registerArtifact}}", baseContext);
+
+  assert.match(rendered, /artifact_label="other"/);
+  assert.doesNotMatch(rendered, /artifact_label="scope"/);
+});
+
 void test("renderTaskActionTemplate rejects unknown placeholders", () => {
   assert.throws(
     () => renderTaskActionTemplate("{{unknown}}", baseContext),
@@ -53,4 +76,13 @@ void test("renderTaskActionTemplate rejects unknown placeholders", () => {
 
 void test("findUnknownPlaceholders reports unsupported names", () => {
   assert.deepEqual(findUnknownPlaceholders("{{taskTitle}} {{madeUp}}"), ["madeUp"]);
+});
+
+void test("findUnknownPlaceholders accepts legacy placeholders", () => {
+  assert.deepEqual(
+    findUnknownPlaceholders(
+      "{{taskHeader}} {{artifactAttribution}} {{registerDoc}} {{worktree}}"
+    ),
+    []
+  );
 });

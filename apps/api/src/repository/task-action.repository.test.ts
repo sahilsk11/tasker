@@ -52,7 +52,7 @@ void test("task actions are loaded from the database", async () => {
     assert.ok(implementAction);
     assert.equal(firstAction.label, "Scope");
     assert.match(firstAction.description, /codebase surface/);
-    assert.equal(implementAction.options?.worktree != null, true);
+    assert.equal(implementAction.options?.["worktree"] != null, true);
     assert.equal(firstAction.options, null);
   } finally {
     await app.close();

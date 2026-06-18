@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { TaskActionOptions } from "./task-action-options.js";
 
+const optionFieldPlaceholderPattern = /\{\{([a-zA-Z0-9_-]+)\}\}/g;
+
 const taskActionOptionValueSchema = z
   .object({
     enabled: z.boolean(),
@@ -25,7 +27,7 @@ export function resolveWorkingPathForPrompt(
 }
 
 export function parseTaskActionPromptValues(value: unknown): TaskActionPromptValues {
-  return taskActionPromptValuesSchema.parse(value);
+  return taskActionPromptValuesSchema.parse(normalizeLegacyPromptValues(value));
 }
 
 export function renderOptionsForPrompt(
@@ -45,7 +47,7 @@ export function renderOptionsForPrompt(
         return "";
       }
 
-      return template.replace(/\{\{(\w+)\}\}/g, (_match, fieldId: string) => {
+      return template.replace(optionFieldPlaceholderPattern, (_match, fieldId: string) => {
         const submittedValue = optionValues?.fields?.[fieldId]?.trim();
         if (submittedValue != null && submittedValue.length > 0) {
           return submittedValue;
@@ -56,4 +58,46 @@ export function renderOptionsForPrompt(
     })
     .filter((section) => section.trim().length > 0)
     .join("\n\n");
+}
+
+function normalizeLegacyPromptValues(value: unknown): unknown {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (record["worktree"] == null || record["options"] != null) {
+    return value;
+  }
+
+  const worktree = normalizeLegacyWorktreeValue(record["worktree"]);
+  if (worktree == null) {
+    return value;
+  }
+
+  const rest = { ...record };
+  delete rest["worktree"];
+  return {
+    ...rest,
+    options: {
+      worktree
+    }
+  };
+}
+
+function normalizeLegacyWorktreeValue(value: unknown) {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  return {
+    enabled: record["enabled"] === true,
+    fields:
+      typeof record["path"] === "string"
+        ? {
+            path: record["path"]
+          }
+        : undefined
+  };
 }

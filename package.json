@@ -17,6 +17,7 @@
     "check:ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "check:lines": "node scripts/check-file-lines.mjs",
     "dev:api": "pnpm --filter @tasker/api dev",
+    "dev:isolated": "node scripts/dev-isolated.mjs",
     "dev:web": "pnpm --filter @tasker/web dev",
     "dev:worker": "pnpm --filter @tasker/worker dev",
     "install-daemon": "node scripts/install-daemon.mjs",

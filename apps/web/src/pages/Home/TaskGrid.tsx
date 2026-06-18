@@ -2,9 +2,11 @@ import { useState } from "react";
 import {
   AlertTriangle,
   Check,
+  ChevronDown,
   FileText,
   GitPullRequest,
-  MessageSquareText
+  MessageSquareText,
+  Workflow
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -12,6 +14,7 @@ import { createTaskSession, updateTask } from "@/api/tasks";
 import type {
   ApiSession,
   ApiTaskAction,
+  ApiTask,
   TaskBundle,
   TaskState,
   TaskStateDefinition
@@ -158,6 +161,7 @@ function TaskCard({
   const [pendingDuplicateAction, setPendingDuplicateAction] =
     useState<PendingDuplicateAction | null>(null);
   const [showAllActions, setShowAllActions] = useState(false);
+  const [areSubtasksOpen, setAreSubtasksOpen] = useState(bundle.children.length > 0);
   const selectedGroup =
     groupedResources.find((group) => group.kind === selectedKind) ?? null;
   const stateMutation = useMutation({
@@ -317,8 +321,6 @@ function TaskCard({
               resources={timelineResources}
             />
           </div>
-
-          <ResourceCounters groups={groupedResources} onOpen={setSelectedKind} />
         </section>
 
         <aside className="flex min-w-0 flex-col justify-center border-t border-[#1c1d22] bg-[#0f1013] p-[15px_14px] lg:border-l lg:border-t-0">
@@ -331,6 +333,23 @@ function TaskCard({
             preparingActionId={preparingActionId}
           />
         </aside>
+
+        <footer className="min-w-0 border-t border-[#1c1d22] bg-[#0d0e11] px-4 py-3 lg:col-span-2">
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <ResourceCounters groups={groupedResources} onOpen={setSelectedKind} />
+            <SubtaskToggle
+              isOpen={areSubtasksOpen}
+              onOpenChange={setAreSubtasksOpen}
+              subtasks={bundle.children}
+            />
+          </div>
+          <SubtaskList
+            isOpen={areSubtasksOpen}
+            onOpen={() => setSelectedKind("subtask")}
+            stateDefinitions={taskStateDefinitions}
+            subtasks={bundle.children}
+          />
+        </footer>
       </Card>
 
       <TaskActionsDialog
@@ -567,7 +586,7 @@ function ResourceCounters({
   ];
 
   return (
-    <div className="mt-2.5 flex min-w-0 flex-wrap gap-1.5">
+    <div className="flex min-w-0 flex-wrap gap-1.5">
       {counters.map(({ Icon, kind }) => {
         const group = groups.find((candidate) => candidate.kind === kind) ?? {
           items: [],
@@ -586,6 +605,145 @@ function ResourceCounters({
             <Icon className="size-3.5" />
             <span>{group.items.length}</span>
           </Button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SubtaskToggle({
+  isOpen,
+  onOpenChange,
+  subtasks
+}: {
+  readonly isOpen: boolean;
+  readonly onOpenChange: (isOpen: boolean) => void;
+  readonly subtasks: readonly ApiTask[];
+}): React.JSX.Element {
+  if (subtasks.length === 0) {
+    return (
+      <div className="flex min-h-9 items-center justify-end text-sm text-[#6b6e76]">
+        No subtasks
+      </div>
+    );
+  }
+
+  const doneCount = subtasks.filter((subtask) => subtask.state === "done").length;
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className="h-9 min-w-0 justify-between gap-3 rounded-[9px] border-[#24252b] bg-[#101116] px-3 text-sm font-semibold text-[#cdd0d6] hover:border-[#32333a] hover:bg-[#16171c] hover:text-[#f1f2f4] sm:min-w-64"
+      onClick={() => onOpenChange(!isOpen)}
+      aria-expanded={isOpen}
+      title="Toggle subtasks"
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <SubtaskProgress value={doneCount} total={subtasks.length} />
+        <span className="shrink-0">
+          {doneCount}/{subtasks.length} subtasks
+        </span>
+      </span>
+      <ChevronDown
+        className={cn(
+          "size-4 shrink-0 text-[#8c909a] transition-transform",
+          isOpen ? "rotate-180" : ""
+        )}
+      />
+    </Button>
+  );
+}
+
+function SubtaskProgress({
+  total,
+  value
+}: {
+  readonly total: number;
+  readonly value: number;
+}): React.JSX.Element {
+  const segmentCount = Math.min(total, 5);
+  const filledSegments = Math.round((value / total) * segmentCount);
+
+  return (
+    <span className="flex shrink-0 gap-1" aria-hidden="true">
+      {Array.from({ length: segmentCount }, (_, index) => (
+        <span
+          key={index}
+          className={cn(
+            "h-1.5 w-5 rounded-full",
+            index < filledSegments ? "bg-success" : "bg-[#2a2b31]"
+          )}
+        />
+      ))}
+    </span>
+  );
+}
+
+function SubtaskList({
+  isOpen,
+  onOpen,
+  stateDefinitions,
+  subtasks
+}: {
+  readonly isOpen: boolean;
+  readonly onOpen: () => void;
+  readonly stateDefinitions: readonly TaskStateDefinition[];
+  readonly subtasks: readonly ApiTask[];
+}): React.JSX.Element | null {
+  if (!isOpen || subtasks.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-3 grid min-w-0 gap-1.5">
+      {subtasks.map((subtask, index) => {
+        const isDone = subtask.state === "done";
+        const stateLabel = getTaskStateLabel(subtask.state, stateDefinitions);
+
+        return (
+          <button
+            key={subtask.id}
+            type="button"
+            onClick={onOpen}
+            className={cn(
+              "grid min-h-11 min-w-0 grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-3 rounded-[8px] px-3 text-left",
+              "transition-colors hover:bg-[#17181e]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              subtask.state === "review" ? "bg-[#191922]" : ""
+            )}
+          >
+            <span
+              className={cn(
+                "size-2 rounded-full",
+                taskStateMetaByState[subtask.state].iconClassName
+              )}
+              aria-hidden="true"
+            />
+            <span
+              className={cn(
+                "min-w-0 truncate text-sm font-medium text-[#cdd0d6]",
+                isDone ? "text-[#8c909a] line-through" : ""
+              )}
+              title={subtask.title}
+            >
+              {subtask.title}
+            </span>
+            <span className="flex shrink-0 items-center gap-3">
+              <Badge
+                variant="outline"
+                className={cn(
+                  "hidden h-7 rounded-[7px] px-2 text-xs font-semibold sm:inline-flex",
+                  taskStateMetaByState[subtask.state].iconClassName
+                )}
+              >
+                {stateLabel}
+              </Badge>
+              <span className="font-mono text-xs text-[#6b6e76]">
+                .{String(index + 1)}
+              </span>
+            </span>
+          </button>
         );
       })}
     </div>

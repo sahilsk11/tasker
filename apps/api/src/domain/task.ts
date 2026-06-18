@@ -1,16 +1,24 @@
 export type TaskId = string;
 
-export const taskStates = [
-  "ready",
-  "research",
-  "plan",
-  "implement",
-  "code_review",
-  "merged",
-  "done"
+export const taskStateDefinitions = [
+  { label: "Ready", rank: 0, value: "ready" },
+  { label: "Scoping", rank: 1, value: "scoping" },
+  { label: "Planning", rank: 2, value: "planning" },
+  { label: "Implementation", rank: 3, value: "implementation" },
+  { label: "Review", rank: 4, value: "review" },
+  { label: "Done", rank: 5, value: "done" }
 ] as const;
 
-export type TaskState = (typeof taskStates)[number];
+export type TaskStateDefinition = (typeof taskStateDefinitions)[number];
+export type TaskState = TaskStateDefinition["value"];
+
+export const taskStates = taskStateDefinitions.map(
+  (definition) => definition.value
+) as [TaskState, ...TaskState[]];
+
+export const taskStateRanks = Object.fromEntries(
+  taskStateDefinitions.map((definition) => [definition.value, definition.rank])
+) as Record<TaskState, number>;
 
 export type Task = {
   readonly createdAt: Date;

@@ -4,6 +4,7 @@ import {
   getLinearOptions,
   listLinearIssueStatuses,
   listTaskBundles,
+  listTaskStates,
   type LinearIssueStatus,
   type LinearOptions,
   type LinearTeamOption,
@@ -27,6 +28,10 @@ export function HomePage(): React.JSX.Element {
   const tasksQuery = useQuery({
     queryFn: listTaskBundles,
     queryKey: ["tasks"]
+  });
+  const taskStatesQuery = useQuery({
+    queryFn: listTaskStates,
+    queryKey: ["task-states"]
   });
   const ticketIdentifiers = useMemo(
     () => (tasksQuery.isSuccess ? getTicketIdentifiers(tasksQuery.data) : []),
@@ -108,6 +113,7 @@ export function HomePage(): React.JSX.Element {
 
         {tasksQuery.isLoading ? <TaskGridSkeleton /> : null}
         {tasksQuery.isError ? <LoadError error={tasksQuery.error} /> : null}
+        {taskStatesQuery.isError ? <LoadError error={taskStatesQuery.error} /> : null}
         {tasksQuery.isSuccess ? (
           <>
             <TaskToolbar
@@ -141,6 +147,7 @@ export function HomePage(): React.JSX.Element {
                 void queryClient.invalidateQueries({ queryKey: ["tasks"] });
               }}
               pullRequestStatuses={pullRequestStatuses}
+              taskStateDefinitions={taskStatesQuery.data ?? []}
             />
           </>
         ) : null}

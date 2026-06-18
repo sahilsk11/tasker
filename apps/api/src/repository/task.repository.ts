@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { sql, type Kysely } from "kysely";
+import type { Kysely } from "kysely";
 import type { Database, TaskRow } from "../db/schema.js";
 import type {
   CreateTaskInput,
@@ -8,6 +8,7 @@ import type {
   TaskState,
   UpdateTaskInput
 } from "../domain/task.js";
+import { taskStateRanks } from "../domain/task.js";
 
 export type TaskRepository = {
   readonly create: (input: CreateTaskInput) => Promise<Task>;
@@ -16,16 +17,6 @@ export type TaskRepository = {
   readonly list: () => Promise<readonly Task[]>;
   readonly updateStateAtLeast: (id: TaskId, state: TaskState) => Promise<Task | null>;
   readonly update: (id: TaskId, input: UpdateTaskInput) => Promise<Task | null>;
-};
-
-const taskStateRank: Record<TaskState, number> = {
-  code_review: 4,
-  done: 6,
-  implement: 3,
-  merged: 5,
-  plan: 2,
-  ready: 0,
-  research: 1
 };
 
 export class SqliteTaskRepository implements TaskRepository {
@@ -111,26 +102,33 @@ export class SqliteTaskRepository implements TaskRepository {
     id: TaskId,
     state: TaskState
   ): Promise<Task | null> {
-    const row = await this.db
-      .updateTable("tasks")
-      .set({
-        state,
-        updated_at: new Date().toISOString()
-      })
-      .where("id", "=", id)
-      .where(sql<number>`CASE state
-        WHEN 'ready' THEN 0
-        WHEN 'research' THEN 1
-        WHEN 'plan' THEN 2
-        WHEN 'implement' THEN 3
-        WHEN 'code_review' THEN 4
-        WHEN 'merged' THEN 5
-        WHEN 'done' THEN 6
-      END`, "<", taskStateRank[state])
-      .returningAll()
-      .executeTakeFirst();
+    return this.db.transaction().execute(async (trx) => {
+      const currentRow = await trx
+        .selectFrom("tasks")
+        .selectAll()
+        .where("id", "=", id)
+        .executeTakeFirst();
 
-    return row == null ? this.findById(id) : toTask(row);
+      if (currentRow == null) {
+        return null;
+      }
+
+      if (taskStateRanks[currentRow.state] >= taskStateRanks[state]) {
+        return toTask(currentRow);
+      }
+
+      const row = await trx
+        .updateTable("tasks")
+        .set({
+          state,
+          updated_at: new Date().toISOString()
+        })
+        .where("id", "=", id)
+        .returningAll()
+        .executeTakeFirstOrThrow();
+
+      return toTask(row);
+    });
   }
 }
 

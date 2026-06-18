@@ -53,6 +53,21 @@ export function getTimelineResourcesForBundle(bundle: TaskBundle): readonly Reso
   });
 }
 
+export function getLatestResourceActivityAt(bundle: TaskBundle): string | null {
+  const resources = getResourcesForBundle(bundle);
+  const latest = resources.reduce<Resource | null>((currentLatest, resource) => {
+    if (currentLatest == null) {
+      return resource;
+    }
+
+    return compareResourceActivity(resource, currentLatest) > 0
+      ? resource
+      : currentLatest;
+  }, null);
+
+  return latest?.sortAt ?? null;
+}
+
 export function getPullRequestsForBundle(
   bundle: TaskBundle
 ): readonly ApiPullRequest[] {
@@ -72,6 +87,13 @@ function groupResources(resources: readonly Resource[]): readonly ResourceGroupV
   }
 
   return resourceOrder.map((kind) => ({ items: groups.get(kind) ?? [], kind }));
+}
+
+function compareResourceActivity(left: Resource, right: Resource): number {
+  const leftTime = new Date(left.sortAt).getTime();
+  const rightTime = new Date(right.sortAt).getTime();
+
+  return getSortableTime(leftTime) - getSortableTime(rightTime);
 }
 
 function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {

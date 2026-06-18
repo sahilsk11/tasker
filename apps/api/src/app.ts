@@ -14,7 +14,7 @@ import { registerLinearResolver } from "./resolver/linear.resolver.js";
 import { registerTaskBreakdownResolver } from "./resolver/task-breakdown.resolver.js";
 import { registerTaskResolver } from "./resolver/task.resolver.js";
 import { CodexSessionProvider } from "./service/codex-session-provider.js";
-import { BadRequestError, NotFoundError } from "./service/errors.js";
+import { BadRequestError, ConflictError, NotFoundError } from "./service/errors.js";
 import { GitHubService, type GitHubServiceOptions } from "./service/github.service.js";
 import {
   KannaSessionProvider,
@@ -109,6 +109,11 @@ export async function createApp(options: CreateAppOptions) {
 
     if (error instanceof BadRequestError) {
       void reply.code(400).send({ error: error.message });
+      return;
+    }
+
+    if (error instanceof ConflictError) {
+      void reply.code(409).send({ error: error.message });
       return;
     }
 

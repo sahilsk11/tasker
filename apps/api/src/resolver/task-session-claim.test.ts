@@ -264,7 +264,10 @@ void test("external task sessions can be claimed with flexible metadata", async 
       },
       url: `/sessions/${createdSession.id}/claim`
     });
-    assert.equal(alreadyClaimedResponse.statusCode, 404);
+    assert.equal(alreadyClaimedResponse.statusCode, 409);
+    assert.deepEqual(readJson(alreadyClaimedResponse.body), {
+      error: `Task session ${createdSession.id} has already been claimed`
+    });
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });

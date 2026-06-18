@@ -67,6 +67,16 @@ void test("renderTaskActionTemplate uses valid artifact labels in registration s
   assert.doesNotMatch(rendered, /artifact_label="scope"/);
 });
 
+void test("renderTaskActionTemplate includes actionable breakdown workflow guidance", () => {
+  const rendered = renderTaskActionTemplate("{{breakdownWorkflow}}", baseContext);
+
+  assert.match(rendered, /## Tasker breakdown workflow/);
+  assert.match(rendered, /"taskId": "task-1"/);
+  assert.match(rendered, /stable kebab-case item IDs/);
+  assert.match(rendered, /If validation returns errors, revise the JSON and validate again/);
+  assert.match(rendered, /give the user the returned `previewUrl`/);
+});
+
 void test("renderTaskActionTemplate rejects unknown placeholders", () => {
   assert.throws(
     () => renderTaskActionTemplate("{{unknown}}", baseContext),

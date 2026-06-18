@@ -1,30 +1,25 @@
 import { useState } from "react";
-import {
-  CheckCircle2,
-  Circle,
-  Code2,
-  FileSearch,
-  GitMerge,
-  GitPullRequest,
-  ListChecks
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { FileText, GitPullRequest, MessageSquareText } from "lucide-react";
 import { useNavigate } from "react-router";
 import { createTaskSession } from "@/api/tasks";
 import type { ApiSession, ApiTaskAction, TaskBundle, TaskState } from "@/api/tasks";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { PullRequestStatusMap } from "./use-pull-request-statuses";
+import { TaskEventLog } from "./TaskEventLog";
 import {
   TaskActionPromptDialog,
   TaskActionRow,
   TaskActionsDialog
 } from "./TaskActions";
-import { ResourceColumnGrid, ResourceTableDialog } from "./TaskResources";
+import { ResourceTableDialog } from "./TaskResources";
 import {
   getResourceGroupsForBundle,
+  getTimelineResourcesForBundle,
   type Resource,
+  type ResourceGroupView,
   type ResourceKind
 } from "./task-resource-groups";
 
@@ -47,7 +42,7 @@ export function TaskGrid({
 
   return (
     <section
-      className="mx-auto grid w-full max-w-[76rem] grid-cols-1 gap-4 md:grid-cols-2"
+      className="mx-auto grid w-full max-w-[76rem] grid-cols-1 gap-4 md:grid-cols-2 2xl:max-w-[96rem] 2xl:grid-cols-3"
       aria-label="Tasks"
     >
       {bundles.map((bundle) => (
@@ -63,46 +58,38 @@ export function TaskGrid({
 }
 
 type TaskStateMeta = {
-  readonly Icon: LucideIcon;
   readonly iconClassName: string;
   readonly label: string;
 };
 
 const taskStateMeta: Record<TaskState, TaskStateMeta> = {
   code_review: {
-    Icon: GitPullRequest,
-    iconClassName: "border-info/30 bg-info/10 text-info",
-    label: "Code review"
+    iconClassName: "border-[#a78bfa]/25 bg-[#a78bfa]/10 text-[#a78bfa]",
+    label: "In review"
   },
   done: {
-    Icon: CheckCircle2,
-    iconClassName: "border-success/30 bg-success/10 text-success",
+    iconClassName: "border-success/25 bg-success/10 text-success",
     label: "Done"
   },
   implement: {
-    Icon: Code2,
-    iconClassName: "border-accent/30 bg-accent/15 text-accent-foreground",
-    label: "Implement"
+    iconClassName: "border-warning/25 bg-warning/10 text-warning",
+    label: "Implementing"
   },
   merged: {
-    Icon: GitMerge,
-    iconClassName: "border-accent/30 bg-accent/15 text-accent-foreground",
+    iconClassName: "border-[#a78bfa]/25 bg-[#a78bfa]/10 text-[#a78bfa]",
     label: "Merged"
   },
   plan: {
-    Icon: ListChecks,
-    iconClassName: "border-warning/30 bg-warning/10 text-warning",
+    iconClassName: "border-accent/25 bg-accent/10 text-[#a89eff]",
     label: "Plan"
   },
   ready: {
-    Icon: Circle,
-    iconClassName: "border-border bg-secondary text-secondary-foreground",
+    iconClassName: "border-border bg-[#a1a1aa]/10 text-[#a1a1aa]",
     label: "Ready"
   },
   research: {
-    Icon: FileSearch,
-    iconClassName: "border-info/30 bg-info/10 text-info",
-    label: "Research"
+    iconClassName: "border-info/25 bg-info/10 text-info",
+    label: "Researching"
   }
 };
 
@@ -112,7 +99,7 @@ function getTaskStateMeta(state: TaskState | undefined): TaskStateMeta {
 
 export function TaskGridSkeleton(): React.JSX.Element {
   return (
-    <section className="mx-auto grid w-full max-w-[76rem] grid-cols-1 gap-4 md:grid-cols-2">
+    <section className="mx-auto grid w-full max-w-[76rem] grid-cols-1 gap-4 md:grid-cols-2 2xl:max-w-[96rem] 2xl:grid-cols-3">
       {Array.from({ length: 4 }, (_, index) => (
         <Card key={index} className="min-h-72 animate-pulse bg-card/70" />
       ))}
@@ -131,6 +118,7 @@ function TaskCard({
 }): React.JSX.Element {
   const navigate = useNavigate();
   const groupedResources = getResourceGroupsForBundle(bundle);
+  const timelineResources = getTimelineResourcesForBundle(bundle);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
   const [selectedSession, setSelectedSession] = useState<ApiSession | null>(null);
@@ -139,9 +127,7 @@ function TaskCard({
   const [showAllActions, setShowAllActions] = useState(false);
   const selectedGroup =
     groupedResources.find((group) => group.kind === selectedKind) ?? null;
-  const description = bundle.task.description ?? "No description provided.";
   const stateMeta = getTaskStateMeta(bundle.task.state);
-  const StateIcon = stateMeta.Icon;
 
   async function openActionPrompt(
     action: ApiTaskAction,
@@ -196,48 +182,46 @@ function TaskCard({
 
   return (
     <>
-      <Card className="flex h-full flex-col overflow-hidden transition-colors hover:border-border/80 hover:bg-card/95">
-        <CardHeader className="pb-5">
-          <div className="flex min-w-0 items-start justify-between gap-3">
-            <div className="flex min-w-0 items-start gap-2.5">
-              <span
-                className={cn(
-                  "mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-md border",
-                  stateMeta.iconClassName
-                )}
-                title={`Task state: ${stateMeta.label}`}
-              >
-                <StateIcon className="size-4" />
-              </span>
-              <CardTitle className="min-w-0 overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] text-xl leading-7">
-                {bundle.task.title}
-              </CardTitle>
-            </div>
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-              <TicketBadge bundle={bundle} />
-            </div>
+      <Card className="grid h-full overflow-hidden rounded-[14px] border-[#1f2025] transition-colors hover:border-[#2c2d34] hover:bg-card lg:grid-cols-[minmax(0,1fr)_9.875rem]">
+        <section className="flex min-w-0 flex-col p-4 md:min-h-48">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <Badge
+              className={cn(
+                "h-7 rounded-full px-3 text-[13px]",
+                stateMeta.iconClassName
+              )}
+              title={`Task state: ${stateMeta.label}`}
+              variant="outline"
+            >
+              <span className="size-2 rounded-full bg-current" aria-hidden="true" />
+              {stateMeta.label}
+            </Badge>
+            <TicketBadge bundle={bundle} />
           </div>
-          <p className="mt-3 min-h-12 overflow-hidden text-sm leading-6 text-muted-foreground [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]">
-            {description}
-          </p>
-          <div className="mt-5 h-px bg-border/70" />
-        </CardHeader>
 
-        <CardContent className="flex flex-1 flex-col">
-          <div className="flex min-w-0 flex-1 flex-col gap-6">
-            <div className="min-w-0 flex-1">
-              <ResourceColumnGrid
-                groups={groupedResources}
-                onOpen={setSelectedKind}
-                onOpenResource={openResource}
-                pullRequestStatuses={pullRequestStatuses}
-              />
-            </div>
-            <TaskActionRow
-              actions={bundle.actions}
-              onSelectAction={selectAction}
-              onViewAll={openAllActions}
+          <CardTitle className="mt-2.5 min-w-0 overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] text-lg font-semibold leading-6 text-[#f1f2f4]">
+            {bundle.task.title}
+          </CardTitle>
+
+          <div className="mt-2 min-w-0 flex-1">
+            <TaskEventLog
+              onOpenResource={(resource) => setSelectedKind(resource.kind)}
+              pullRequestStatuses={pullRequestStatuses}
+              resources={timelineResources}
             />
+          </div>
+
+          <ResourceCounters groups={groupedResources} onOpen={setSelectedKind} />
+        </section>
+
+        <aside className="flex min-w-0 flex-col justify-center border-t border-[#1c1d22] bg-[#0f1013] p-[15px_14px] lg:border-l lg:border-t-0">
+          <TaskActionRow
+            actions={bundle.actions}
+            layout="rail"
+            onSelectAction={selectAction}
+            onViewAll={openAllActions}
+          />
+          <div className="mt-4">
             {actionError == null ? null : (
               <p className="text-sm text-destructive">{actionError}</p>
             )}
@@ -245,7 +229,7 @@ function TaskCard({
               <p className="text-sm text-muted-foreground">Preparing prompt...</p>
             ) : null}
           </div>
-        </CardContent>
+        </aside>
       </Card>
 
       <TaskActionsDialog
@@ -292,6 +276,48 @@ function TaskCard({
   );
 }
 
+function ResourceCounters({
+  groups,
+  onOpen
+}: {
+  readonly groups: readonly ResourceGroupView[];
+  readonly onOpen: (kind: ResourceKind) => void;
+}): React.JSX.Element {
+  const counters: ReadonlyArray<{
+    readonly Icon: typeof MessageSquareText;
+    readonly kind: ResourceKind;
+  }> = [
+    { Icon: MessageSquareText, kind: "session" },
+    { Icon: FileText, kind: "artifact" },
+    { Icon: GitPullRequest, kind: "pr" }
+  ];
+
+  return (
+    <div className="mt-2.5 flex min-w-0 flex-wrap gap-1.5">
+      {counters.map(({ Icon, kind }) => {
+        const group = groups.find((candidate) => candidate.kind === kind) ?? {
+          items: [],
+          kind
+        };
+
+        return (
+          <Button
+            key={kind}
+            type="button"
+            variant="outline"
+            className="h-auto min-w-0 gap-2 rounded-[7px] border-[#1c1d22] bg-[#0e0f12] px-2.5 py-1.5 text-xs font-medium text-[#9aa0aa] hover:border-[#2c2d34] hover:bg-[#16171c] hover:text-[#cdd0d6]"
+            onClick={() => onOpen(kind)}
+            title={`Open ${kind} resources`}
+          >
+            <Icon className="size-3.5" />
+            <span>{group.items.length}</span>
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
 function TicketBadge({
   bundle
 }: {
@@ -304,7 +330,10 @@ function TicketBadge({
 
   if (ticket.url == null) {
     return (
-      <Badge variant="outline" className="shrink-0">
+      <Badge
+        variant="outline"
+        className="h-7 shrink-0 rounded-full border-[#1f2026] bg-transparent px-2.5 font-mono text-xs font-normal text-[#6b6e76]"
+      >
         {ticket.externalId}
       </Badge>
     );
@@ -320,7 +349,7 @@ function TicketBadge({
     >
       <Badge
         variant="outline"
-        className="cursor-pointer transition-colors hover:border-border hover:text-foreground"
+        className="h-7 cursor-pointer rounded-full border-[#1f2026] bg-transparent px-2.5 font-mono text-xs font-normal text-[#6b6e76] transition-colors hover:border-[#2c2d34] hover:text-[#cdd0d6]"
       >
         {ticket.externalId}
       </Badge>

@@ -101,10 +101,10 @@ export function HomePage(): React.JSX.Element {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <SettingsDialog />
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8 2xl:max-w-[96rem]">
         <header className="flex items-center justify-between gap-4 border-b border-border/70 pb-5">
           <div className="flex min-w-0 items-center gap-3">
-            <h1 className="truncate text-2xl font-semibold tracking-normal sm:text-3xl">
+            <h1 className="truncate text-2xl font-extrabold tracking-[-0.01em] text-[#f4f5f7] sm:text-3xl">
               Tasker
             </h1>
           </div>

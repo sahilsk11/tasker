@@ -18,6 +18,7 @@ export type Resource = {
   readonly metaLabel: string | null;
   readonly pullRequestNumber: number | null;
   readonly pullRequestRepository: string | null;
+  readonly sortAt: string;
   readonly state: string;
   readonly taskId: string;
   readonly updatedAt: string;
@@ -41,6 +42,15 @@ export function getResourceGroupsForBundle(
   bundle: TaskBundle
 ): readonly ResourceGroupView[] {
   return groupResources(getResourcesForBundle(bundle));
+}
+
+export function getTimelineResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
+  return [...getResourcesForBundle(bundle)].sort((left, right) => {
+    const rightTime = new Date(right.sortAt).getTime();
+    const leftTime = new Date(left.sortAt).getTime();
+
+    return getSortableTime(rightTime) - getSortableTime(leftTime);
+  });
 }
 
 export function getPullRequestsForBundle(
@@ -73,6 +83,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
         ticket.url == null ? "Ticket" : getUrlHost(ticket.url),
         ticket.url == null ? "Unlinked" : "Linked",
         formatDate(ticket.createdAt),
+        ticket.createdAt,
         {
           href: ticket.url,
           id: ticket.id,
@@ -87,6 +98,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
         capitalize(session.provider),
         "Claimed",
         formatDate(session.claimedAt ?? session.createdAt),
+        session.claimedAt ?? session.createdAt,
         {
           href: null,
           id: session.id,
@@ -103,6 +115,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
         child.id.slice(0, 8),
         "Open",
         formatDate(child.createdAt),
+        child.updatedAt,
         {
           href: null,
           id: child.id,
@@ -122,6 +135,7 @@ function resourceFromArtifact(artifact: ApiArtifact): Resource {
     createdAt,
     "Ready",
     createdAt,
+    artifact.createdAt,
     {
       href: null,
       id: artifact.id,
@@ -139,6 +153,7 @@ function resourceFromPullRequest(pullRequest: ApiPullRequest): Resource {
     pullRequest.url,
     "Registered",
     formatDate(pullRequest.createdAt),
+    pullRequest.createdAt,
     {
       href: pullRequest.url,
       id: pullRequest.id,
@@ -153,6 +168,7 @@ function resource(
   detail: string,
   state: string,
   updatedAt: string,
+  sortAt: string,
   options: {
     readonly href: string | null;
     readonly id: string;
@@ -176,10 +192,15 @@ function resource(
       ? getPullRequestNumber(options.href)
       : null,
     pullRequestRepository,
+    sortAt,
     state,
     taskId: options.taskId,
     updatedAt
   };
+}
+
+function getSortableTime(value: number): number {
+  return Number.isNaN(value) ? 0 : value;
 }
 
 function getUrlHost(value: string): string {

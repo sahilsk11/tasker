@@ -27,26 +27,37 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { taskActionIcons } from "./task-action-icons";
 
-const quickActionCount = 2;
+const railActionCount = 3;
+const rowActionCount = 2;
 
 export function TaskActionRow({
   actions,
+  layout = "row",
   onSelectAction,
   onViewAll
 }: {
   readonly actions: readonly ApiTaskAction[];
+  readonly layout?: "rail" | "row";
   readonly onSelectAction: (action: ApiTaskAction) => void;
   readonly onViewAll: () => void;
 }): React.JSX.Element {
-  const quickActions = actions.slice(0, quickActionCount);
+  const isRail = layout === "rail";
+  const quickActions = actions.slice(0, isRail ? railActionCount : rowActionCount);
 
   return (
-    <div className="mt-auto min-w-0 border-t border-border/70 pt-4">
-      <div className="flex flex-wrap justify-center gap-2">
-        {quickActions.map((action) => (
+    <div
+      className={cn(
+        "min-w-0",
+        isRail ? "grid gap-3" : "mt-auto border-t border-border/70 pt-4"
+      )}
+    >
+      <div className={cn(isRail ? "grid gap-2" : "flex flex-wrap justify-center gap-2")}>
+        {quickActions.map((action, index) => (
           <TaskActionButton
             key={action.id}
             action={action}
+            emphasized={index === 0}
+            layout={layout}
             onSelect={() => onSelectAction(action)}
           />
         ))}
@@ -54,11 +65,16 @@ export function TaskActionRow({
           type="button"
           variant="outline"
           size="sm"
-          className="h-8 w-36 min-w-0 px-3"
+          className={cn(
+            "min-w-0",
+            isRail
+              ? "h-8 w-full justify-center rounded-[9px] border-[#232429] bg-transparent px-2.5 py-0 text-sm text-[#c2c4ca] hover:border-[#2e2f36] hover:bg-[#1a1b21]"
+              : "h-8 w-36 px-3"
+          )}
           onClick={onViewAll}
         >
-          <MoreHorizontal className="size-4" />
-          <span>View all</span>
+          {isRail ? null : <MoreHorizontal className="size-4" />}
+          <span>{isRail ? "All actions" : "View all"}</span>
         </Button>
       </div>
     </div>
@@ -421,23 +437,35 @@ async function copyPlainText(value: string): Promise<void> {
 
 function TaskActionButton({
   action,
+  emphasized,
+  layout,
   onSelect
 }: {
   readonly action: ApiTaskAction;
+  readonly emphasized: boolean;
+  readonly layout: "rail" | "row";
   readonly onSelect: () => void;
 }): React.JSX.Element {
+  const isRail = layout === "rail";
   const Icon = taskActionIcons[action.iconName ?? action.id] ?? Workflow;
 
   return (
     <Button
       type="button"
-      variant="default"
+      variant={isRail && !emphasized ? "outline" : "default"}
       size="sm"
-      className="h-8 w-36 min-w-0 px-3"
+      className={cn(
+        "min-w-0",
+        isRail && emphasized
+          ? "h-8 w-full justify-center rounded-[9px] px-2.5 py-0 text-sm"
+          : isRail
+            ? "h-8 w-full justify-center rounded-[9px] border-[#232429] bg-transparent px-2.5 py-0 text-sm text-[#c2c4ca] hover:border-[#2e2f36] hover:bg-[#1a1b21]"
+            : "h-8 w-36 px-3"
+      )}
       onClick={onSelect}
     >
-      <Icon className="size-4" />
-      <span>{action.label}</span>
+      <Icon className="size-4 shrink-0" />
+      <span className="min-w-0 truncate">{action.label}</span>
     </Button>
   );
 }

@@ -12,6 +12,7 @@ import { createTaskSession, updateTask } from "@/api/tasks";
 import type {
   ApiSession,
   ApiTaskAction,
+  ApiTask,
   TaskBundle,
   TaskState,
   TaskStateDefinition
@@ -318,7 +319,12 @@ function TaskCard({
             />
           </div>
 
-          <ResourceCounters groups={groupedResources} onOpen={setSelectedKind} />
+          <ResourceCounters
+            groups={groupedResources}
+            onOpen={setSelectedKind}
+            onOpenSubtasks={() => setSelectedKind("subtask")}
+            subtasks={bundle.children}
+          />
         </section>
 
         <aside className="flex min-w-0 flex-col justify-center border-t border-[#1c1d22] bg-[#0f1013] p-[15px_14px] lg:border-l lg:border-t-0">
@@ -552,10 +558,14 @@ function TaskStatePicker({
 
 function ResourceCounters({
   groups,
-  onOpen
+  onOpen,
+  onOpenSubtasks,
+  subtasks
 }: {
   readonly groups: readonly ResourceGroupView[];
   readonly onOpen: (kind: ResourceKind) => void;
+  readonly onOpenSubtasks: () => void;
+  readonly subtasks: readonly ApiTask[];
 }): React.JSX.Element {
   const counters: ReadonlyArray<{
     readonly Icon: typeof MessageSquareText;
@@ -588,7 +598,60 @@ function ResourceCounters({
           </Button>
         );
       })}
+      <SubtaskToggle onOpen={onOpenSubtasks} subtasks={subtasks} />
     </div>
+  );
+}
+
+function SubtaskToggle({
+  onOpen,
+  subtasks
+}: {
+  readonly onOpen: () => void;
+  readonly subtasks: readonly ApiTask[];
+}): React.JSX.Element | null {
+  if (subtasks.length === 0) {
+    return null;
+  }
+
+  const doneCount = subtasks.filter((subtask) => subtask.state === "done").length;
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      className="ml-auto h-9 min-w-0 rounded-[9px] border-[#24252b] bg-[#101116] px-3 text-[#cdd0d6] hover:border-[#32333a] hover:bg-[#16171c] hover:text-[#f1f2f4]"
+      onClick={onOpen}
+      aria-label={`Open ${String(subtasks.length)} subtasks`}
+      title="Open subtasks"
+    >
+      <SubtaskProgress value={doneCount} total={subtasks.length} />
+    </Button>
+  );
+}
+
+function SubtaskProgress({
+  total,
+  value
+}: {
+  readonly total: number;
+  readonly value: number;
+}): React.JSX.Element {
+  const segmentCount = Math.min(total, 5);
+  const filledSegments = Math.round((value / total) * segmentCount);
+
+  return (
+    <span className="flex shrink-0 gap-1" aria-hidden="true">
+      {Array.from({ length: segmentCount }, (_, index) => (
+        <span
+          key={index}
+          className={cn(
+            "h-1.5 w-5 rounded-full",
+            index < filledSegments ? "bg-success" : "bg-[#2a2b31]"
+          )}
+        />
+      ))}
+    </span>
   );
 }
 

@@ -1,13 +1,16 @@
 export type TaskId = string;
 
-export type TaskState =
-  | "ready"
-  | "research"
-  | "plan"
-  | "implement"
-  | "code_review"
-  | "merged"
-  | "done";
+export const taskStates = [
+  "ready",
+  "research",
+  "plan",
+  "implement",
+  "code_review",
+  "merged",
+  "done"
+] as const;
+
+export type TaskState = (typeof taskStates)[number];
 
 export type Task = {
   readonly createdAt: Date;

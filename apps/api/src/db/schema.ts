@@ -5,10 +5,17 @@ import type { TaskState } from "../domain/task.js";
 export type Database = {
   readonly task_actions: TaskActionsTable;
   readonly task_artifacts: TaskArtifactsTable;
+  readonly task_dependencies: TaskDependenciesTable;
   readonly task_pull_requests: TaskPullRequestsTable;
   readonly task_sessions: TaskSessionsTable;
   readonly task_tickets: TaskTicketsTable;
   readonly tasks: TasksTable;
+};
+
+export type TaskDependenciesTable = {
+  readonly created_at: Generated<string>;
+  readonly depends_on_task_id: string;
+  readonly task_id: string;
 };
 
 export type TaskActionsTable = {
@@ -74,6 +81,7 @@ export type TaskTicketsTable = {
 
 export type TaskActionRow = Selectable<TaskActionsTable>;
 export type TaskArtifactRow = Selectable<TaskArtifactsTable>;
+export type TaskDependencyRow = Selectable<TaskDependenciesTable>;
 export type TaskPullRequestRow = Selectable<TaskPullRequestsTable>;
 export type TaskRow = Selectable<TasksTable>;
 export type TaskSessionRow = Selectable<TaskSessionsTable>;

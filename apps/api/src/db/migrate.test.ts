@@ -111,7 +111,8 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000008_task_action_icons",
         "000009_task_state_phase_names",
         "000010_scope_action_defaults",
-        "000011_task_working_directory"
+        "000011_task_working_directory",
+        "000012_task_dependencies"
       ]);
 
       const taskActions = database
@@ -272,6 +273,123 @@ void test("migrations rename legacy investigate action state to scope", async ()
       ]);
     } finally {
       migrated.close();
+    }
+  } finally {
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+void test("task dependency migration persists task edges", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-migrate-task-deps-"));
+  const databasePath = join(dir, "tasker.sqlite");
+
+  try {
+    migrate({ databasePath, migrationsDirectory });
+
+    const database = new SqliteDatabase(databasePath);
+    database.pragma("foreign_keys = ON");
+
+    try {
+      const insertTask = database.prepare(`
+        INSERT INTO tasks (id, title, parent_task_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+      insertTask.run(
+        "parent-1",
+        "Parent 1",
+        null,
+        "2026-01-01T00:00:00.000Z",
+        "2026-01-01T00:00:00.000Z"
+      );
+      insertTask.run(
+        "parent-2",
+        "Parent 2",
+        null,
+        "2026-01-01T00:00:01.000Z",
+        "2026-01-01T00:00:01.000Z"
+      );
+      insertTask.run(
+        "child-1",
+        "Child 1",
+        "parent-1",
+        "2026-01-01T00:00:02.000Z",
+        "2026-01-01T00:00:02.000Z"
+      );
+      insertTask.run(
+        "child-2",
+        "Child 2",
+        "parent-1",
+        "2026-01-01T00:00:03.000Z",
+        "2026-01-01T00:00:03.000Z"
+      );
+      insertTask.run(
+        "other-child",
+        "Other child",
+        "parent-2",
+        "2026-01-01T00:00:04.000Z",
+        "2026-01-01T00:00:04.000Z"
+      );
+
+      const insertDependency = database.prepare(`
+        INSERT INTO task_dependencies (
+          task_id,
+          depends_on_task_id
+        )
+        VALUES (?, ?)
+      `);
+
+      insertDependency.run("child-2", "child-1");
+      insertDependency.run("child-2", "other-child");
+
+      assert.throws(() => {
+        insertDependency.run("child-1", "child-1");
+      }, /CHECK constraint failed/u);
+      assert.throws(() => {
+        insertDependency.run("child-1", "missing-task");
+      }, /FOREIGN KEY constraint failed/u);
+
+      assert.deepEqual(
+        database
+          .prepare(
+            `
+              SELECT task_id, depends_on_task_id
+              FROM task_dependencies
+              ORDER BY task_id, depends_on_task_id
+            `
+          )
+          .all(),
+        [
+          {
+            depends_on_task_id: "child-1",
+            task_id: "child-2"
+          },
+          {
+            depends_on_task_id: "other-child",
+            task_id: "child-2"
+          }
+        ]
+      );
+
+      database.prepare("DELETE FROM tasks WHERE id = ?").run("other-child");
+
+      assert.deepEqual(
+        database
+          .prepare(
+            `
+              SELECT task_id, depends_on_task_id
+              FROM task_dependencies
+            `
+          )
+          .all(),
+        [
+          {
+            depends_on_task_id: "child-1",
+            task_id: "child-2"
+          }
+        ]
+      );
+    } finally {
+      database.close();
     }
   } finally {
     await rm(dir, { force: true, recursive: true });

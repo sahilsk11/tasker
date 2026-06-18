@@ -620,7 +620,7 @@ function SubtaskToggle({
     <Button
       type="button"
       variant="outline"
-      className="h-9 min-w-0 rounded-[9px] border-[#24252b] bg-[#101116] px-3 text-[#cdd0d6] hover:border-[#32333a] hover:bg-[#16171c] hover:text-[#f1f2f4]"
+      className="ml-auto h-9 min-w-0 rounded-[9px] border-[#24252b] bg-[#101116] px-3 text-[#cdd0d6] hover:border-[#32333a] hover:bg-[#16171c] hover:text-[#f1f2f4]"
       onClick={onOpen}
       aria-label={`Open ${String(subtasks.length)} subtasks`}
       title="Open subtasks"

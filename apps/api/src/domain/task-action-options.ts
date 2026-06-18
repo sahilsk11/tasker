@@ -86,5 +86,19 @@ Use this location unless it is unavailable:
 Base the worktree on the latest fetched \`origin/main\` or \`origin/master\`, not on
 the current checkout's local branch. Leave existing uncommitted changes in the
 primary checkout untouched. Do all implementation, verification, commit, push,
-and pull request work from inside the worktree.`;
+and pull request work from inside the worktree.
+
+After creating the worktree, register it with Tasker:
+
+\`\`\`bash
+worktree_path="{{path}}"
+curl -sS -X POST "{{apiBaseUrl}}/tasks/{{taskId}}/worktrees" \\
+  -H "Content-Type: application/json" \\
+  --data-binary @- <<EOF
+{
+  "createdBySessionId": "{{sessionId}}",
+  "path": "$worktree_path"
+}
+EOF
+\`\`\``;
 }

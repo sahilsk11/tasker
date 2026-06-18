@@ -1,6 +1,7 @@
 import { stat, readFile } from "node:fs/promises";
-import { basename, extname, isAbsolute } from "node:path";
+import { basename, extname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { AppSettings, UpdateAppSettingsInput } from "../domain/app-settings.js";
 import type {
   TaskAction,
   TaskActionDetails,
@@ -23,6 +24,10 @@ import {
 } from "../domain/task-action-prompt-values.js";
 import type { CreateTaskTicketInput, TaskTicket } from "../domain/task-ticket.js";
 import type {
+  CreateTaskWorktreeInput,
+  TaskWorktree
+} from "../domain/task-worktree.js";
+import type {
   CreateTaskInput,
   Task,
   TaskId,
@@ -33,7 +38,9 @@ import type { TaskArtifactRepository } from "../repository/task-artifact.reposit
 import type { TaskPullRequestRepository } from "../repository/task-pull-request.repository.js";
 import type { TaskSessionRepository } from "../repository/task-session.repository.js";
 import type { TaskTicketRepository } from "../repository/task-ticket.repository.js";
+import type { TaskWorktreeRepository } from "../repository/task-worktree.repository.js";
 import type { TaskActionRepository } from "../repository/task-action.repository.js";
+import type { AppSettingsRepository } from "../repository/app-settings.repository.js";
 import {
   toTaskAction,
   toTaskActionDetails
@@ -51,6 +58,7 @@ export type TaskResources = {
   readonly pullRequests: readonly TaskPullRequest[];
   readonly sessions: readonly TaskSession[];
   readonly tickets: readonly TaskTicket[];
+  readonly worktrees: readonly TaskWorktree[];
 };
 
 export type TaskOverview = {
@@ -99,7 +107,9 @@ export class TaskService {
     private readonly pullRequests: TaskPullRequestRepository,
     private readonly sessions: TaskSessionRepository,
     private readonly tickets: TaskTicketRepository,
+    private readonly worktrees: TaskWorktreeRepository,
     private readonly actions: TaskActionRepository,
+    private readonly settings: AppSettingsRepository,
     private readonly publicApiBaseUrl: string,
     private readonly sessionProviders = new TaskSessionProviderRegistry()
   ) {}
@@ -121,6 +131,19 @@ export class TaskService {
   ): Promise<TaskPullRequest> {
     await this.requireTask(taskId);
     return this.pullRequests.createForTask(taskId, input);
+  }
+
+  public async addWorktree(
+    taskId: TaskId,
+    input: CreateTaskWorktreeInput
+  ): Promise<TaskWorktree> {
+    await this.requireTask(taskId);
+    await this.requireSessionForTask(taskId, input.createdBySessionId);
+    const path = await validateDirectoryPath(input.path, "Worktree path");
+    return this.worktrees.createForTask(taskId, {
+      ...input,
+      path
+    });
   }
 
   public async addSession(
@@ -157,8 +180,14 @@ export class TaskService {
     }
 
     const task = await this.requireTask(taskId);
-    const optionsText = renderOptionsForPrompt(action.options, options);
-    const workingPath = resolveWorkingPathForPrompt(options);
+    const optionsText = renderOptionsForPrompt(action.options, options, {
+      apiBaseUrl: this.publicApiBaseUrl,
+      sessionId,
+      taskId
+    });
+    const workingPath =
+      resolveWorkingPathForPrompt(options) ??
+      (await this.getEffectiveWorkingPath(taskId, task.workingDirectory));
     const basePrompt = renderActionPrompt(action, {
       action: {
         id: action.id,
@@ -248,24 +277,29 @@ export class TaskService {
       await this.requireTask(input.parentTaskId);
     }
 
-    return this.tasks.create(input);
+    return this.tasks.create({
+      ...input,
+      workingDirectory: await this.resolveTaskWorkingDirectory(input.workingDirectory)
+    });
   }
 
   public async getResources(taskId: TaskId): Promise<TaskResources> {
     await this.requireTask(taskId);
 
-    const [artifacts, pullRequests, sessions, tickets] = await Promise.all([
+    const [artifacts, pullRequests, sessions, tickets, worktrees] = await Promise.all([
       this.artifacts.listByTaskId(taskId),
       this.pullRequests.listByTaskId(taskId),
       this.sessions.listByTaskId(taskId),
-      this.tickets.listByTaskId(taskId)
+      this.tickets.listByTaskId(taskId),
+      this.worktrees.listByTaskId(taskId)
     ]);
 
     return {
       artifacts,
       pullRequests,
       sessions: await this.sessionProviders.enrichSessions(sessions),
-      tickets
+      tickets,
+      worktrees
     };
   }
 
@@ -383,12 +417,44 @@ export class TaskService {
     return this.tickets.listByTaskId(taskId);
   }
 
+  public async listWorktrees(taskId: TaskId): Promise<readonly TaskWorktree[]> {
+    await this.requireTask(taskId);
+    return this.worktrees.listByTaskId(taskId);
+  }
+
+  public async getSettings(): Promise<AppSettings> {
+    return this.settings.get();
+  }
+
+  public async updateSettings(input: UpdateAppSettingsInput): Promise<AppSettings> {
+    return this.settings.update({
+      ...(input.defaultWorkingDirectory !== undefined
+        ? {
+            defaultWorkingDirectory: await validateOptionalDirectoryPath(
+              input.defaultWorkingDirectory,
+              "Default working directory"
+            )
+          }
+        : {})
+    });
+  }
+
   public async updateTask(taskId: TaskId, input: UpdateTaskInput): Promise<Task> {
     if (input.parentTaskId != null) {
       await this.requireTask(input.parentTaskId);
     }
 
-    const task = await this.tasks.update(taskId, input);
+    const task = await this.tasks.update(taskId, {
+      ...input,
+      ...(input.workingDirectory !== undefined
+        ? {
+            workingDirectory: await validateOptionalDirectoryPath(
+              input.workingDirectory,
+              "Working directory"
+            )
+          }
+        : {})
+    });
     if (task == null) {
       throw new NotFoundError(`Task ${taskId} not found`);
     }
@@ -458,11 +524,30 @@ export class TaskService {
         ...resources.sessions.map((resourceSession) =>
           resourceSession.claimedAt ?? resourceSession.createdAt
         ),
-        ...resources.tickets.map((ticket) => ticket.createdAt)
+        ...resources.tickets.map((ticket) => ticket.createdAt),
+        ...resources.worktrees.map((worktree) => worktree.createdAt)
       ]),
       resources,
       task
     };
+  }
+
+  private async resolveTaskWorkingDirectory(
+    inputPath: string | null | undefined
+  ): Promise<string | null> {
+    if (inputPath !== undefined) {
+      return validateOptionalDirectoryPath(inputPath, "Working directory");
+    }
+
+    return (await this.settings.get()).defaultWorkingDirectory;
+  }
+
+  private async getEffectiveWorkingPath(
+    taskId: TaskId,
+    workingDirectory: string | null
+  ): Promise<string | undefined> {
+    const worktrees = await this.worktrees.listByTaskId(taskId);
+    return worktrees.at(-1)?.path ?? workingDirectory ?? undefined;
   }
 
   private async inferTaskStateFromArtifact(
@@ -539,6 +624,43 @@ function getArtifactContentType(fileName: string): string {
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
+}
+
+async function validateOptionalDirectoryPath(
+  value: string | null | undefined,
+  label: string
+): Promise<string | null> {
+  const path = value?.trim();
+  if (path == null || path.length === 0) {
+    return null;
+  }
+
+  return validateDirectoryPath(path, label);
+}
+
+async function validateDirectoryPath(value: string, label: string): Promise<string> {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    throw new BadRequestError(`${label} is required`);
+  }
+  if (!isAbsolute(trimmed)) {
+    throw new BadRequestError(`${label} must be an absolute path`);
+  }
+
+  const normalized = resolve(trimmed);
+  const pathStat = await stat(normalized).catch((error: unknown) => {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      throw new BadRequestError(`${label} does not exist`);
+    }
+
+    throw error;
+  });
+
+  if (!pathStat.isDirectory()) {
+    throw new BadRequestError(`${label} must be a directory`);
+  }
+
+  return normalized;
 }
 
 function latestDate(values: readonly Date[]): Date {

@@ -48,7 +48,7 @@
           }
         },
         "prompt": {
-          "enabled": "## Worktree\n\nBefore editing files, create an isolated git worktree for this implementation. Use this location unless it is unavailable:\n\n`{{path}}`\n\nBase the worktree on the latest fetched `origin/main` or `origin/master`, not on the current checkout's local branch. Leave existing uncommitted changes in the primary checkout untouched. Do all implementation, verification, commit, push, and pull request work from inside the worktree."
+          "enabled": "## Worktree\n\nBefore editing files, create an isolated git worktree for this implementation. Use this location unless it is unavailable:\n\n`{{path}}`\n\nBase the worktree on the latest fetched `origin/main` or `origin/master`, not on the current checkout's local branch. Leave existing uncommitted changes in the primary checkout untouched. Do all implementation, verification, commit, push, and pull request work from inside the worktree.\n\nAfter creating the worktree, register it with Tasker:\n\n```bash\nworktree_path=\"{{path}}\"\ncurl -sS -X POST \"{{apiBaseUrl}}/tasks/{{taskId}}/worktrees\" \\\n  -H \"Content-Type: application/json\" \\\n  --data-binary @- <<EOF\n{\n  \"createdBySessionId\": \"{{sessionId}}\",\n  \"path\": \"$worktree_path\"\n}\nEOF\n```"
         }
       }
     },

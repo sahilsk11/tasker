@@ -97,6 +97,17 @@ void test("external task sessions can be claimed with flexible metadata", async 
     });
     assert.equal(ticketResponse.statusCode, 201);
 
+    const worktreePath = join(dir, "worktree");
+    await mkdir(worktreePath);
+    const worktreeResponse = await app.inject({
+      method: "POST",
+      payload: {
+        path: worktreePath
+      },
+      url: `/tasks/${task.id}/worktrees`
+    });
+    assert.equal(worktreeResponse.statusCode, 201);
+
     const unclaimedListResponse = await app.inject({
       method: "GET",
       url: `/tasks/${task.id}/sessions`
@@ -164,6 +175,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
             readonly id: string;
           }>;
           readonly tickets: ReadonlyArray<{ readonly externalId: string }>;
+          readonly worktrees: ReadonlyArray<{ readonly path: string }>;
         };
         readonly task: {
           readonly description: string | null;
@@ -230,6 +242,10 @@ void test("external task sessions can be claimed with flexible metadata", async 
     assert.deepEqual(
       taskOverview.resources.tickets.map((ticket) => ticket.externalId),
       ["TASK-123"]
+    );
+    assert.deepEqual(
+      taskOverview.resources.worktrees.map((worktree) => worktree.path),
+      [worktreePath]
     );
     assert.deepEqual(
       taskOverview.children.map((child) => child.title),

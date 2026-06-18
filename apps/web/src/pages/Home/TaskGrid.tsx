@@ -128,6 +128,7 @@ function TaskCard({
   const queryClient = useQueryClient();
   const groupedResources = getResourceGroupsForBundle(bundle);
   const timelineResources = getTimelineResourcesForBundle(bundle);
+  const defaultWorkingPath = getDefaultWorkingPath(bundle);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
   const [preparingActionId, setPreparingActionId] = useState<string | null>(null);
@@ -310,6 +311,7 @@ function TaskCard({
           setSelectedSession(session);
           onSessionRun();
         }}
+        defaultWorkingPath={defaultWorkingPath}
         session={selectedSession}
         taskId={bundle.task.id}
       />
@@ -326,6 +328,10 @@ function TaskCard({
       />
     </>
   );
+}
+
+function getDefaultWorkingPath(bundle: TaskBundle): string {
+  return bundle.resources.worktrees.at(-1)?.path ?? bundle.task.workingDirectory ?? "";
 }
 
 function TaskStatePicker({

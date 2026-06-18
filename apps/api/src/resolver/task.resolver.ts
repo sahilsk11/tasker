@@ -10,9 +10,11 @@ import type {
 import type { CreateTaskArtifactInput } from "../domain/task-artifact.js";
 import type { CreateTaskPullRequestInput } from "../domain/task-pull-request.js";
 import type { CreateTaskTicketInput } from "../domain/task-ticket.js";
+import type { CreateTaskWorktreeInput } from "../domain/task-worktree.js";
 import type { UpdateTaskActionInput } from "../domain/task-action.js";
+import type { UpdateAppSettingsInput } from "../domain/app-settings.js";
 import { taskStateDefinitions, taskStates } from "../domain/task.js";
-import type { UpdateTaskInput } from "../domain/task.js";
+import type { CreateTaskInput, UpdateTaskInput } from "../domain/task.js";
 import type { TaskService } from "../service/task.service.js";
 
 const taskIdParamsSchema = z.object({
@@ -48,15 +50,23 @@ const runSessionPromptSchema = z.object({
 const createTaskSchema = z.object({
   description: z.string().nullable().default(null),
   parentTaskId: z.string().nullable().default(null),
-  title: z.string().min(1)
+  title: z.string().min(1),
+  workingDirectory: z.string().nullable().optional()
 });
 
 const updateTaskSchema = z.object({
   description: z.string().nullable().optional(),
   parentTaskId: z.string().nullable().optional(),
   state: z.enum(taskStates).optional(),
-  title: z.string().min(1).optional()
+  title: z.string().min(1).optional(),
+  workingDirectory: z.string().nullable().optional()
 });
+
+const updateSettingsSchema = z
+  .object({
+    defaultWorkingDirectory: z.string().nullable().optional()
+  })
+  .strict();
 
 const updateTaskActionSchema = z
   .object({
@@ -101,6 +111,11 @@ const createTicketSchema = z.object({
   url: z.string().url().nullable().default(null)
 });
 
+const createWorktreeSchema = z.object({
+  createdBySessionId: z.string().min(1).nullable().optional(),
+  path: z.string().min(1)
+});
+
 export function registerTaskResolver(
   server: FastifyInstance,
   taskService: TaskService
@@ -113,6 +128,14 @@ export function registerTaskResolver(
 
   server.get("/actions", async () => ({
     actions: await taskService.listActionSettings()
+  }));
+
+  server.get("/settings", async () => ({
+    settings: await taskService.getSettings()
+  }));
+
+  server.patch("/settings", async (request) => ({
+    settings: await taskService.updateSettings(parseUpdateSettingsInput(request.body))
   }));
 
   server.get("/task-states", () => ({
@@ -129,7 +152,7 @@ export function registerTaskResolver(
   });
 
   server.post("/tasks", async (request, reply) => {
-    const task = await taskService.createTask(createTaskSchema.parse(request.body));
+    const task = await taskService.createTask(parseCreateTaskInput(request.body));
     return reply.code(201).send({ task });
   });
 
@@ -248,6 +271,20 @@ export function registerTaskResolver(
     const ticket = await taskService.addTicket(id, parseCreateTicketInput(request.body));
     return reply.code(201).send({ ticket });
   });
+
+  server.get("/tasks/:id/worktrees", async (request) => {
+    const { id } = taskIdParamsSchema.parse(request.params);
+    return { worktrees: await taskService.listWorktrees(id) };
+  });
+
+  server.post("/tasks/:id/worktrees", async (request, reply) => {
+    const { id } = taskIdParamsSchema.parse(request.params);
+    const worktree = await taskService.addWorktree(
+      id,
+      parseCreateWorktreeInput(request.body)
+    );
+    return reply.code(201).send({ worktree });
+  });
 }
 
 function parseCreateArtifactInput(body: unknown): CreateTaskArtifactInput {
@@ -258,6 +295,18 @@ function parseCreateArtifactInput(body: unknown): CreateTaskArtifactInput {
       : {}),
     label: parsed.label,
     uri: parsed.uri
+  };
+}
+
+function parseCreateTaskInput(body: unknown): CreateTaskInput {
+  const parsed = createTaskSchema.parse(body);
+  return {
+    description: parsed.description,
+    parentTaskId: parsed.parentTaskId,
+    title: parsed.title,
+    ...(parsed.workingDirectory !== undefined
+      ? { workingDirectory: parsed.workingDirectory }
+      : {})
   };
 }
 
@@ -284,6 +333,25 @@ function parseCreateTicketInput(body: unknown): CreateTaskTicketInput {
   return {
     externalId: parsed.externalId,
     url: parsed.url
+  };
+}
+
+function parseCreateWorktreeInput(body: unknown): CreateTaskWorktreeInput {
+  const parsed = createWorktreeSchema.parse(body);
+  return {
+    ...(parsed.createdBySessionId !== undefined
+      ? { createdBySessionId: parsed.createdBySessionId }
+      : {}),
+    path: parsed.path
+  };
+}
+
+function parseUpdateSettingsInput(body: unknown): UpdateAppSettingsInput {
+  const parsed = updateSettingsSchema.parse(body);
+  return {
+    ...(parsed.defaultWorkingDirectory !== undefined
+      ? { defaultWorkingDirectory: parsed.defaultWorkingDirectory }
+      : {})
   };
 }
 
@@ -330,7 +398,10 @@ function parseUpdateTaskInput(body: unknown): UpdateTaskInput {
     ...(parsed.description !== undefined ? { description: parsed.description } : {}),
     ...(parsed.parentTaskId !== undefined ? { parentTaskId: parsed.parentTaskId } : {}),
     ...(parsed.state !== undefined ? { state: parsed.state } : {}),
-    ...(parsed.title !== undefined ? { title: parsed.title } : {})
+    ...(parsed.title !== undefined ? { title: parsed.title } : {}),
+    ...(parsed.workingDirectory !== undefined
+      ? { workingDirectory: parsed.workingDirectory }
+      : {})
   };
 }
 

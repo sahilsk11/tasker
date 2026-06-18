@@ -3,11 +3,13 @@ import { resolve } from "node:path";
 import { ZodError } from "zod";
 import { createDb } from "./db/client.js";
 import { migrate } from "./db/migrate.js";
+import { SqliteAppSettingsRepository } from "./repository/app-settings.repository.js";
 import { SqliteTaskActionRepository } from "./repository/task-action.repository.js";
 import { SqliteTaskArtifactRepository } from "./repository/task-artifact.repository.js";
 import { SqliteTaskPullRequestRepository } from "./repository/task-pull-request.repository.js";
 import { SqliteTaskSessionRepository } from "./repository/task-session.repository.js";
 import { SqliteTaskTicketRepository } from "./repository/task-ticket.repository.js";
+import { SqliteTaskWorktreeRepository } from "./repository/task-worktree.repository.js";
 import { SqliteTaskRepository } from "./repository/task.repository.js";
 import { registerGitHubResolver } from "./resolver/github.resolver.js";
 import { registerLinearResolver } from "./resolver/linear.resolver.js";
@@ -83,7 +85,9 @@ export async function createApp(options: CreateAppOptions) {
     new SqliteTaskPullRequestRepository(db),
     new SqliteTaskSessionRepository(db),
     new SqliteTaskTicketRepository(db),
+    new SqliteTaskWorktreeRepository(db),
     new SqliteTaskActionRepository(db),
+    new SqliteAppSettingsRepository(db),
     publicApiBaseUrl,
     sessionProviders
   );

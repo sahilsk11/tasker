@@ -3,12 +3,20 @@ import type { TaskArtifactLabel } from "../domain/task-artifact.js";
 import type { TaskState } from "../domain/task.js";
 
 export type Database = {
+  readonly app_settings: AppSettingsTable;
   readonly task_actions: TaskActionsTable;
   readonly task_artifacts: TaskArtifactsTable;
   readonly task_pull_requests: TaskPullRequestsTable;
   readonly task_sessions: TaskSessionsTable;
   readonly task_tickets: TaskTicketsTable;
+  readonly task_worktrees: TaskWorktreesTable;
   readonly tasks: TasksTable;
+};
+
+export type AppSettingsTable = {
+  readonly key: string;
+  readonly updated_at: Generated<string>;
+  readonly value_json: string;
 };
 
 export type TaskActionsTable = {
@@ -32,6 +40,7 @@ export type TasksTable = {
   readonly state: Generated<TaskState>;
   readonly title: string;
   readonly updated_at: Generated<string>;
+  readonly working_directory: string | null;
 };
 
 export type TaskArtifactsTable = {
@@ -71,9 +80,19 @@ export type TaskTicketsTable = {
   readonly url: string | null;
 };
 
+export type TaskWorktreesTable = {
+  readonly created_at: Generated<string>;
+  readonly created_by_session_id: string | null;
+  readonly id: string;
+  readonly path: string;
+  readonly task_id: string;
+};
+
+export type AppSettingRow = Selectable<AppSettingsTable>;
 export type TaskActionRow = Selectable<TaskActionsTable>;
 export type TaskArtifactRow = Selectable<TaskArtifactsTable>;
 export type TaskPullRequestRow = Selectable<TaskPullRequestsTable>;
 export type TaskRow = Selectable<TasksTable>;
 export type TaskSessionRow = Selectable<TaskSessionsTable>;
 export type TaskTicketRow = Selectable<TaskTicketsTable>;
+export type TaskWorktreeRow = Selectable<TaskWorktreesTable>;

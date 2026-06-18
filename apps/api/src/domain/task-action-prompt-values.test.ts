@@ -57,3 +57,36 @@ void test("renderOptionsForPrompt substitutes hyphenated field placeholders", ()
 
   assert.equal(rendered, "Field: submitted value");
 });
+
+void test("renderOptionsForPrompt substitutes context placeholders", () => {
+  const rendered = renderOptionsForPrompt(
+    {
+      worktree: {
+        default: true,
+        fields: {
+          path: {
+            default: "/tmp/tasker-wt",
+            type: "text"
+          }
+        },
+        label: "Create a worktree",
+        prompt: {
+          enabled:
+            "Path: {{path}} {{apiBaseUrl}}/tasks/{{taskId}}/worktrees {{sessionId}}"
+        },
+        type: "boolean"
+      }
+    },
+    undefined,
+    {
+      apiBaseUrl: "http://127.0.0.1:3000",
+      sessionId: "session-1",
+      taskId: "task-1"
+    }
+  );
+
+  assert.equal(
+    rendered,
+    "Path: /tmp/tasker-wt http://127.0.0.1:3000/tasks/task-1/worktrees session-1"
+  );
+});

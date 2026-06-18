@@ -5,6 +5,7 @@ import {
   createLinearTaskTicket,
   createTask,
   createTaskTicket,
+  getSettings,
   getLinearOptions,
   type LinearIssueDetails,
   resolveLinearIssue
@@ -36,6 +37,7 @@ export function NewTaskDialog(): React.JSX.Element {
   const [ticket, setTicket] = useState("");
   const [resolvedTicket, setResolvedTicket] = useState<LinearIssueDetails | null>(null);
   const [ticketError, setTicketError] = useState<string | null>(null);
+  const [workingDirectory, setWorkingDirectory] = useState("");
   const [createTicket, setCreateTicket] = useState(false);
   const [linearTeamId, setLinearTeamId] = useState("");
   const [linearProjectId, setLinearProjectId] = useState("");
@@ -46,6 +48,11 @@ export function NewTaskDialog(): React.JSX.Element {
     enabled: createTicket,
     queryFn: getLinearOptions,
     queryKey: ["linear-options"]
+  });
+  const settingsQuery = useQuery({
+    enabled: open,
+    queryFn: getSettings,
+    queryKey: ["settings"]
   });
   const linearOptions = linearOptionsQuery.data ?? null;
   const selectedLinearTeam = getSelectedLinearTeam(linearOptions, linearTeamId);
@@ -92,6 +99,17 @@ export function NewTaskDialog(): React.JSX.Element {
   }, [hasExistingTicket, ticket]);
 
   useEffect(() => {
+    if (!open || workingDirectory.trim().length > 0) {
+      return;
+    }
+
+    const defaultWorkingDirectory = settingsQuery.data?.defaultWorkingDirectory;
+    if (defaultWorkingDirectory != null) {
+      setWorkingDirectory(defaultWorkingDirectory);
+    }
+  }, [open, settingsQuery.data?.defaultWorkingDirectory, workingDirectory]);
+
+  useEffect(() => {
     if (!hasExistingTicket) {
       return;
     }
@@ -136,7 +154,8 @@ export function NewTaskDialog(): React.JSX.Element {
       const task = await createTask({
         description: normalizeOptionalText(description),
         parentTaskId: null,
-        title: title.trim()
+        title: title.trim(),
+        workingDirectory: normalizeOptionalText(workingDirectory)
       });
 
       if (resolvedTicket != null) {
@@ -193,6 +212,7 @@ export function NewTaskDialog(): React.JSX.Element {
     setTicket("");
     setResolvedTicket(null);
     setTicketError(null);
+    setWorkingDirectory(settingsQuery.data?.defaultWorkingDirectory ?? "");
     setCreateTicket(false);
     setLinearTeamId("");
     setLinearProjectId("");
@@ -213,7 +233,7 @@ export function NewTaskDialog(): React.JSX.Element {
         <Plus className="size-4" />
         New task
       </Button>
-      <DialogContent className="flex h-[min(582px,calc(100dvh-2rem))] max-w-xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex h-[min(720px,calc(100dvh-2rem))] max-w-xl flex-col gap-0 overflow-hidden p-0">
         <DialogHeader>
           <DialogTitle>New task</DialogTitle>
           <DialogDescription>
@@ -262,6 +282,20 @@ export function NewTaskDialog(): React.JSX.Element {
                 onChange={(event) => setDescription(event.target.value)}
                 placeholder="What should the agent do?"
               />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="task-working-directory">Working directory</Label>
+              <Input
+                id="task-working-directory"
+                value={workingDirectory}
+                onChange={(event) => setWorkingDirectory(event.target.value)}
+                placeholder="/path/to/project"
+              />
+              {settingsQuery.isError ? (
+                <p className="text-sm text-destructive">
+                  {getMutationErrorMessage(settingsQuery.error)}
+                </p>
+              ) : null}
             </div>
             <label
               className={

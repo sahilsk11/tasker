@@ -23,4 +23,9 @@ void test("parseTaskActionOptions upgrades legacy worktree prompt options", () =
   assert.ok(options["worktree"].prompt);
   assert.equal(options["worktree"].prompt.enabled.includes("## Worktree"), true);
   assert.equal(options["worktree"].prompt.enabled.includes("`{{path}}`"), true);
+  assert.equal(
+    options["worktree"].prompt.enabled.includes("/tasks/{{taskId}}/worktrees"),
+    true
+  );
+  assert.equal(options["worktree"].prompt.enabled.includes("{{sessionId}}"), true);
 });

@@ -19,6 +19,12 @@ export const taskActionPromptValuesSchema = z
 
 export type TaskActionPromptValues = z.infer<typeof taskActionPromptValuesSchema>;
 
+export type TaskActionPromptRenderContext = {
+  readonly apiBaseUrl: string;
+  readonly sessionId: string;
+  readonly taskId: string;
+};
+
 export function resolveWorkingPathForPrompt(
   values: TaskActionPromptValues | undefined
 ): string | undefined {
@@ -32,7 +38,8 @@ export function parseTaskActionPromptValues(value: unknown): TaskActionPromptVal
 
 export function renderOptionsForPrompt(
   actionOptions: TaskActionOptions | null,
-  values: TaskActionPromptValues | undefined
+  values: TaskActionPromptValues | undefined,
+  context?: TaskActionPromptRenderContext
 ): string | undefined {
   if (actionOptions == null) {
     return "";
@@ -47,17 +54,53 @@ export function renderOptionsForPrompt(
         return "";
       }
 
-      return template.replace(optionFieldPlaceholderPattern, (_match, fieldId: string) => {
-        const submittedValue = optionValues?.fields?.[fieldId]?.trim();
-        if (submittedValue != null && submittedValue.length > 0) {
-          return submittedValue;
-        }
-
-        return option.fields?.[fieldId]?.default ?? "";
-      });
+      return template.replace(optionFieldPlaceholderPattern, (match, fieldId: string) =>
+        replaceOptionPlaceholder({
+          context,
+          fieldId,
+          match,
+          option,
+          optionValues
+        })
+      );
     })
     .filter((section) => section.trim().length > 0)
     .join("\n\n");
+}
+
+function replaceOptionPlaceholder({
+  context,
+  fieldId,
+  match,
+  option,
+  optionValues
+}: {
+  readonly context: TaskActionPromptRenderContext | undefined;
+  readonly fieldId: string;
+  readonly match: string;
+  readonly option: NonNullable<TaskActionOptions[string]>;
+  readonly optionValues:
+    | {
+        readonly enabled: boolean;
+        readonly fields?: Record<string, string> | undefined;
+      }
+    | undefined;
+}): string {
+  const submittedValue = optionValues?.fields?.[fieldId]?.trim();
+  if (submittedValue != null && submittedValue.length > 0) {
+    return submittedValue;
+  }
+
+  const fieldDefault = option.fields?.[fieldId]?.default;
+  if (fieldDefault != null) {
+    return fieldDefault;
+  }
+
+  if (context != null && fieldId in context) {
+    return context[fieldId as keyof TaskActionPromptRenderContext];
+  }
+
+  return match;
 }
 
 function normalizeLegacyPromptValues(value: unknown): unknown {

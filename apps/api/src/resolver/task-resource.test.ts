@@ -277,12 +277,14 @@ void test("task resources aggregate and dedupe explicit resource types", async (
         readonly pullRequests: ReadonlyArray<{ readonly id: string }>;
         readonly sessions: ReadonlyArray<{ readonly id: string }>;
         readonly tickets: ReadonlyArray<{ readonly id: string }>;
+        readonly worktrees: ReadonlyArray<{ readonly id: string }>;
       };
     }).resources;
     assert.equal(resources.artifacts.length, 1);
     assert.equal(resources.pullRequests.length, 1);
     assert.equal(resources.sessions.length, 1);
     assert.equal(resources.tickets.length, 1);
+    assert.equal(resources.worktrees.length, 0);
 
     const wrongSessionResponse = await app.inject({
       method: "POST",
@@ -311,8 +313,177 @@ void test("task resources aggregate and dedupe explicit resource types", async (
   }
 });
 
+void test("task working directories validate and default from settings", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-working-directory-"));
+  const app = await createApp({
+    databasePath: join(dir, "tasker.sqlite"),
+    linearApiKey: null
+  });
+
+  try {
+    const settingsResponse = await app.inject({
+      method: "PATCH",
+      payload: { defaultWorkingDirectory: dir },
+      url: "/settings"
+    });
+    assert.equal(settingsResponse.statusCode, 200);
+    assert.equal(readSettings(settingsResponse.body).defaultWorkingDirectory, dir);
+
+    const defaultedTaskResponse = await app.inject({
+      method: "POST",
+      payload: { title: "Defaulted path" },
+      url: "/tasks"
+    });
+    assert.equal(defaultedTaskResponse.statusCode, 201);
+    const defaultedTask = readTask(defaultedTaskResponse.body);
+    assert.equal(defaultedTask.workingDirectory, dir);
+
+    const explicitTaskResponse = await app.inject({
+      method: "POST",
+      payload: {
+        title: "Explicit path",
+        workingDirectory: dir
+      },
+      url: "/tasks"
+    });
+    assert.equal(explicitTaskResponse.statusCode, 201);
+    assert.equal(readTask(explicitTaskResponse.body).workingDirectory, dir);
+
+    const missingPathResponse = await app.inject({
+      method: "POST",
+      payload: {
+        title: "Missing path",
+        workingDirectory: join(dir, "missing")
+      },
+      url: "/tasks"
+    });
+    assert.equal(missingPathResponse.statusCode, 400);
+
+    const filePath = join(dir, "file.txt");
+    await writeFile(filePath, "not a directory");
+    const filePathResponse = await app.inject({
+      method: "PATCH",
+      payload: { workingDirectory: filePath },
+      url: `/tasks/${defaultedTask.id}`
+    });
+    assert.equal(filePathResponse.statusCode, 400);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+void test("worktree resources validate, dedupe, and aggregate", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-worktree-resource-"));
+  const app = await createApp({
+    databasePath: join(dir, "tasker.sqlite"),
+    linearApiKey: null
+  });
+
+  try {
+    const task = await createTask(app, "Worktree task");
+    const otherTask = await createTask(app, "Other task");
+    const session = await createSession(app, task.id);
+    const otherSession = await createSession(app, otherTask.id);
+    const worktreePath = await mkdtemp(join(dir, "worktree-"));
+
+    const firstResponse = await app.inject({
+      method: "POST",
+      payload: {
+        createdBySessionId: session.id,
+        path: worktreePath
+      },
+      url: `/tasks/${task.id}/worktrees`
+    });
+    assert.equal(firstResponse.statusCode, 201);
+    const firstWorktree = readWorktree(firstResponse.body);
+    assert.equal(firstWorktree.createdBySessionId, session.id);
+    assert.equal(firstWorktree.path, worktreePath);
+
+    const duplicateResponse = await app.inject({
+      method: "POST",
+      payload: { path: worktreePath },
+      url: `/tasks/${task.id}/worktrees`
+    });
+    assert.equal(duplicateResponse.statusCode, 201);
+    assert.equal(readWorktree(duplicateResponse.body).id, firstWorktree.id);
+
+    const wrongSessionResponse = await app.inject({
+      method: "POST",
+      payload: {
+        createdBySessionId: otherSession.id,
+        path: worktreePath
+      },
+      url: `/tasks/${task.id}/worktrees`
+    });
+    assert.equal(wrongSessionResponse.statusCode, 400);
+
+    const missingPathResponse = await app.inject({
+      method: "POST",
+      payload: { path: join(dir, "missing") },
+      url: `/tasks/${task.id}/worktrees`
+    });
+    assert.equal(missingPathResponse.statusCode, 400);
+
+    const resourcesResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/resources`
+    });
+    assert.equal(resourcesResponse.statusCode, 200);
+    const resources = (readJson(resourcesResponse.body) as {
+      readonly resources: {
+        readonly worktrees: ReadonlyArray<{ readonly id: string; readonly path: string }>;
+      };
+    }).resources;
+    assert.deepEqual(
+      resources.worktrees.map((worktree) => ({
+        id: worktree.id,
+        path: worktree.path
+      })),
+      [
+      {
+        id: firstWorktree.id,
+        path: worktreePath
+      }
+      ]
+    );
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 function readJson(body: string): unknown {
   return JSON.parse(body) as unknown;
+}
+
+function readSettings(body: string): { readonly defaultWorkingDirectory: string | null } {
+  return (readJson(body) as {
+    readonly settings: { readonly defaultWorkingDirectory: string | null };
+  }).settings;
+}
+
+function readTask(body: string): {
+  readonly id: string;
+  readonly workingDirectory: string | null;
+} {
+  return (readJson(body) as {
+    readonly task: { readonly id: string; readonly workingDirectory: string | null };
+  }).task;
+}
+
+function readWorktree(body: string): {
+  readonly createdBySessionId: string | null;
+  readonly id: string;
+  readonly path: string;
+} {
+  return (readJson(body) as {
+    readonly worktree: {
+      readonly createdBySessionId: string | null;
+      readonly id: string;
+      readonly path: string;
+    };
+  }).worktree;
 }
 
 async function createTask(

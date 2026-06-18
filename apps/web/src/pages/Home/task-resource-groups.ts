@@ -1,4 +1,9 @@
-import type { ApiArtifact, ApiPullRequest, TaskBundle } from "@/api/tasks";
+import type {
+  ApiArtifact,
+  ApiPullRequest,
+  ApiWorktree,
+  TaskBundle
+} from "@/api/tasks";
 
 export type ResourceKind =
   | "ticket"
@@ -129,6 +134,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
       )
     ),
     ...bundle.resources.artifacts.map(resourceFromArtifact),
+    ...bundle.resources.worktrees.map(resourceFromWorktree),
     ...getPullRequestsForBundle(bundle).map(resourceFromPullRequest),
     ...bundle.children.map((child) =>
       resource(
@@ -163,6 +169,24 @@ function resourceFromArtifact(artifact: ApiArtifact): Resource {
       id: artifact.id,
       metaLabel: artifact.label,
       taskId: artifact.taskId
+    }
+  );
+}
+
+function resourceFromWorktree(worktree: ApiWorktree): Resource {
+  const createdAt = formatActivityTime(worktree.createdAt);
+
+  return resource(
+    "worktree",
+    getFileName(worktree.path),
+    worktree.path,
+    "Registered",
+    createdAt,
+    worktree.createdAt,
+    {
+      href: null,
+      id: worktree.id,
+      taskId: worktree.taskId
     }
   );
 }

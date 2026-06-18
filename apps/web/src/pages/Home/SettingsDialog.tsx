@@ -26,7 +26,9 @@ import type {
   UpdateTaskActionInput
 } from "@/api/tasks";
 import {
+  getSettings,
   listTaskActionSettings,
+  updateSettings,
   updateTaskActionSettings
 } from "@/api/tasks";
 import { MarkdownDocument } from "@/components/MarkdownDocument";
@@ -102,6 +104,11 @@ export function SettingsDialog(): React.JSX.Element {
     enabled: isOpen,
     queryFn: listTaskActionSettings,
     queryKey: ["action-settings"]
+  });
+  const settingsQuery = useQuery({
+    enabled: isOpen,
+    queryFn: getSettings,
+    queryKey: ["settings"]
   });
   const actions = actionsQuery.data ?? [];
   const selectedAction =
@@ -215,6 +222,13 @@ export function SettingsDialog(): React.JSX.Element {
                 }
                 isLoading={actionsQuery.isLoading}
                 onSelectAction={setSelectedActionId}
+                settingsError={
+                  settingsQuery.error instanceof Error ? settingsQuery.error.message : null
+                }
+                settingsIsLoading={settingsQuery.isLoading}
+                defaultWorkingDirectory={
+                  settingsQuery.data?.defaultWorkingDirectory ?? null
+                }
               />
             ) : (
               <ActionEditor
@@ -269,17 +283,28 @@ function SettingsSidebar({
 
 function ActionSettingsOverview({
   actions,
+  defaultWorkingDirectory,
   error,
   isLoading,
-  onSelectAction
+  onSelectAction,
+  settingsError,
+  settingsIsLoading
 }: {
   readonly actions: readonly ApiTaskActionDetails[];
+  readonly defaultWorkingDirectory: string | null;
   readonly error: string | null;
   readonly isLoading: boolean;
   readonly onSelectAction: (actionId: string) => void;
+  readonly settingsError: string | null;
+  readonly settingsIsLoading: boolean;
 }): React.JSX.Element {
   return (
     <section className="min-h-0 overflow-y-auto p-5">
+      <GeneralSettings
+        defaultWorkingDirectory={defaultWorkingDirectory}
+        error={settingsError}
+        isLoading={settingsIsLoading}
+      />
       {error == null ? null : <p className="mb-3 text-sm text-destructive">{error}</p>}
       {isLoading ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -287,6 +312,7 @@ function ActionSettingsOverview({
           <span>Loading actions...</span>
         </p>
       ) : null}
+      <h3 className="mb-3 mt-6 text-sm font-semibold text-foreground">Actions</h3>
       <div className="grid min-h-0 gap-2 md:grid-cols-2">
         {actions.map((action) => (
           <ActionSettingsCard
@@ -296,6 +322,82 @@ function ActionSettingsOverview({
           />
         ))}
       </div>
+    </section>
+  );
+}
+
+function GeneralSettings({
+  defaultWorkingDirectory,
+  error,
+  isLoading
+}: {
+  readonly defaultWorkingDirectory: string | null;
+  readonly error: string | null;
+  readonly isLoading: boolean;
+}): React.JSX.Element {
+  const [draft, setDraft] = useState(defaultWorkingDirectory ?? "");
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () =>
+      updateSettings({
+        defaultWorkingDirectory: draft.trim().length === 0 ? null : draft.trim()
+      }),
+    onSuccess: async (settings) => {
+      setDraft(settings.defaultWorkingDirectory ?? "");
+      await queryClient.invalidateQueries({ queryKey: ["settings"] });
+    }
+  });
+
+  useEffect(() => {
+    if (!mutation.isPending) {
+      setDraft(defaultWorkingDirectory ?? "");
+    }
+  }, [defaultWorkingDirectory, mutation.isPending]);
+
+  const mutationError =
+    mutation.error instanceof Error ? mutation.error.message : null;
+
+  return (
+    <section className="grid max-w-3xl gap-3 rounded-lg border border-border bg-secondary/20 p-4">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-foreground">General</h3>
+        {isLoading ? (
+          <span className="flex items-center gap-2 text-sm text-muted-foreground">
+            <LoaderCircle className="size-4 animate-spin" />
+            Loading
+          </span>
+        ) : null}
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="default-working-directory">Default working directory</Label>
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+          <Input
+            id="default-working-directory"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="/path/to/project"
+          />
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            className="shrink-0"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending ? (
+              <LoaderCircle className="size-4 animate-spin" />
+            ) : (
+              <Save className="size-4" />
+            )}
+            <span>Save</span>
+          </Button>
+        </div>
+      </div>
+      {error == null ? null : <p className="text-sm text-destructive">{error}</p>}
+      {mutationError == null ? null : (
+        <p className="text-sm text-destructive">{mutationError}</p>
+      )}
     </section>
   );
 }

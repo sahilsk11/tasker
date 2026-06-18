@@ -8,6 +8,7 @@ export type ApiTask = {
   readonly state: TaskState;
   readonly title: string;
   readonly updatedAt: string;
+  readonly workingDirectory: string | null;
 };
 
 export type TaskStateDefinition = {
@@ -105,6 +106,14 @@ export type ApiTicket = {
   readonly url: string | null;
 };
 
+export type ApiWorktree = {
+  readonly createdAt: string;
+  readonly createdBySessionId: string | null;
+  readonly id: string;
+  readonly path: string;
+  readonly taskId: string;
+};
+
 export type ApiTaskActionBooleanOption = {
   readonly default: boolean;
   readonly fields?: Record<
@@ -159,6 +168,7 @@ export type TaskResources = {
   readonly pullRequests: readonly ApiPullRequest[];
   readonly sessions: readonly ApiSession[];
   readonly tickets: readonly ApiTicket[];
+  readonly worktrees: readonly ApiWorktree[];
 };
 
 export type TaskBundle = {
@@ -217,6 +227,7 @@ export type CreateTaskInput = {
   readonly description: string | null;
   readonly parentTaskId: string | null;
   readonly title: string;
+  readonly workingDirectory?: string | null;
 };
 
 export type UpdateTaskInput = {
@@ -224,6 +235,15 @@ export type UpdateTaskInput = {
   readonly parentTaskId?: string | null;
   readonly state?: TaskState;
   readonly title?: string;
+  readonly workingDirectory?: string | null;
+};
+
+export type ApiSettings = {
+  readonly defaultWorkingDirectory: string | null;
+};
+
+export type UpdateSettingsInput = {
+  readonly defaultWorkingDirectory?: string | null;
 };
 
 export type CreateTicketInput = {
@@ -316,6 +336,21 @@ export async function listTaskActionSettings(): Promise<readonly ApiTaskActionDe
     readonly actions: readonly ApiTaskActionDetails[];
   }>("/actions");
   return actions;
+}
+
+export async function getSettings(): Promise<ApiSettings> {
+  const { settings } = await apiClient.get<{ readonly settings: ApiSettings }>(
+    "/settings"
+  );
+  return settings;
+}
+
+export async function updateSettings(input: UpdateSettingsInput): Promise<ApiSettings> {
+  const { settings } = await apiClient.patch<{ readonly settings: ApiSettings }>(
+    "/settings",
+    input
+  );
+  return settings;
 }
 
 export async function updateTaskActionSettings(

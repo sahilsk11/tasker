@@ -32,7 +32,8 @@ export class SqliteTaskRepository implements TaskRepository {
         id: randomUUID(),
         parent_task_id: input.parentTaskId,
         title: input.title,
-        updated_at: now
+        updated_at: now,
+        working_directory: input.workingDirectory ?? null
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -78,6 +79,7 @@ export class SqliteTaskRepository implements TaskRepository {
       readonly state?: TaskState;
       readonly title?: string;
       readonly updated_at: string;
+      readonly working_directory?: string | null;
     } = {
       updated_at: new Date().toISOString()
     };
@@ -89,7 +91,10 @@ export class SqliteTaskRepository implements TaskRepository {
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.parentTaskId !== undefined ? { parent_task_id: input.parentTaskId } : {}),
         ...(input.state !== undefined ? { state: input.state } : {}),
-        ...(input.title !== undefined ? { title: input.title } : {})
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.workingDirectory !== undefined
+          ? { working_directory: input.workingDirectory }
+          : {})
       })
       .where("id", "=", id)
       .returningAll()
@@ -140,6 +145,7 @@ function toTask(row: TaskRow): Task {
     parentTaskId: row.parent_task_id,
     state: row.state,
     title: row.title,
-    updatedAt: new Date(row.updated_at)
+    updatedAt: new Date(row.updated_at),
+    workingDirectory: row.working_directory
   };
 }

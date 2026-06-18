@@ -122,6 +122,57 @@ void test("task state can be manually updated", async () => {
   }
 });
 
+void test("task working directory persists on create and update", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-working-directory-"));
+  const app = await createApp({
+    databasePath: join(dir, "tasker.sqlite"),
+    linearApiKey: null
+  });
+
+  try {
+    const createResponse = await app.inject({
+      method: "POST",
+      payload: {
+        title: "Working directory task",
+        workingDirectory: `  ${dir}  `
+      },
+      url: "/tasks"
+    });
+    assert.equal(createResponse.statusCode, 201);
+    const created = (readJson(createResponse.body) as {
+      readonly task: {
+        readonly id: string;
+        readonly workingDirectory: string | null;
+      };
+    }).task;
+    assert.equal(created.workingDirectory, dir);
+
+    const readResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${created.id}`
+    });
+    assert.equal(readResponse.statusCode, 200);
+    const readTask = (readJson(readResponse.body) as {
+      readonly task: { readonly workingDirectory: string | null };
+    }).task;
+    assert.equal(readTask.workingDirectory, dir);
+
+    const clearResponse = await app.inject({
+      method: "PATCH",
+      payload: { workingDirectory: "" },
+      url: `/tasks/${created.id}`
+    });
+    assert.equal(clearResponse.statusCode, 200);
+    const cleared = (readJson(clearResponse.body) as {
+      readonly task: { readonly workingDirectory: string | null };
+    }).task;
+    assert.equal(cleared.workingDirectory, null);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 void test("task artifacts expose renderable local file content", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-artifact-content-"));
   const app = await createApp({

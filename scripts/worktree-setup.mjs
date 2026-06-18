@@ -75,7 +75,7 @@ const manifest = {
 await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
 console.info("");
-console.info("Tasker isolated dev environment is running.");
+console.info("Tasker worktree dev environment is running.");
 console.info(`API:      ${apiUrl}`);
 console.info(`Web:      ${webUrl}`);
 console.info(`SQLite:   ${databasePath}`);
@@ -123,6 +123,7 @@ async function run(command, args, options) {
 function spawnManaged(command, args, env) {
   const child = spawn(command, args, {
     cwd: root,
+    detached: true,
     env: {
       ...process.env,
       ...env
@@ -195,7 +196,11 @@ function shutdown(exitCode) {
   shuttingDown = true;
   for (const child of children) {
     if (child.exitCode == null && child.signalCode == null) {
-      child.kill("SIGTERM");
+      try {
+        process.kill(-child.pid, "SIGTERM");
+      } catch {
+        child.kill("SIGTERM");
+      }
     }
   }
   process.exitCode = exitCode;

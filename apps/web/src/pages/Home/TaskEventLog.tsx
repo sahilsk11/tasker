@@ -82,20 +82,21 @@ function TaskEventRow({
       type="button"
       onClick={onOpen}
       className={cn(
-        "grid min-h-11 min-w-0 grid-cols-[2.375rem_minmax(0,1fr)] items-start gap-[9px] py-1 text-left",
+        "grid min-h-11 min-w-0 grid-cols-[2.25rem_minmax(0,1fr)] items-start gap-2 pl-0 py-1 text-left",
+        "overflow-visible",
         "transition-colors hover:text-[#cdd0d6]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       )}
     >
-      <span className="flex min-w-0 flex-col items-start gap-1 pt-0.5">
-        <span className={cn("flex h-6 w-4 items-center justify-center", iconClassName)}>
+      <span className="flex w-9 flex-col items-center gap-1 pt-0.5">
+        <span className={cn("flex h-6 w-full items-center justify-center", iconClassName)}>
           <Icon className="size-4" />
         </span>
-        <span className="max-w-full truncate font-mono text-[10px] leading-none text-[#5c5f68]">
+        <span className="relative z-10 whitespace-nowrap font-mono text-[10px] leading-none text-[#5c5f68]">
           <ElapsedTime value={resource.updatedAt} />
         </span>
       </span>
-      <span className="grid min-w-0 gap-0.5">
+      <span className="grid min-w-0 gap-0.5 pt-0.5">
         <span className="flex min-w-0 items-center gap-1.5 text-sm text-[#a9abb2]">
           <span className="shrink-0 text-[#83868f]">
             {eventVerbs[resource.kind] ?? "Resource updated"}

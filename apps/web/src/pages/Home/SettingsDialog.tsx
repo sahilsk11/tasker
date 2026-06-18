@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   Code2,
   Eye,
+  GitBranch,
   ListTree,
   LoaderCircle,
   MapIcon,
@@ -54,6 +55,7 @@ import {
   ActionOptionsEditor,
   ActionOptionsPreview
 } from "./ActionOptionsEditor";
+import { LinearStateMappingSettings } from "./LinearStateMappingSettings";
 import {
   areOptionsValid,
   defaultPreviewOptionValue,
@@ -79,6 +81,8 @@ type RenderedPromptTemplate = {
   readonly value: string;
 };
 
+type SettingsSection = "actions" | "linear";
+
 const iconOptions = [
   { Icon: Search, label: "Search", value: "search" },
   { Icon: MapIcon, label: "Map", value: "map" },
@@ -95,6 +99,8 @@ const iconOptions = [
 
 export function SettingsDialog(): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedSection, setSelectedSection] =
+    useState<SettingsSection>("actions");
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ActionDraft | null>(null);
   const queryClient = useQueryClient();
@@ -129,6 +135,7 @@ export function SettingsDialog(): React.JSX.Element {
 
   useEffect(() => {
     if (!isOpen) {
+      setSelectedSection("actions");
       setSelectedActionId(null);
     }
   }, [isOpen]);
@@ -204,10 +211,19 @@ export function SettingsDialog(): React.JSX.Element {
           </DialogHeader>
           <div className="grid min-h-0 border-t border-border md:grid-cols-[15rem_minmax(0,1fr)]">
             <SettingsSidebar
-              isSelected={selectedActionId == null}
-              onSelectActions={() => setSelectedActionId(null)}
+              selectedSection={selectedSection}
+              onSelectActions={() => {
+                setSelectedSection("actions");
+                setSelectedActionId(null);
+              }}
+              onSelectLinear={() => {
+                setSelectedSection("linear");
+                setSelectedActionId(null);
+              }}
             />
-            {selectedAction == null ? (
+            {selectedSection === "linear" ? (
+              <LinearStateMappingSettings />
+            ) : selectedAction == null ? (
               <ActionSettingsOverview
                 actions={actions}
                 error={
@@ -242,28 +258,57 @@ export function SettingsDialog(): React.JSX.Element {
 }
 
 function SettingsSidebar({
-  isSelected,
-  onSelectActions
+  onSelectActions,
+  onSelectLinear,
+  selectedSection
 }: {
-  readonly isSelected: boolean;
   readonly onSelectActions: () => void;
+  readonly onSelectLinear: () => void;
+  readonly selectedSection: SettingsSection;
 }): React.JSX.Element {
   return (
     <aside className="min-h-0 border-b border-border bg-secondary/30 p-2 md:border-b-0 md:border-r">
-      <button
-        type="button"
-        className={cn(
-          "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
-          isSelected
-            ? "bg-background text-foreground shadow-sm"
-            : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
-        )}
+      <SettingsSidebarItem
+        Icon={Workflow}
+        isSelected={selectedSection === "actions"}
+        label="Actions"
         onClick={onSelectActions}
-      >
-        <Workflow className="size-4 text-muted-foreground" />
-        <span>Actions</span>
-      </button>
+      />
+      <SettingsSidebarItem
+        Icon={GitBranch}
+        isSelected={selectedSection === "linear"}
+        label="Linear"
+        onClick={onSelectLinear}
+      />
     </aside>
+  );
+}
+
+function SettingsSidebarItem({
+  Icon,
+  isSelected,
+  label,
+  onClick
+}: {
+  readonly Icon: typeof Workflow;
+  readonly isSelected: boolean;
+  readonly label: string;
+  readonly onClick: () => void;
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
+        isSelected
+          ? "bg-background text-foreground shadow-sm"
+          : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
+      )}
+      onClick={onClick}
+    >
+      <Icon className="size-4 text-muted-foreground" />
+      <span>{label}</span>
+    </button>
   );
 }
 

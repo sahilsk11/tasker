@@ -29,6 +29,7 @@ import type {
   TaskState,
   UpdateTaskInput
 } from "../domain/task.js";
+import { taskStateRanks } from "../domain/task.js";
 import type { TaskArtifactRepository } from "../repository/task-artifact.repository.js";
 import type { TaskPullRequestRepository } from "../repository/task-pull-request.repository.js";
 import type { TaskSessionRepository } from "../repository/task-session.repository.js";
@@ -89,6 +90,10 @@ export type ArtifactContent = {
   readonly sizeBytes: number;
 };
 
+export type TaskStateSyncService = {
+  readonly syncTaskState: (taskId: TaskId, taskState: TaskState) => Promise<void>;
+};
+
 const maxTextArtifactBytes = 1024 * 1024;
 const maxBinaryArtifactBytes = 10 * 1024 * 1024;
 
@@ -101,7 +106,8 @@ export class TaskService {
     private readonly tickets: TaskTicketRepository,
     private readonly actions: TaskActionRepository,
     private readonly publicApiBaseUrl: string,
-    private readonly sessionProviders = new TaskSessionProviderRegistry()
+    private readonly sessionProviders = new TaskSessionProviderRegistry(),
+    private readonly taskStateSync?: TaskStateSyncService
   ) {}
 
   public async addArtifact(
@@ -398,6 +404,10 @@ export class TaskService {
       throw new NotFoundError(`Task ${taskId} not found`);
     }
 
+    if (input.state !== undefined) {
+      await this.taskStateSync?.syncTaskState(taskId, task.state);
+    }
+
     return task;
   }
 
@@ -478,7 +488,18 @@ export class TaskService {
       return;
     }
 
-    await this.tasks.updateStateAtLeast(taskId, getTaskStateForArtifact(artifact));
+    const currentTask = await this.tasks.findById(taskId);
+    const updatedTask = await this.tasks.updateStateAtLeast(
+      taskId,
+      getTaskStateForArtifact(artifact)
+    );
+    if (
+      currentTask != null &&
+      updatedTask != null &&
+      taskStateRanks[currentTask.state] < taskStateRanks[updatedTask.state]
+    ) {
+      await this.taskStateSync?.syncTaskState(taskId, updatedTask.state);
+    }
   }
 }
 

@@ -3,12 +3,21 @@ import type { TaskArtifactLabel } from "../domain/task-artifact.js";
 import type { TaskState } from "../domain/task.js";
 
 export type Database = {
+  readonly linear_state_mappings: LinearStateMappingsTable;
   readonly task_actions: TaskActionsTable;
   readonly task_artifacts: TaskArtifactsTable;
   readonly task_pull_requests: TaskPullRequestsTable;
   readonly task_sessions: TaskSessionsTable;
   readonly task_tickets: TaskTicketsTable;
   readonly tasks: TasksTable;
+};
+
+export type LinearStateMappingsTable = {
+  readonly created_at: Generated<string>;
+  readonly linear_state_id: string;
+  readonly task_state: TaskState;
+  readonly team_id: string;
+  readonly updated_at: Generated<string>;
 };
 
 export type TaskActionsTable = {
@@ -71,6 +80,7 @@ export type TaskTicketsTable = {
   readonly url: string | null;
 };
 
+export type LinearStateMappingRow = Selectable<LinearStateMappingsTable>;
 export type TaskActionRow = Selectable<TaskActionsTable>;
 export type TaskArtifactRow = Selectable<TaskArtifactsTable>;
 export type TaskPullRequestRow = Selectable<TaskPullRequestsTable>;

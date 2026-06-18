@@ -275,6 +275,16 @@ export type LinearOptions = {
   readonly teams: readonly LinearTeamOption[];
 };
 
+export type LinearStateMapping = {
+  readonly createdAt: string;
+  readonly linearStateId: string;
+  readonly taskState: TaskState;
+  readonly teamId: string;
+  readonly updatedAt: string;
+};
+
+export type LinearStateMappingInput = Record<TaskState, string | null>;
+
 export type CreateLinearTicketInput = {
   readonly description: string | null;
   readonly projectId: string | null;
@@ -433,6 +443,25 @@ export async function getLinearOptions(): Promise<LinearOptions> {
     "/linear/options"
   );
   return linear;
+}
+
+export async function getLinearStateMappings(): Promise<
+  readonly LinearStateMapping[]
+> {
+  const { mappings } = await apiClient.get<{
+    readonly mappings: readonly LinearStateMapping[];
+  }>("/linear/state-mappings");
+  return mappings;
+}
+
+export async function saveLinearStateMappings(
+  teamId: string,
+  mappings: LinearStateMappingInput
+): Promise<readonly LinearStateMapping[]> {
+  const { mappings: savedMappings } = await apiClient.put<{
+    readonly mappings: readonly LinearStateMapping[];
+  }>(`/linear/state-mappings/${teamId}`, { mappings });
+  return savedMappings;
 }
 
 export async function resolveLinearIssue(

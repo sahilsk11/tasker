@@ -2,6 +2,12 @@ export type { CreateTaskArtifactInput, TaskArtifact, TaskArtifactId } from "./ta
 export type { TaskAction, TaskActionPromptContext, TaskActionRecord } from "./task-action.js";
 export type { TaskActionOptions } from "./task-action-options.js";
 export type {
+  LinearStateId,
+  LinearStateMapping,
+  LinearTeamId,
+  UpdateLinearStateMappingsInput
+} from "./linear-state-mapping.js";
+export type {
   CreateTaskPullRequestInput,
   TaskPullRequest,
   TaskPullRequestId

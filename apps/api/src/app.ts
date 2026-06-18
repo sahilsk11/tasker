@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { ZodError } from "zod";
 import { createDb } from "./db/client.js";
 import { migrate } from "./db/migrate.js";
+import { SqliteLinearStateMappingRepository } from "./repository/linear-state-mapping.repository.js";
 import { SqliteTaskActionRepository } from "./repository/task-action.repository.js";
 import { SqliteTaskArtifactRepository } from "./repository/task-artifact.repository.js";
 import { SqliteTaskPullRequestRepository } from "./repository/task-pull-request.repository.js";
@@ -20,6 +21,7 @@ import {
   KannaSessionProvider,
   type KannaSessionProviderOptions
 } from "./service/kanna-session-provider.js";
+import { LinearStateSyncService } from "./service/linear-state-sync.service.js";
 import { LinearService, type LinearServiceOptions } from "./service/linear.service.js";
 import { TaskBreakdownService } from "./service/task-breakdown.service.js";
 import {
@@ -73,28 +75,36 @@ export async function createApp(options: CreateAppOptions) {
     ...(options.sessionProviders ?? [])
   ];
   const taskRepository = new SqliteTaskRepository(db);
+  const taskTicketRepository = new SqliteTaskTicketRepository(db);
   const publicApiBaseUrl = options.publicApiBaseUrl ?? "http://127.0.0.1:3000";
   const sessionProviders = new TaskSessionProviderRegistry(providers, {
     defaultLaunchProvider: options.agentRunProvider ?? null
   });
+  const linearService = new LinearService(options.linearApiKey, options.linear);
+  const linearStateMappingRepository = new SqliteLinearStateMappingRepository(db);
+  const server = Fastify({ logger: true });
+  const linearStateSyncService = new LinearStateSyncService(
+    linearService,
+    linearStateMappingRepository,
+    taskTicketRepository,
+    { logger: server.log }
+  );
   const taskService = new TaskService(
     taskRepository,
     new SqliteTaskArtifactRepository(db),
     new SqliteTaskPullRequestRepository(db),
     new SqliteTaskSessionRepository(db),
-    new SqliteTaskTicketRepository(db),
+    taskTicketRepository,
     new SqliteTaskActionRepository(db),
     publicApiBaseUrl,
-    sessionProviders
+    sessionProviders,
+    linearStateSyncService
   );
   const taskBreakdownService = new TaskBreakdownService(
     taskRepository,
     publicApiBaseUrl
   );
-  const linearService = new LinearService(options.linearApiKey, options.linear);
   const githubService = new GitHubService(options.github);
-
-  const server = Fastify({ logger: true });
 
   server.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {
@@ -134,7 +144,12 @@ export async function createApp(options: CreateAppOptions) {
 
       registerTaskResolver(api, taskService);
       registerTaskBreakdownResolver(api, taskBreakdownService);
-      registerLinearResolver(api, taskService, linearService);
+      registerLinearResolver(
+        api,
+        taskService,
+        linearService,
+        linearStateMappingRepository
+      );
       registerGitHubResolver(api, githubService);
       done();
     },

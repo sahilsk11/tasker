@@ -60,6 +60,28 @@ const createIssueSchema = z.object({
   })
 });
 
+const updateIssueStateSchema = z.object({
+  issueUpdate: z.object({
+    issue: z.object({
+      id: z.string(),
+      identifier: z.string(),
+      state: z.object({
+        id: z.string(),
+        name: z.string(),
+        position: z.number(),
+        team: z.object({
+          id: z.string(),
+          key: z.string(),
+          name: z.string()
+        }),
+        type: z.string()
+      }),
+      url: z.string().url()
+    }),
+    success: z.boolean()
+  })
+});
+
 const linearIssuesSchema = z.object({
   issues: z.object({
     nodes: z.array(
@@ -122,6 +144,11 @@ export type CreateLinearIssueInput = {
   readonly stateId: string;
   readonly teamId: string;
   readonly title: string;
+};
+
+export type UpdateLinearIssueStateInput = {
+  readonly issueId: string;
+  readonly stateId: string;
 };
 
 export type LinearServiceOptions = {
@@ -321,6 +348,62 @@ export class LinearService {
       },
       url: issue.url
     }));
+  }
+
+  public async updateIssueState(
+    input: UpdateLinearIssueStateInput
+  ): Promise<LinearIssueStatus> {
+    if (this.apiKey == null) {
+      throw new BadRequestError("LINEAR_API_KEY is not configured.");
+    }
+
+    const data = await this.request(
+      `mutation TaskerUpdateLinearIssueState($id: String!, $input: IssueUpdateInput!) {
+        issueUpdate(id: $id, input: $input) {
+          success
+          issue {
+            id
+            identifier
+            url
+            state {
+              id
+              name
+              position
+              type
+              team {
+                id
+                key
+                name
+              }
+            }
+          }
+        }
+      }`,
+      {
+        id: input.issueId,
+        input: {
+          stateId: input.stateId
+        }
+      }
+    );
+    const parsed = updateIssueStateSchema.parse(data);
+
+    if (!parsed.issueUpdate.success) {
+      throw new BadRequestError("Linear did not update the issue state.");
+    }
+
+    return {
+      id: parsed.issueUpdate.issue.id,
+      identifier: parsed.issueUpdate.issue.identifier,
+      state: {
+        id: parsed.issueUpdate.issue.state.id,
+        name: parsed.issueUpdate.issue.state.name,
+        position: parsed.issueUpdate.issue.state.position,
+        team: parsed.issueUpdate.issue.state.team,
+        type: parsed.issueUpdate.issue.state.type
+      },
+      url: parsed.issueUpdate.issue.url
+    };
   }
 
   public async getIssue(identifier: string): Promise<LinearIssueDetails> {

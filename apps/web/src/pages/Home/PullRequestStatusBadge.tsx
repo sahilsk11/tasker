@@ -3,15 +3,17 @@ import { cn } from "@/lib/utils";
 import type { PullRequestStatus, PullRequestStatusResult } from "@/api/pull-requests";
 
 export function PullRequestStatusBadge({
+  className,
   status
 }: {
+  readonly className?: string;
   readonly status: PullRequestStatusResult | null;
 }): React.JSX.Element {
   const value = status?.status ?? "unknown";
 
   return (
     <Badge
-      className={cn("border", getStatusClassName(value))}
+      className={cn("border", getStatusClassName(value), className)}
       variant="outline"
       title={status?.error ?? undefined}
     >

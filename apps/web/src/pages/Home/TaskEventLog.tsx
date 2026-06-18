@@ -82,17 +82,17 @@ function TaskEventRow({
       type="button"
       onClick={onOpen}
       className={cn(
-        "grid min-h-11 min-w-0 grid-cols-[2.375rem_minmax(0,1fr)] items-start gap-[9px] rounded-md border border-transparent px-2 py-1 text-left",
-        "transition-colors hover:border-[#2c2d34] hover:bg-[#16171c] hover:text-[#cdd0d6]",
+        "grid min-h-11 min-w-0 grid-cols-[2.375rem_minmax(0,1fr)] items-start gap-[9px] py-1 text-left",
+        "transition-colors hover:text-[#cdd0d6]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       )}
     >
-      <span className="flex min-w-0 flex-col items-center gap-1 pt-0.5">
-        <span className={cn("flex size-6 items-center justify-center", iconClassName)}>
+      <span className="flex min-w-0 flex-col items-start gap-1 pt-0.5">
+        <span className={cn("flex h-6 w-4 items-center justify-center", iconClassName)}>
           <Icon className="size-4" />
         </span>
         <span className="max-w-full truncate font-mono text-[10px] leading-none text-[#5c5f68]">
-          {resource.updatedAt}
+          <ElapsedTime value={resource.updatedAt} />
         </span>
       </span>
       <span className="grid min-w-0 gap-0.5">
@@ -113,16 +113,7 @@ function getEventTitle(
   pullRequestStatuses: PullRequestStatusMap
 ): ReactNode {
   if (resource.kind === "pr") {
-    const status = getPullRequestStatus(resource, pullRequestStatuses);
-
-    return (
-      <>
-        <span className="truncate">
-          {formatPullRequestTitle(resource, pullRequestStatuses)}
-        </span>
-        <PullRequestStatusBadge status={status} />
-      </>
-    );
+    return formatPullRequestTitle(resource, pullRequestStatuses);
   }
 
   if (resource.kind === "artifact") {
@@ -138,9 +129,10 @@ function getEventNote(
 ): ReactNode | null {
   if (resource.kind === "pr") {
     return (
-      <span className="block min-w-0 truncate text-sm text-[#83868f]">
-        {formatPullRequestReference(resource, pullRequestStatuses)}
-      </span>
+      <PullRequestStatusBadge
+        className="h-5 w-fit shrink-0 px-2 text-xs"
+        status={getPullRequestStatus(resource, pullRequestStatuses)}
+      />
     );
   }
 
@@ -150,12 +142,7 @@ function getEventNote(
     }
 
     return (
-      <Badge
-        className="h-5 w-fit rounded-md border-[#1c1d22] bg-[#1a1b21] px-1.5 text-xs text-[#c2c4ca]"
-        variant="secondary"
-      >
-        {resource.metaLabel}
-      </Badge>
+      <ResourceChip>{capitalize(resource.metaLabel)}</ResourceChip>
     );
   }
 
@@ -170,6 +157,29 @@ function getEventNote(
   return (
     <span className="block min-w-0 truncate text-sm text-[#83868f]">
       {resource.state}
+    </span>
+  );
+}
+
+function ResourceChip({ children }: { readonly children: ReactNode }): React.JSX.Element {
+  return (
+    <Badge className="h-5 w-fit shrink-0 px-2 text-xs" variant="secondary">
+      {children}
+    </Badge>
+  );
+}
+
+function ElapsedTime({ value }: { readonly value: string }): React.JSX.Element {
+  const [amount, unit] = value.split(/\s+/, 2);
+
+  if (amount == null || unit == null) {
+    return <>{value}</>;
+  }
+
+  return (
+    <span className="inline-flex items-baseline gap-0.5">
+      <span>{amount}</span>
+      <span>{unit}</span>
     </span>
   );
 }
@@ -200,16 +210,6 @@ function formatPullRequestTitle(
   return getPullRequestStatus(resource, pullRequestStatuses)?.title ?? resource.label;
 }
 
-function formatPullRequestReference(
-  resource: Resource,
-  pullRequestStatuses: PullRequestStatusMap
-): string {
-  const status = getPullRequestStatus(resource, pullRequestStatuses);
-  const repository = status?.repository ?? resource.pullRequestRepository;
-  const number = status?.number ?? resource.pullRequestNumber;
-  if (repository == null) {
-    return number == null ? "Pull request" : `#${String(number)}`;
-  }
-
-  return number == null ? repository : `${repository}#${String(number)}`;
+function capitalize(value: string): string {
+  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 }

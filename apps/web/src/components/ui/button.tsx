@@ -4,7 +4,7 @@ import { type ButtonHTMLAttributes, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
   {
     defaultVariants: {
       size: "md",
@@ -18,8 +18,8 @@ const buttonVariants = cva(
       },
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        ghost: "text-muted-foreground hover:bg-secondary hover:text-foreground",
-        outline: "border border-border bg-transparent text-foreground hover:bg-secondary"
+        ghost: "text-muted-foreground hover:bg-muted hover:text-secondary-foreground",
+        outline: "border border-border bg-transparent text-secondary-foreground hover:border-input hover:bg-muted"
       }
     }
   }

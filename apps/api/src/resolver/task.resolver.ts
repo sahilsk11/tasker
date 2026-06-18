@@ -12,7 +12,7 @@ import type { CreateTaskPullRequestInput } from "../domain/task-pull-request.js"
 import type { CreateTaskTicketInput } from "../domain/task-ticket.js";
 import type { UpdateTaskActionInput } from "../domain/task-action.js";
 import { taskStateDefinitions, taskStates } from "../domain/task.js";
-import type { UpdateTaskInput } from "../domain/task.js";
+import type { CreateTaskInput, UpdateTaskInput } from "../domain/task.js";
 import type { TaskService } from "../service/task.service.js";
 
 const taskIdParamsSchema = z.object({
@@ -48,14 +48,16 @@ const runSessionPromptSchema = z.object({
 const createTaskSchema = z.object({
   description: z.string().nullable().default(null),
   parentTaskId: z.string().nullable().default(null),
-  title: z.string().min(1)
+  title: z.string().min(1),
+  workingDirectory: z.string().nullable().optional()
 });
 
 const updateTaskSchema = z.object({
   description: z.string().nullable().optional(),
   parentTaskId: z.string().nullable().optional(),
   state: z.enum(taskStates).optional(),
-  title: z.string().min(1).optional()
+  title: z.string().min(1).optional(),
+  workingDirectory: z.string().nullable().optional()
 });
 
 const updateTaskActionSchema = z
@@ -129,7 +131,7 @@ export function registerTaskResolver(
   });
 
   server.post("/tasks", async (request, reply) => {
-    const task = await taskService.createTask(createTaskSchema.parse(request.body));
+    const task = await taskService.createTask(parseCreateTaskInput(request.body));
     return reply.code(201).send({ task });
   });
 
@@ -261,6 +263,18 @@ function parseCreateArtifactInput(body: unknown): CreateTaskArtifactInput {
   };
 }
 
+function parseCreateTaskInput(body: unknown): CreateTaskInput {
+  const parsed = createTaskSchema.parse(body);
+  return {
+    description: parsed.description,
+    parentTaskId: parsed.parentTaskId,
+    title: parsed.title,
+    ...(parsed.workingDirectory !== undefined
+      ? { workingDirectory: normalizeOptionalPath(parsed.workingDirectory) }
+      : {})
+  };
+}
+
 function parseCreatePullRequestInput(body: unknown): CreateTaskPullRequestInput {
   return createPullRequestSchema.parse(body);
 }
@@ -330,8 +344,16 @@ function parseUpdateTaskInput(body: unknown): UpdateTaskInput {
     ...(parsed.description !== undefined ? { description: parsed.description } : {}),
     ...(parsed.parentTaskId !== undefined ? { parentTaskId: parsed.parentTaskId } : {}),
     ...(parsed.state !== undefined ? { state: parsed.state } : {}),
-    ...(parsed.title !== undefined ? { title: parsed.title } : {})
+    ...(parsed.title !== undefined ? { title: parsed.title } : {}),
+    ...(parsed.workingDirectory !== undefined
+      ? { workingDirectory: normalizeOptionalPath(parsed.workingDirectory) }
+      : {})
   };
+}
+
+function normalizeOptionalPath(value: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed == null || trimmed.length === 0 ? null : trimmed;
 }
 
 function parseUpdateTaskActionInput(body: unknown): UpdateTaskActionInput {

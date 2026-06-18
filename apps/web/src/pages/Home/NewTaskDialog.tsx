@@ -33,6 +33,7 @@ export function NewTaskDialog(): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [workingDirectory, setWorkingDirectory] = useState("");
   const [ticket, setTicket] = useState("");
   const [resolvedTicket, setResolvedTicket] = useState<LinearIssueDetails | null>(null);
   const [ticketError, setTicketError] = useState<string | null>(null);
@@ -136,7 +137,8 @@ export function NewTaskDialog(): React.JSX.Element {
       const task = await createTask({
         description: normalizeOptionalText(description),
         parentTaskId: null,
-        title: title.trim()
+        title: title.trim(),
+        workingDirectory: normalizeOptionalText(workingDirectory)
       });
 
       if (resolvedTicket != null) {
@@ -190,6 +192,7 @@ export function NewTaskDialog(): React.JSX.Element {
   function resetForm(): void {
     setTitle("");
     setDescription("");
+    setWorkingDirectory("");
     setTicket("");
     setResolvedTicket(null);
     setTicketError(null);
@@ -261,6 +264,15 @@ export function NewTaskDialog(): React.JSX.Element {
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 placeholder="What should the agent do?"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="task-working-directory">Working directory</Label>
+              <Input
+                id="task-working-directory"
+                value={workingDirectory}
+                onChange={(event) => setWorkingDirectory(event.target.value)}
+                placeholder="/path/to/project"
               />
             </div>
             <label

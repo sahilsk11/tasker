@@ -28,12 +28,14 @@ export type Task = {
   readonly state: TaskState;
   readonly title: string;
   readonly updatedAt: Date;
+  readonly workingDirectory: string | null;
 };
 
 export type CreateTaskInput = {
   readonly description: string | null;
   readonly parentTaskId: TaskId | null;
   readonly title: string;
+  readonly workingDirectory?: string | null;
 };
 
 export type UpdateTaskInput = {
@@ -41,4 +43,5 @@ export type UpdateTaskInput = {
   readonly parentTaskId?: TaskId | null;
   readonly state?: TaskState;
   readonly title?: string;
+  readonly workingDirectory?: string | null;
 };

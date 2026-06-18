@@ -32,6 +32,7 @@ export type TasksTable = {
   readonly state: Generated<TaskState>;
   readonly title: string;
   readonly updated_at: Generated<string>;
+  readonly working_directory: string | null;
 };
 
 export type TaskArtifactsTable = {

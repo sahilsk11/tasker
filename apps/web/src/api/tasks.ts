@@ -8,6 +8,7 @@ export type ApiTask = {
   readonly state: TaskState;
   readonly title: string;
   readonly updatedAt: string;
+  readonly workingDirectory: string | null;
 };
 
 export type TaskStateDefinition = {
@@ -217,6 +218,7 @@ export type CreateTaskInput = {
   readonly description: string | null;
   readonly parentTaskId: string | null;
   readonly title: string;
+  readonly workingDirectory?: string | null;
 };
 
 export type UpdateTaskInput = {
@@ -224,6 +226,7 @@ export type UpdateTaskInput = {
   readonly parentTaskId?: string | null;
   readonly state?: TaskState;
   readonly title?: string;
+  readonly workingDirectory?: string | null;
 };
 
 export type CreateTicketInput = {

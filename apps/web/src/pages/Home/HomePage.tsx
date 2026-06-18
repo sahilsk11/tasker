@@ -13,11 +13,7 @@ import { NewTaskDialog } from "./NewTaskDialog";
 import { SettingsDialog } from "./SettingsDialog";
 import { TaskGrid, TaskGridSkeleton } from "./TaskGrid";
 import { TaskToolbar } from "./TaskToolbar";
-import {
-  getVisibleTaskBundles,
-  type TaskFilter,
-  type TaskSort
-} from "./task-filtering";
+import { getVisibleTaskBundles, type TaskFilter } from "./task-filtering";
 import { usePullRequestStatuses } from "./use-pull-request-statuses";
 
 export function HomePage(): React.JSX.Element {
@@ -28,7 +24,6 @@ export function HomePage(): React.JSX.Element {
   const [linearStateIds, setLinearStateIds] = useState<readonly string[]>([]);
   const [linearTeamId, setLinearTeamId] = useState("");
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<TaskSort>("updated-desc");
   const tasksQuery = useQuery({
     queryFn: listTaskBundles,
     queryKey: ["tasks"]
@@ -69,8 +64,7 @@ export function HomePage(): React.JSX.Element {
             linearAllStateIds: selectedTeamStateIds,
             linearIssueStatuses: linearStatusesQuery.data ?? [],
             linearStateIds,
-            query,
-            sort
+            query
           })
         : [],
     [
@@ -78,7 +72,6 @@ export function HomePage(): React.JSX.Element {
       linearStateIds,
       linearStatusesQuery.data,
       query,
-      sort,
       selectedTeamStateIds,
       tasksQuery.data,
       tasksQuery.isSuccess
@@ -108,8 +101,8 @@ export function HomePage(): React.JSX.Element {
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <SettingsDialog />
             <NewTaskDialog />
+            <SettingsDialog />
           </div>
         </header>
 
@@ -140,9 +133,7 @@ export function HomePage(): React.JSX.Element {
                 setHasLinearSelectionChanged(false);
               }}
               onQueryChange={setQuery}
-              onSortChange={setSort}
               query={query}
-              sort={sort}
             />
             <TaskGrid
               bundles={visibleBundles}

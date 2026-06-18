@@ -1,6 +1,4 @@
-import { useState } from "react";
 import {
-  ArrowUpDown,
   Check,
   ChevronDown,
   Search,
@@ -13,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import type { TaskFilter, TaskSort } from "./task-filtering";
+import type { TaskFilter } from "./task-filtering";
 
 const filters: ReadonlyArray<{ readonly label: string; readonly value: TaskFilter }> = [
   { label: "All tasks", value: "all" },
@@ -21,13 +19,6 @@ const filters: ReadonlyArray<{ readonly label: string; readonly value: TaskFilte
   { label: "Subtasks", value: "subtask" },
   { label: "Has PR", value: "has-pr" },
   { label: "Has ticket", value: "has-ticket" }
-];
-
-const sorts: ReadonlyArray<{ readonly label: string; readonly value: TaskSort }> = [
-  { label: "Recently updated", value: "updated-desc" },
-  { label: "Newest", value: "created-desc" },
-  { label: "Oldest", value: "created-asc" },
-  { label: "Title", value: "title-asc" }
 ];
 
 export function TaskToolbar({
@@ -43,9 +34,7 @@ export function TaskToolbar({
   onLinearStateIdsChange,
   onLinearTeamChange,
   onQueryChange,
-  onSortChange,
-  query,
-  sort
+  query
 }: {
   readonly filter: TaskFilter;
   readonly isFilterOpen: boolean;
@@ -59,11 +48,8 @@ export function TaskToolbar({
   readonly onLinearStateIdsChange: (stateIds: readonly string[]) => void;
   readonly onLinearTeamChange: (teamId: string) => void;
   readonly onQueryChange: (query: string) => void;
-  readonly onSortChange: (sort: TaskSort) => void;
   readonly query: string;
-  readonly sort: TaskSort;
 }): React.JSX.Element {
-  const [isSortOpen, setIsSortOpen] = useState(false);
   const selectedLinearTeam =
     linearTeams.find((team) => team.id === linearTeamId) ?? linearTeams[0] ?? null;
   const hasPartialLinearStatusFilter =
@@ -72,8 +58,6 @@ export function TaskToolbar({
     linearStateIds.length !== selectedLinearTeam.states.length;
   const activeFilterCount =
     (filter === "all" ? 0 : 1) + (hasPartialLinearStatusFilter ? 1 : 0);
-  const selectedSortLabel =
-    sorts.find((option) => option.value === sort)?.label ?? "Recently updated";
 
   return (
     <section className="mx-auto flex w-full max-w-[76rem] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -89,17 +73,6 @@ export function TaskToolbar({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <SortMenu
-          isOpen={isSortOpen}
-          selectedLabel={selectedSortLabel}
-          sort={sort}
-          onOpenChange={setIsSortOpen}
-          onSortChange={(nextSort) => {
-            onSortChange(nextSort);
-            setIsSortOpen(false);
-          }}
-        />
-
         <Popover open={isFilterOpen} onOpenChange={onFilterOpenChange}>
           <PopoverTrigger asChild>
             <Button variant="outline" className="shrink-0">
@@ -129,38 +102,6 @@ export function TaskToolbar({
         </Popover>
       </div>
     </section>
-  );
-}
-
-function SortMenu({
-  isOpen,
-  onOpenChange,
-  onSortChange,
-  selectedLabel,
-  sort
-}: {
-  readonly isOpen: boolean;
-  readonly onOpenChange: (isOpen: boolean) => void;
-  readonly onSortChange: (sort: TaskSort) => void;
-  readonly selectedLabel: string;
-  readonly sort: TaskSort;
-}): React.JSX.Element {
-  return (
-    <Popover open={isOpen} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className="max-w-36 shrink-0 justify-between gap-2 sm:max-w-44"
-        >
-          <ArrowUpDown className="size-4" />
-          <span className="truncate">{selectedLabel}</span>
-          <ChevronDown className="size-4 text-muted-foreground" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-56 p-2">
-        <SegmentedOptions options={sorts} value={sort} onChange={onSortChange} />
-      </PopoverContent>
-    </Popover>
   );
 }
 

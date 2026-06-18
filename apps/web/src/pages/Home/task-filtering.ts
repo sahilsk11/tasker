@@ -3,15 +3,12 @@ import { getPullRequestsForBundle } from "./task-resource-groups";
 
 export type TaskFilter = "all" | "has-pr" | "has-ticket" | "root" | "subtask";
 
-export type TaskSort = "created-asc" | "created-desc" | "title-asc" | "updated-desc";
-
 export type TaskViewOptions = {
   readonly filter: TaskFilter;
   readonly linearAllStateIds: readonly string[];
   readonly linearIssueStatuses: readonly LinearIssueStatus[];
   readonly linearStateIds: readonly string[];
   readonly query: string;
-  readonly sort: TaskSort;
 };
 
 type TaskSearchDocument = {
@@ -31,7 +28,9 @@ export function getVisibleTaskBundles(
     .filter((document) => matchesQuery(document, options.query))
     .map((document) => document.bundle);
 
-  return [...matched].sort(getTaskComparator(options.sort));
+  return [...matched].sort((left, right) =>
+    compareDate(right.task.updatedAt, left.task.updatedAt)
+  );
 }
 
 function matchesLinearStatus(bundle: TaskBundle, options: TaskViewOptions): boolean {
@@ -93,19 +92,6 @@ function toSearchDocument(bundle: TaskBundle): TaskSearchDocument {
     bundle,
     title: bundle.task.title.toLocaleLowerCase()
   };
-}
-
-function getTaskComparator(sort: TaskSort): (left: TaskBundle, right: TaskBundle) => number {
-  switch (sort) {
-    case "created-asc":
-      return (left, right) => compareDate(left.task.createdAt, right.task.createdAt);
-    case "created-desc":
-      return (left, right) => compareDate(right.task.createdAt, left.task.createdAt);
-    case "title-asc":
-      return (left, right) => left.task.title.localeCompare(right.task.title);
-    case "updated-desc":
-      return (left, right) => compareDate(right.task.updatedAt, left.task.updatedAt);
-  }
 }
 
 function compareDate(left: string, right: string): number {

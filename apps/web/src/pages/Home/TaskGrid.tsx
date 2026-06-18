@@ -2,11 +2,9 @@ import { useState } from "react";
 import {
   AlertTriangle,
   Check,
-  ChevronDown,
   FileText,
   GitPullRequest,
-  MessageSquareText,
-  Workflow
+  MessageSquareText
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -161,7 +159,6 @@ function TaskCard({
   const [pendingDuplicateAction, setPendingDuplicateAction] =
     useState<PendingDuplicateAction | null>(null);
   const [showAllActions, setShowAllActions] = useState(false);
-  const [areSubtasksOpen, setAreSubtasksOpen] = useState(bundle.children.length > 0);
   const selectedGroup =
     groupedResources.find((group) => group.kind === selectedKind) ?? null;
   const stateMutation = useMutation({
@@ -338,17 +335,10 @@ function TaskCard({
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <ResourceCounters groups={groupedResources} onOpen={setSelectedKind} />
             <SubtaskToggle
-              isOpen={areSubtasksOpen}
-              onOpenChange={setAreSubtasksOpen}
+              onOpen={() => setSelectedKind("subtask")}
               subtasks={bundle.children}
             />
           </div>
-          <SubtaskList
-            isOpen={areSubtasksOpen}
-            onOpen={() => setSelectedKind("subtask")}
-            stateDefinitions={taskStateDefinitions}
-            subtasks={bundle.children}
-          />
         </footer>
       </Card>
 
@@ -612,12 +602,10 @@ function ResourceCounters({
 }
 
 function SubtaskToggle({
-  isOpen,
-  onOpenChange,
+  onOpen,
   subtasks
 }: {
-  readonly isOpen: boolean;
-  readonly onOpenChange: (isOpen: boolean) => void;
+  readonly onOpen: () => void;
   readonly subtasks: readonly ApiTask[];
 }): React.JSX.Element {
   if (subtasks.length === 0) {
@@ -635,9 +623,8 @@ function SubtaskToggle({
       type="button"
       variant="outline"
       className="h-9 min-w-0 justify-between gap-3 rounded-[9px] border-[#24252b] bg-[#101116] px-3 text-sm font-semibold text-[#cdd0d6] hover:border-[#32333a] hover:bg-[#16171c] hover:text-[#f1f2f4] sm:min-w-64"
-      onClick={() => onOpenChange(!isOpen)}
-      aria-expanded={isOpen}
-      title="Toggle subtasks"
+      onClick={onOpen}
+      title="Open subtasks"
     >
       <span className="flex min-w-0 items-center gap-2">
         <SubtaskProgress value={doneCount} total={subtasks.length} />
@@ -645,12 +632,6 @@ function SubtaskToggle({
           {doneCount}/{subtasks.length} subtasks
         </span>
       </span>
-      <ChevronDown
-        className={cn(
-          "size-4 shrink-0 text-[#8c909a] transition-transform",
-          isOpen ? "rotate-180" : ""
-        )}
-      />
     </Button>
   );
 }
@@ -677,76 +658,6 @@ function SubtaskProgress({
         />
       ))}
     </span>
-  );
-}
-
-function SubtaskList({
-  isOpen,
-  onOpen,
-  stateDefinitions,
-  subtasks
-}: {
-  readonly isOpen: boolean;
-  readonly onOpen: () => void;
-  readonly stateDefinitions: readonly TaskStateDefinition[];
-  readonly subtasks: readonly ApiTask[];
-}): React.JSX.Element | null {
-  if (!isOpen || subtasks.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="mt-3 grid min-w-0 gap-1.5">
-      {subtasks.map((subtask, index) => {
-        const isDone = subtask.state === "done";
-        const stateLabel = getTaskStateLabel(subtask.state, stateDefinitions);
-
-        return (
-          <button
-            key={subtask.id}
-            type="button"
-            onClick={onOpen}
-            className={cn(
-              "grid min-h-11 min-w-0 grid-cols-[1rem_minmax(0,1fr)_auto] items-center gap-3 rounded-[8px] px-3 text-left",
-              "transition-colors hover:bg-[#17181e]",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              subtask.state === "review" ? "bg-[#191922]" : ""
-            )}
-          >
-            <span
-              className={cn(
-                "size-2 rounded-full",
-                taskStateMetaByState[subtask.state].iconClassName
-              )}
-              aria-hidden="true"
-            />
-            <span
-              className={cn(
-                "min-w-0 truncate text-sm font-medium text-[#cdd0d6]",
-                isDone ? "text-[#8c909a] line-through" : ""
-              )}
-              title={subtask.title}
-            >
-              {subtask.title}
-            </span>
-            <span className="flex shrink-0 items-center gap-3">
-              <Badge
-                variant="outline"
-                className={cn(
-                  "hidden h-7 rounded-[7px] px-2 text-xs font-semibold sm:inline-flex",
-                  taskStateMetaByState[subtask.state].iconClassName
-                )}
-              >
-                {stateLabel}
-              </Badge>
-              <span className="font-mono text-xs text-[#6b6e76]">
-                .{String(index + 1)}
-              </span>
-            </span>
-          </button>
-        );
-      })}
-    </div>
   );
 }
 

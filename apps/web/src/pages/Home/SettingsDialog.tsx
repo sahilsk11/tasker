@@ -1,4 +1,9 @@
-import { renderTaskActionTemplate } from "@tasker/core";
+import {
+  knownPromptPlaceholders,
+  renderTaskActionTemplate,
+  type KnownPromptPlaceholder,
+  type TaskActionPromptContext
+} from "@tasker/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ClipboardCheck,
@@ -49,6 +54,11 @@ type ActionDraft = {
   readonly options: ApiTaskActionOptions | null;
   readonly promptTemplate: string;
   readonly sortOrder: string;
+};
+
+type RenderedPromptTemplate = {
+  readonly error: string | null;
+  readonly value: string;
 };
 
 const iconOptions = [
@@ -105,30 +115,29 @@ export function SettingsDialog(): React.JSX.Element {
     }
   }, [isOpen]);
 
-  const preview = useMemo(() => {
+  const previewContext = useMemo<TaskActionPromptContext | null>(() => {
     if (draft == null || selectedAction == null) {
+      return null;
+    }
+
+    return buildPreviewContext({
+      actionId: selectedAction.id,
+      label: draft.label,
+      worktreeEnabled: draft.options?.worktree?.default === true
+    });
+  }, [draft, selectedAction]);
+
+  const preview = useMemo(() => {
+    if (draft == null || previewContext == null) {
       return "";
     }
 
     try {
-      return renderTaskActionTemplate(draft.promptTemplate, {
-        action: {
-          id: selectedAction.id,
-          label: draft.label
-        },
-        apiBaseUrl: "http://127.0.0.1:3000",
-        sessionId: "preview-session",
-        taskDescription: "Preview task description.",
-        taskId: "preview-task",
-        taskTitle: "Example task",
-        ...(draft.options?.worktree?.default
-          ? { worktree: { enabled: true, path: "~/wt/tasker-preview" } }
-          : {})
-      });
+      return renderTaskActionTemplate(draft.promptTemplate, previewContext);
     } catch (error) {
       return error instanceof Error ? error.message : "Unable to render preview.";
     }
-  }, [draft, selectedAction]);
+  }, [draft, previewContext]);
 
   function saveSelectedAction(): void {
     if (draft == null || selectedAction == null) {
@@ -202,6 +211,7 @@ export function SettingsDialog(): React.JSX.Element {
                 }
                 isSaving={saveMutation.isPending}
                 preview={preview}
+                previewContext={previewContext}
                 selectedAction={selectedAction}
                 onDraftChange={setDraft}
                 onSave={saveSelectedAction}
@@ -280,6 +290,7 @@ function ActionEditor({
   onDraftChange,
   onSave,
   preview,
+  previewContext,
   selectedAction
 }: {
   readonly draft: ActionDraft | null;
@@ -288,6 +299,7 @@ function ActionEditor({
   readonly onDraftChange: (draft: ActionDraft) => void;
   readonly onSave: () => void;
   readonly preview: string;
+  readonly previewContext: TaskActionPromptContext | null;
   readonly selectedAction: ApiTaskActionDetails | null;
 }): React.JSX.Element {
   const [mode, setMode] = useState<"editor" | "preview">("editor");
@@ -409,6 +421,10 @@ function ActionEditor({
                 }
               />
             </Field>
+            <TemplateReference
+              previewContext={previewContext}
+              selectedAction={selectedAction}
+            />
           </div>
         ) : (
           <MarkdownDocument
@@ -419,6 +435,78 @@ function ActionEditor({
             previewClassName="px-5 py-5 [&_h1]:mb-3 [&_h1]:text-base [&_h1]:leading-6 [&_h2]:mt-5 [&_h2]:text-base [&_h2]:leading-6"
           />
         )}
+      </div>
+    </section>
+  );
+}
+
+function TemplateReference({
+  previewContext,
+  selectedAction
+}: {
+  readonly previewContext: TaskActionPromptContext | null;
+  readonly selectedAction: ApiTaskActionDetails;
+}): React.JSX.Element {
+  const context = useMemo(
+    () =>
+      previewContext ??
+      buildPreviewContext({
+        actionId: selectedAction.id,
+        label: selectedAction.label,
+        worktreeEnabled: true
+      }),
+    [previewContext, selectedAction]
+  );
+  const renderedTemplates = useMemo(
+    () =>
+      Object.fromEntries(
+        knownPromptPlaceholders.map((placeholder) => [
+          placeholder,
+          renderTemplatePlaceholder(placeholder, context)
+        ])
+      ) as Record<KnownPromptPlaceholder, RenderedPromptTemplate>,
+    [context]
+  );
+
+  return (
+    <section className="grid gap-2 rounded-lg border border-border bg-secondary/20 p-3">
+      <div className="grid gap-1">
+        <h4 className="text-sm font-medium leading-none">Template reference</h4>
+        <p className="text-sm leading-6 text-muted-foreground">
+          Expand a placeholder to see the rendered sample prompt text.
+        </p>
+      </div>
+      <div className="grid gap-2">
+        {knownPromptPlaceholders.map((placeholder) => {
+          const rendered = renderedTemplates[placeholder];
+          return (
+            <details
+              key={placeholder}
+              className="group rounded-md border border-border bg-background"
+            >
+              <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-sm font-medium marker:content-none">
+                <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[0.9em]">
+                  {`{{${placeholder}}}`}
+                </code>
+                <span className="text-xs text-muted-foreground group-open:hidden">
+                  Show
+                </span>
+                <span className="hidden text-xs text-muted-foreground group-open:inline">
+                  Hide
+                </span>
+              </summary>
+              <div className="border-t border-border">
+                {rendered.error == null ? (
+                  <pre className="max-h-80 overflow-auto whitespace-pre-wrap px-3 py-3 font-mono text-xs leading-5 text-muted-foreground">
+                    {rendered.value.length === 0 ? "(empty)" : rendered.value}
+                  </pre>
+                ) : (
+                  <p className="px-3 py-3 text-sm text-destructive">{rendered.error}</p>
+                )}
+              </div>
+            </details>
+          );
+        })}
       </div>
     </section>
   );
@@ -598,4 +686,51 @@ function canSave(draft: ActionDraft): boolean {
     Number.parseInt(draft.sortOrder, 10) >= 0 &&
     (draft.options?.worktree == null || draft.options.worktree.label.trim().length > 0)
   );
+}
+
+function buildPreviewContext({
+  actionId,
+  label,
+  worktreeEnabled
+}: {
+  readonly actionId: string;
+  readonly label: string;
+  readonly worktreeEnabled: boolean;
+}): TaskActionPromptContext {
+  return {
+    action: {
+      id: actionId,
+      label
+    },
+    apiBaseUrl: "http://127.0.0.1:3000",
+    sessionId: "preview-session",
+    taskDescription: "Preview task description.",
+    taskId: "preview-task",
+    taskTitle: "Example task",
+    ...(worktreeEnabled
+      ? { worktree: { enabled: true, path: "~/wt/tasker-preview" } }
+      : {})
+  };
+}
+
+function renderTemplatePlaceholder(
+  placeholder: KnownPromptPlaceholder,
+  context: TaskActionPromptContext
+): RenderedPromptTemplate {
+  try {
+    return {
+      error: null,
+      value: renderTaskActionTemplate(`{{${placeholder}}}`, {
+        ...context,
+        ...(placeholder === "worktree"
+          ? { worktree: { enabled: true, path: context.worktree?.path ?? "~/wt/tasker-preview" } }
+          : {})
+      })
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unable to render template.",
+      value: ""
+    };
+  }
 }

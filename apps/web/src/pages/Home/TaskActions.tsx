@@ -268,7 +268,10 @@ export function TaskActionPromptDialog({
 
   return (
     <Dialog open={action != null && session != null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden p-0">
+      <DialogContent
+        layout="standard"
+        className="max-w-3xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden p-0"
+      >
         <Button
           type="button"
           variant="ghost"

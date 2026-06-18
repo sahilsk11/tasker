@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
@@ -160,7 +161,7 @@ export function SettingsDialog(): React.JSX.Element {
         <Settings className="size-4" />
       </Button>
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-6xl grid-rows-[auto_minmax(0,1fr)]">
+        <DialogContent layout="large" className="max-w-6xl grid-rows-[auto_minmax(0,1fr)]">
           <DialogHeader>
             <div className="flex items-center gap-2 text-muted-foreground">
               <Settings className="size-4" />
@@ -169,6 +170,9 @@ export function SettingsDialog(): React.JSX.Element {
               </span>
             </div>
             <DialogTitle className="sr-only">Settings</DialogTitle>
+            <DialogDescription className="sr-only">
+              Manage action labels, prompts, icons, and options.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid min-h-0 border-t border-border md:grid-cols-[15rem_minmax(0,1fr)]">
             <SettingsSidebar

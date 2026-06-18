@@ -16,6 +16,7 @@
     "@fontsource-variable/geist-mono": "^5.2.8",
     "@fontsource-variable/hanken-grotesk": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@radix-ui/react-accordion": "^1.2.14",
     "@radix-ui/react-dialog": "^1.1.16",
     "@radix-ui/react-popover": "^1.1.16",
     "@radix-ui/react-slot": "^1.2.5",

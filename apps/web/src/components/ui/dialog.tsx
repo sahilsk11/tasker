@@ -22,18 +22,31 @@ export const DialogOverlay = forwardRef<
   );
 });
 
+type DialogContentLayout = "content" | "standard" | "large";
+
+const dialogContentLayoutClasses: Record<DialogContentLayout, string> = {
+  content: "",
+  large: "h-[min(46rem,calc(100dvh-2rem))] md:h-[min(46rem,calc(100dvh-3rem))]",
+  standard: "h-[min(42rem,calc(100dvh-2rem))] md:h-[min(42rem,calc(100dvh-3rem))]"
+};
+
+type DialogContentProps = ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+  readonly layout?: DialogContentLayout;
+};
+
 export const DialogContent = forwardRef<
   ComponentRef<typeof DialogPrimitive.Content>,
-  ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(function DialogContent({ children, className, ...props }, ref) {
+  DialogContentProps
+>(function DialogContent({ children, className, layout = "content", ...props }, ref) {
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-4xl -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border border-border bg-card p-0 shadow-2xl",
-          "max-h-[min(42rem,calc(100vh-2rem))] overflow-hidden",
+          "fixed left-1/2 top-4 z-50 grid w-[calc(100%-2rem)] max-w-4xl -translate-x-1/2 gap-4 rounded-xl border border-border bg-card p-0 shadow-2xl md:top-6",
+          "max-h-[calc(100dvh-2rem)] overflow-hidden md:max-h-[calc(100dvh-3rem)]",
+          dialogContentLayoutClasses[layout],
           className
         )}
         {...props}

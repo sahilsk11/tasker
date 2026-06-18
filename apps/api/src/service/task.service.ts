@@ -547,7 +547,11 @@ export class TaskService {
     workingDirectory: string | null
   ): Promise<string | undefined> {
     const worktrees = await this.worktrees.listByTaskId(taskId);
-    return worktrees.at(-1)?.path ?? workingDirectory ?? undefined;
+    if (worktrees.length > 0) {
+      return worktrees.at(-1)?.path;
+    }
+
+    return workingDirectory ?? (await this.settings.get()).defaultWorkingDirectory ?? undefined;
   }
 
   private async inferTaskStateFromArtifact(
@@ -649,8 +653,8 @@ async function validateDirectoryPath(value: string, label: string): Promise<stri
 
   const normalized = resolve(trimmed);
   const pathStat = await stat(normalized).catch((error: unknown) => {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      throw new BadRequestError(`${label} does not exist`);
+    if (isValidationPathError(error)) {
+      throw new BadRequestError(`${label} is not accessible or does not exist`);
     }
 
     throw error;
@@ -661,6 +665,13 @@ async function validateDirectoryPath(value: string, label: string): Promise<stri
   }
 
   return normalized;
+}
+
+function isValidationPathError(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    isNodeError(error) &&
+    ["EACCES", "ELOOP", "ENOENT", "ENOTDIR", "EPERM"].includes(error.code ?? "")
+  );
 }
 
 function latestDate(values: readonly Date[]): Date {

@@ -112,6 +112,28 @@ void test("session prompt endpoint renders seeded templates", async () => {
     assert.match(defaultPromptBody.prompt, /Prompt endpoint task/);
     assert.match(defaultPromptBody.prompt, /Prompt endpoint description/);
     assert.match(defaultPromptBody.prompt, /http:\/\/127\.0\.0\.1:3000/);
+    assert.doesNotMatch(defaultPromptBody.prompt, /## Working path/);
+
+    const settingsResponse = await app.inject({
+      method: "PATCH",
+      payload: {
+        defaultWorkingDirectory: dir
+      },
+      url: "/settings"
+    });
+    assert.equal(settingsResponse.statusCode, 200);
+
+    const defaultPathPromptResponse = await app.inject({
+      method: "POST",
+      payload: {},
+      url: `/tasks/${task.id}/sessions/${created.session.id}/prompt`
+    });
+    assert.equal(defaultPathPromptResponse.statusCode, 200);
+    const defaultPathPromptBody = JSON.parse(defaultPathPromptResponse.body) as {
+      readonly prompt: string;
+    };
+    assert.match(defaultPathPromptBody.prompt, /## Working path/);
+    assert.match(defaultPathPromptBody.prompt, new RegExp(escapeRegExp(dir)));
 
     const promptResponse = await app.inject({
       method: "POST",
@@ -132,6 +154,10 @@ void test("session prompt endpoint renders seeded templates", async () => {
     await rm(dir, { force: true, recursive: true });
   }
 });
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 void test("session create rejects unknown action ids", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-invalid-"));

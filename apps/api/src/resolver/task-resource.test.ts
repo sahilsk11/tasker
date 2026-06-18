@@ -367,6 +367,13 @@ void test("task working directories validate and default from settings", async (
       url: `/tasks/${defaultedTask.id}`
     });
     assert.equal(filePathResponse.statusCode, 400);
+
+    const notDirectoryPathResponse = await app.inject({
+      method: "PATCH",
+      payload: { workingDirectory: join(filePath, "child") },
+      url: `/tasks/${defaultedTask.id}`
+    });
+    assert.equal(notDirectoryPathResponse.statusCode, 400);
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });

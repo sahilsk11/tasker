@@ -107,10 +107,15 @@ export function ResourceColumnGrid({
   readonly onOpenResource: (resource: Resource) => void;
   readonly pullRequestStatuses: PullRequestStatusMap;
 }): React.JSX.Element {
-  const visibleKinds: readonly ResourceKind[] = ["session", "artifact", "pr"];
+  const visibleKinds: readonly ResourceKind[] = [
+    "session",
+    "artifact",
+    "worktree",
+    "pr"
+  ];
 
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-3">
+    <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-4">
       {visibleKinds.map((kind) => {
         const group = groups.find((candidate) => candidate.kind === kind) ?? {
           items: [],
@@ -296,7 +301,7 @@ function ResourceTable({
                   size="sm"
                   onClick={() => onOpenResource(resource)}
                 >
-                  Open
+                  {resource.kind === "worktree" ? "Copy" : "Open"}
                 </Button>
                 <Button
                   variant="ghost"

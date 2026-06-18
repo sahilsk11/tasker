@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { Check, FileText, GitPullRequest, MessageSquareText } from "lucide-react";
+import {
+  Check,
+  FileText,
+  FolderGit2,
+  GitPullRequest,
+  MessageSquareText
+} from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { createTaskSession, updateTask } from "@/api/tasks";
@@ -226,7 +232,7 @@ function TaskCard({
     stateMutation.mutate(state);
   }
 
-  function openResource(resource: Resource): void {
+  async function openResource(resource: Resource): Promise<void> {
     if (resource.kind === "artifact") {
       void navigate(`/tasks/${resource.taskId}/artifacts/${resource.id}`);
       return;
@@ -234,6 +240,11 @@ function TaskCard({
 
     if (resource.kind === "pr" && resource.href != null) {
       window.open(resource.href, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    if (resource.kind === "worktree") {
+      await navigator.clipboard.writeText(resource.detail);
     }
   }
 
@@ -317,7 +328,9 @@ function TaskCard({
       />
       <ResourceTableDialog
         group={selectedGroup}
-        onOpenResource={openResource}
+        onOpenResource={(resource) => {
+          void openResource(resource);
+        }}
         pullRequestStatuses={pullRequestStatuses}
         taskTitle={bundle.task.title}
         onOpenChange={(isOpen) => {
@@ -417,6 +430,7 @@ function ResourceCounters({
   }> = [
     { Icon: MessageSquareText, kind: "session" },
     { Icon: FileText, kind: "artifact" },
+    { Icon: FolderGit2, kind: "worktree" },
     { Icon: GitPullRequest, kind: "pr" }
   ];
 

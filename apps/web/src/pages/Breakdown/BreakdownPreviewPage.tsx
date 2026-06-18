@@ -56,9 +56,6 @@ export function BreakdownPreviewPage(): React.JSX.Element {
     onSuccess: async (result) => {
       await Promise.all([
         queryClient.invalidateQueries({
-          queryKey: ["task-breakdown-validation", uri]
-        }),
-        queryClient.invalidateQueries({
           queryKey: ["tasks"]
         }),
         queryClient.invalidateQueries({

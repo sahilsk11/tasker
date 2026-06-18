@@ -39,7 +39,7 @@ import {
   toTaskActionDetails
 } from "../repository/task-action.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
-import { BadRequestError, NotFoundError } from "./errors.js";
+import { BadRequestError, ConflictError, NotFoundError } from "./errors.js";
 import {
   TaskSessionProviderRegistry,
   type StartedTaskSession
@@ -226,6 +226,11 @@ export class TaskService {
         ? null
         : await this.sessionProviders.enrichSession(claimedSession);
     if (session == null) {
+      const existingSession = await this.sessions.findById(sessionId);
+      if (existingSession?.claimedAt != null) {
+        throw new ConflictError(`Task session ${sessionId} has already been claimed`);
+      }
+
       throw new NotFoundError(`Task session ${sessionId} not found`);
     }
 

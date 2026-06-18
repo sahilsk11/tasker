@@ -24,7 +24,7 @@ const eventIcons: Partial<Record<ResourceKind, LucideIcon>> = {
 
 const eventVerbs: Partial<Record<ResourceKind, string>> = {
   artifact: "Artifact saved",
-  pr: "Pull request opened",
+  pr: "Opened",
   session: "Session ran",
   subtask: "Subtask created",
   ticket: "Ticket linked"
@@ -97,9 +97,7 @@ function TaskEventRow({
           </span>
           <span className="min-w-0 truncate font-medium">{title}</span>
         </span>
-        {note == null ? null : (
-          <span className="min-w-0 truncate text-sm text-[#83868f]">{note}</span>
-        )}
+        {note == null ? null : <span className="min-w-0">{note}</span>}
       </span>
       <span className="ml-1 shrink-0 font-mono text-xs text-[#5c5f68]">
         {resource.updatedAt}
@@ -126,19 +124,7 @@ function getEventTitle(
   }
 
   if (resource.kind === "artifact") {
-    return (
-      <>
-        <span className="truncate">{resource.label}</span>
-        {resource.metaLabel == null ? null : (
-          <Badge
-            className="h-5 shrink-0 rounded-md border-[#1c1d22] bg-[#1a1b21] px-1.5 text-xs text-[#c2c4ca]"
-            variant="secondary"
-          >
-            {resource.metaLabel}
-          </Badge>
-        )}
-      </>
-    );
+    return <span className="truncate">{resource.label}</span>;
   }
 
   return resource.label;
@@ -147,20 +133,43 @@ function getEventTitle(
 function getEventNote(
   resource: Resource,
   pullRequestStatuses: PullRequestStatusMap
-): string | null {
+): ReactNode | null {
   if (resource.kind === "pr") {
-    return formatPullRequestReference(resource, pullRequestStatuses);
+    return (
+      <span className="block min-w-0 truncate text-sm text-[#83868f]">
+        {formatPullRequestReference(resource, pullRequestStatuses)}
+      </span>
+    );
   }
 
   if (resource.kind === "artifact") {
-    return resource.metaLabel == null ? resource.detail : `${resource.metaLabel} note`;
+    if (resource.metaLabel == null) {
+      return null;
+    }
+
+    return (
+      <Badge
+        className="h-5 w-fit rounded-md border-[#1c1d22] bg-[#1a1b21] px-1.5 text-xs text-[#c2c4ca]"
+        variant="secondary"
+      >
+        {resource.metaLabel}
+      </Badge>
+    );
   }
 
   if (resource.kind === "session") {
-    return resource.detail;
+    return (
+      <span className="block min-w-0 truncate text-sm text-[#83868f]">
+        {resource.detail}
+      </span>
+    );
   }
 
-  return resource.state;
+  return (
+    <span className="block min-w-0 truncate text-sm text-[#83868f]">
+      {resource.state}
+    </span>
+  );
 }
 
 function getEventIconClassName(resource: Resource): string {

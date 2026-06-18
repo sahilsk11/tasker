@@ -10,7 +10,6 @@ import type {
   TaskBreakdownValidationResult,
   TaskBreakdownWarning
 } from "../domain/task-breakdown.js";
-import type { Task } from "../domain/task.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 import { BadRequestError, NotFoundError } from "./errors.js";
 
@@ -70,16 +69,15 @@ export class TaskBreakdownService {
       throw new BadRequestError("Breakdown is invalid");
     }
 
-    const createdSubtasks: Task[] = [];
-    for (const item of validation.breakdown.items) {
-      createdSubtasks.push(
-        await this.tasks.create({
-          description: item.description,
-          parentTaskId: validation.breakdown.taskId,
-          title: item.title
-        })
-      );
-    }
+    const createdSubtasks = await this.tasks.createSubtasks({
+      parentTaskId: validation.breakdown.taskId,
+      subtasks: validation.breakdown.items.map((item) => ({
+        dependsOn: item.dependsOn,
+        description: item.description,
+        id: item.id,
+        title: item.title
+      }))
+    });
 
     return {
       accepted: true,

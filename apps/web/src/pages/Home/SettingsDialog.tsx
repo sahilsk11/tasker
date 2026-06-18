@@ -30,6 +30,12 @@ import {
   updateTaskActionSettings
 } from "@/api/tasks";
 import { MarkdownDocument } from "@/components/MarkdownDocument";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -476,26 +482,17 @@ function TemplateReference({
           Expand a placeholder to see the rendered sample prompt text.
         </p>
       </div>
-      <div className="grid gap-2">
+      <Accordion type="multiple" className="overflow-hidden rounded-md border border-border bg-background">
         {knownPromptPlaceholders.map((placeholder) => {
           const rendered = renderedTemplates[placeholder];
           return (
-            <details
-              key={placeholder}
-              className="group rounded-md border border-border bg-background"
-            >
-              <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2 text-sm font-medium marker:content-none">
+            <AccordionItem key={placeholder} value={placeholder}>
+              <AccordionTrigger>
                 <code className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[0.9em]">
                   {`{{${placeholder}}}`}
                 </code>
-                <span className="text-xs text-muted-foreground group-open:hidden">
-                  Show
-                </span>
-                <span className="hidden text-xs text-muted-foreground group-open:inline">
-                  Hide
-                </span>
-              </summary>
-              <div className="border-t border-border">
+              </AccordionTrigger>
+              <AccordionContent>
                 {rendered.error == null ? (
                   <pre className="max-h-80 overflow-auto whitespace-pre-wrap px-3 py-3 font-mono text-xs leading-5 text-muted-foreground">
                     {rendered.value.length === 0 ? "(empty)" : rendered.value}
@@ -503,11 +500,11 @@ function TemplateReference({
                 ) : (
                   <p className="px-3 py-3 text-sm text-destructive">{rendered.error}</p>
                 )}
-              </div>
-            </details>
+              </AccordionContent>
+            </AccordionItem>
           );
         })}
-      </div>
+      </Accordion>
     </section>
   );
 }

@@ -288,7 +288,7 @@ function TaskCard({
 
   return (
     <>
-      <Card className="grid h-full overflow-hidden rounded-[14px] border-[#1f2025] transition-colors hover:border-[#2c2d34] hover:bg-card lg:grid-cols-[minmax(0,1fr)_9.875rem]">
+      <Card className="grid h-full grid-rows-[auto_auto_auto] overflow-hidden rounded-[14px] border-[#1f2025] transition-colors hover:border-[#2c2d34] hover:bg-card lg:grid-cols-[minmax(0,1fr)_9.875rem] lg:grid-rows-[minmax(0,1fr)_auto]">
         <section className="flex min-w-0 flex-col p-4 md:min-h-48">
           <div className="flex min-w-0 items-center justify-between gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -331,7 +331,7 @@ function TaskCard({
           />
         </aside>
 
-        <footer className="min-w-0 border-t border-[#1c1d22] bg-[#0d0e11] px-4 py-3 lg:col-span-2">
+        <footer className="min-w-0 border-t border-[#1c1d22] bg-[#0d0e11] px-4 py-3">
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <ResourceCounters groups={groupedResources} onOpen={setSelectedKind} />
             <SubtaskToggle
@@ -609,11 +609,7 @@ function SubtaskToggle({
   readonly subtasks: readonly ApiTask[];
 }): React.JSX.Element {
   if (subtasks.length === 0) {
-    return (
-      <div className="flex min-h-9 items-center justify-end text-sm text-[#6b6e76]">
-        No subtasks
-      </div>
-    );
+    return <></>;
   }
 
   const doneCount = subtasks.filter((subtask) => subtask.state === "done").length;
@@ -622,16 +618,12 @@ function SubtaskToggle({
     <Button
       type="button"
       variant="outline"
-      className="h-9 min-w-0 justify-between gap-3 rounded-[9px] border-[#24252b] bg-[#101116] px-3 text-sm font-semibold text-[#cdd0d6] hover:border-[#32333a] hover:bg-[#16171c] hover:text-[#f1f2f4] sm:min-w-64"
+      className="h-9 min-w-0 rounded-[9px] border-[#24252b] bg-[#101116] px-3 text-[#cdd0d6] hover:border-[#32333a] hover:bg-[#16171c] hover:text-[#f1f2f4]"
       onClick={onOpen}
+      aria-label={`Open ${String(subtasks.length)} subtasks`}
       title="Open subtasks"
     >
-      <span className="flex min-w-0 items-center gap-2">
-        <SubtaskProgress value={doneCount} total={subtasks.length} />
-        <span className="shrink-0">
-          {doneCount}/{subtasks.length} subtasks
-        </span>
-      </span>
+      <SubtaskProgress value={doneCount} total={subtasks.length} />
     </Button>
   );
 }

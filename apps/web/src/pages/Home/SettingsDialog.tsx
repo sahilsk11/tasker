@@ -1,6 +1,7 @@
 import { renderTaskActionTemplate } from "@tasker/core";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ChevronLeft,
   Check,
   ClipboardCheck,
   Code2,
@@ -28,7 +29,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
@@ -74,7 +74,7 @@ export function SettingsDialog(): React.JSX.Element {
   });
   const actions = actionsQuery.data ?? [];
   const selectedAction =
-    actions.find((action) => action.id === selectedActionId) ?? actions[0] ?? null;
+    actions.find((action) => action.id === selectedActionId) ?? null;
   const saveMutation = useMutation({
     mutationFn: ({
       actionId,
@@ -93,14 +93,14 @@ export function SettingsDialog(): React.JSX.Element {
   });
 
   useEffect(() => {
-    if (selectedAction != null && selectedAction.id !== selectedActionId) {
-      setSelectedActionId(selectedAction.id);
-    }
-  }, [selectedAction, selectedActionId]);
-
-  useEffect(() => {
     setDraft(selectedAction == null ? null : toDraft(selectedAction));
   }, [selectedAction]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedActionId(null);
+    }
+  }, [isOpen]);
 
   const preview = useMemo(() => {
     if (draft == null || selectedAction == null) {
@@ -168,31 +168,40 @@ export function SettingsDialog(): React.JSX.Element {
                 Settings
               </span>
             </div>
-            <DialogTitle>Settings</DialogTitle>
-            <DialogDescription>Manage action labels, prompts, icons, and options.</DialogDescription>
+            <DialogTitle className="sr-only">Settings</DialogTitle>
           </DialogHeader>
           <div className="grid min-h-0 border-t border-border md:grid-cols-[15rem_minmax(0,1fr)]">
             <SettingsSidebar
-              actions={actions}
-              isLoading={actionsQuery.isLoading}
-              selectedActionId={selectedAction?.id ?? null}
-              onSelectAction={setSelectedActionId}
+              isSelected={selectedActionId == null}
+              onSelectActions={() => setSelectedActionId(null)}
             />
-            <ActionEditor
-              draft={draft}
-              error={
-                actionsQuery.error instanceof Error
-                  ? actionsQuery.error.message
-                  : saveMutation.error instanceof Error
-                    ? saveMutation.error.message
-                    : null
-              }
-              isSaving={saveMutation.isPending}
-              preview={preview}
-              selectedAction={selectedAction}
-              onDraftChange={setDraft}
-              onSave={saveSelectedAction}
-            />
+            {selectedAction == null ? (
+              <ActionSettingsOverview
+                actions={actions}
+                error={
+                  actionsQuery.error instanceof Error ? actionsQuery.error.message : null
+                }
+                isLoading={actionsQuery.isLoading}
+                onSelectAction={setSelectedActionId}
+              />
+            ) : (
+              <ActionEditor
+                draft={draft}
+                error={
+                  actionsQuery.error instanceof Error
+                    ? actionsQuery.error.message
+                    : saveMutation.error instanceof Error
+                      ? saveMutation.error.message
+                      : null
+                }
+                isSaving={saveMutation.isPending}
+                preview={preview}
+                selectedAction={selectedAction}
+                onBack={() => setSelectedActionId(null)}
+                onDraftChange={setDraft}
+                onSave={saveSelectedAction}
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -201,58 +210,61 @@ export function SettingsDialog(): React.JSX.Element {
 }
 
 function SettingsSidebar({
-  actions,
-  isLoading,
-  onSelectAction,
-  selectedActionId
+  isSelected,
+  onSelectActions
 }: {
-  readonly actions: readonly ApiTaskActionDetails[];
-  readonly isLoading: boolean;
-  readonly onSelectAction: (actionId: string) => void;
-  readonly selectedActionId: string | null;
+  readonly isSelected: boolean;
+  readonly onSelectActions: () => void;
 }): React.JSX.Element {
   return (
     <aside className="min-h-0 border-b border-border bg-secondary/30 p-2 md:border-b-0 md:border-r">
       <button
         type="button"
-        className="flex w-full items-center gap-2 rounded-md bg-background px-3 py-2 text-left text-sm font-medium"
+        className={cn(
+          "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
+          isSelected
+            ? "bg-background text-foreground shadow-sm"
+            : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
+        )}
+        onClick={onSelectActions}
       >
         <Workflow className="size-4 text-muted-foreground" />
         <span>Actions</span>
       </button>
-      <div className="mt-3 grid max-h-52 gap-1 overflow-y-auto md:max-h-none">
-        {isLoading ? (
-          <p className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
-            <LoaderCircle className="size-4 animate-spin" />
-            <span>Loading actions...</span>
-          </p>
-        ) : null}
-        {actions.map((action) => {
-          const Icon = taskActionIcons[action.iconName ?? action.id] ?? Workflow;
-          return (
-            <button
-              key={action.id}
-              type="button"
-              className={cn(
-                "flex min-w-0 items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors",
-                action.id === selectedActionId
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
-              )}
-              onClick={() => onSelectAction(action.id)}
-            >
-              <Icon className="size-4 shrink-0" />
-              <span className="truncate">{action.label}</span>
-              {action.enabled ? null : (
-                <span className="ml-auto rounded border border-border px-1.5 py-0.5 text-[0.65rem] uppercase text-muted-foreground">
-                  Off
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
     </aside>
+  );
+}
+
+function ActionSettingsOverview({
+  actions,
+  error,
+  isLoading,
+  onSelectAction
+}: {
+  readonly actions: readonly ApiTaskActionDetails[];
+  readonly error: string | null;
+  readonly isLoading: boolean;
+  readonly onSelectAction: (actionId: string) => void;
+}): React.JSX.Element {
+  return (
+    <section className="min-h-0 overflow-y-auto p-5">
+      {error == null ? null : <p className="mb-3 text-sm text-destructive">{error}</p>}
+      {isLoading ? (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <LoaderCircle className="size-4 animate-spin" />
+          <span>Loading actions...</span>
+        </p>
+      ) : null}
+      <div className="grid min-h-0 gap-2 md:grid-cols-2">
+        {actions.map((action) => (
+          <ActionSettingsCard
+            key={action.id}
+            action={action}
+            onSelect={() => onSelectAction(action.id)}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -261,6 +273,7 @@ function ActionEditor({
   error,
   isSaving,
   onDraftChange,
+  onBack,
   onSave,
   preview,
   selectedAction
@@ -268,6 +281,7 @@ function ActionEditor({
   readonly draft: ActionDraft | null;
   readonly error: string | null;
   readonly isSaving: boolean;
+  readonly onBack: () => void;
   readonly onDraftChange: (draft: ActionDraft) => void;
   readonly onSave: () => void;
   readonly preview: string;
@@ -284,8 +298,21 @@ function ActionEditor({
   const SelectedIcon = taskActionIcons[draft.iconName] ?? Workflow;
 
   return (
-    <section className="grid min-h-0 gap-0 overflow-y-auto lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
-      <div className="grid content-start gap-4 border-b border-border p-5 lg:border-b-0 lg:border-r">
+    <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-border px-5 py-3 text-sm">
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
+          onClick={onBack}
+        >
+          <ChevronLeft className="size-4" />
+          <span>Actions</span>
+        </button>
+        <span className="text-muted-foreground">/</span>
+        <span className="min-w-0 truncate font-medium">{draft.label}</span>
+      </div>
+      <div className="grid min-h-0 gap-0 overflow-y-auto lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
+        <div className="grid content-start gap-4 border-b border-border p-5 lg:border-b-0 lg:border-r">
         <div className="flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <SelectedIcon className="size-5 shrink-0 text-muted-foreground" />
@@ -392,7 +419,41 @@ function ActionEditor({
           previewClassName="px-5 py-5"
         />
       </div>
+      </div>
     </section>
+  );
+}
+
+function ActionSettingsCard({
+  action,
+  onSelect
+}: {
+  readonly action: ApiTaskActionDetails;
+  readonly onSelect: () => void;
+}): React.JSX.Element {
+  const Icon = taskActionIcons[action.iconName ?? action.id] ?? Workflow;
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        "grid min-w-0 gap-2 rounded-lg border border-border p-3 text-left",
+        "transition-colors hover:bg-secondary/60",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      )}
+      onClick={onSelect}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <Icon className="size-4 shrink-0 text-muted-foreground" />
+        <span className="truncate text-sm font-medium">{action.label}</span>
+        {action.enabled ? null : (
+          <span className="ml-auto rounded border border-border px-1.5 py-0.5 text-[0.65rem] uppercase text-muted-foreground">
+            Off
+          </span>
+        )}
+      </div>
+      <p className="text-sm leading-5 text-muted-foreground">{action.description}</p>
+    </button>
   );
 }
 

@@ -5,6 +5,7 @@ const maxLines = 1000;
 const root = process.cwd();
 const ignoredDirectories = new Set([
   ".git",
+  ".kanna",
   ".turbo",
   "coverage",
   "dist",

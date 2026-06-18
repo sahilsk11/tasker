@@ -152,11 +152,12 @@ export function SettingsDialog(): React.JSX.Element {
         type="button"
         variant="outline"
         size="sm"
-        className="fixed bottom-4 left-4 z-40 shadow-lg"
+        className="shrink-0 px-2.5"
         onClick={() => setIsOpen(true)}
+        aria-label="Settings"
+        title="Settings"
       >
         <Settings className="size-4" />
-        <span>Settings</span>
       </Button>
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-6xl grid-rows-[auto_minmax(0,1fr)]">

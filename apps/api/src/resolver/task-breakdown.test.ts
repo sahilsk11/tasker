@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import SqliteDatabase from "better-sqlite3";
 import { createApp } from "../app.js";
 
 void test("breakdown endpoints validate, preview, and create child tasks", async () => {
@@ -14,6 +15,7 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
   });
 
   try {
+    const databasePath = join(dir, "tasker.sqlite");
     const parent = await createTask(app, {
       description: "Large task body",
       title: "Large task"
@@ -101,6 +103,32 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
       children.map((child) => child.title),
       ["Existing child", "Add breakdown API", "Teach agents the workflow"]
     );
+
+    const database = new SqliteDatabase(databasePath);
+    try {
+      assert.deepEqual(
+        database
+          .prepare(
+            `
+              SELECT dependent.title AS task_title,
+                     dependency.title AS depends_on_title
+              FROM task_dependencies
+              JOIN tasks dependent ON dependent.id = task_dependencies.task_id
+              JOIN tasks dependency ON dependency.id = task_dependencies.depends_on_task_id
+              ORDER BY dependent.created_at, dependency.created_at
+            `
+          )
+          .all(),
+        [
+          {
+            depends_on_title: "Add breakdown API",
+            task_title: "Teach agents the workflow"
+          }
+        ]
+      );
+    } finally {
+      database.close();
+    }
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });

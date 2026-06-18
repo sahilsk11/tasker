@@ -12,11 +12,24 @@ import { taskStateRanks } from "../domain/task.js";
 
 export type TaskRepository = {
   readonly create: (input: CreateTaskInput) => Promise<Task>;
+  readonly createSubtasks: (input: CreateSubtasksInput) => Promise<readonly Task[]>;
   readonly findById: (id: TaskId) => Promise<Task | null>;
   readonly findChildren: (parentTaskId: TaskId) => Promise<readonly Task[]>;
   readonly list: () => Promise<readonly Task[]>;
   readonly updateStateAtLeast: (id: TaskId, state: TaskState) => Promise<Task | null>;
   readonly update: (id: TaskId, input: UpdateTaskInput) => Promise<Task | null>;
+};
+
+export type CreateSubtaskInput = {
+  readonly dependsOn: readonly string[];
+  readonly description: string | null;
+  readonly id: string;
+  readonly title: string;
+};
+
+export type CreateSubtasksInput = {
+  readonly parentTaskId: TaskId;
+  readonly subtasks: readonly CreateSubtaskInput[];
 };
 
 export class SqliteTaskRepository implements TaskRepository {
@@ -39,6 +52,60 @@ export class SqliteTaskRepository implements TaskRepository {
       .executeTakeFirstOrThrow();
 
     return toTask(row);
+  }
+
+  public async createSubtasks(input: CreateSubtasksInput): Promise<readonly Task[]> {
+    return this.db.transaction().execute(async (trx) => {
+      const now = new Date().toISOString();
+      const taskIdsByInputId = new Map<string, TaskId>();
+      const rows: TaskRow[] = [];
+
+      for (const subtask of input.subtasks) {
+        const id = randomUUID();
+        taskIdsByInputId.set(subtask.id, id);
+        rows.push(
+          await trx
+            .insertInto("tasks")
+            .values({
+              created_at: now,
+              description: subtask.description,
+              id,
+              parent_task_id: input.parentTaskId,
+              title: subtask.title,
+              updated_at: now,
+              working_directory: null
+            })
+            .returningAll()
+            .executeTakeFirstOrThrow()
+        );
+      }
+
+      const dependencyRows = input.subtasks.flatMap((subtask) => {
+        const taskId = taskIdsByInputId.get(subtask.id);
+        if (taskId == null) {
+          return [];
+        }
+
+        return subtask.dependsOn.map((dependencyId) => {
+          const dependsOnTaskId = taskIdsByInputId.get(dependencyId);
+          if (dependsOnTaskId == null) {
+            throw new Error(`Dependency ${dependencyId} was not created.`);
+          }
+
+          return {
+            created_at: now,
+            depends_on_task_id: dependsOnTaskId,
+            task_id: taskId
+          };
+        });
+      });
+
+      if (dependencyRows.length > 0) {
+        await trx.insertInto("task_dependencies").values(dependencyRows).execute();
+      }
+
+      return rows.map(toTask);
+    });
   }
 
   public async findById(id: TaskId): Promise<Task | null> {

@@ -184,7 +184,7 @@ void test("tasks endpoint scopes results by parent task", async () => {
     const firstRoot = await createTask(app, "First root");
     const secondRoot = await createTask(app, "Second root");
     const firstChild = await createTask(app, "First child", firstRoot.id);
-    const secondChild = await createTask(app, "Second child", firstRoot.id);
+    await createTask(app, "Second child", firstRoot.id);
     await createTask(app, "Nested child", firstChild.id);
 
     const rootResponse = await app.inject({

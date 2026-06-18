@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { Check, FileText, GitPullRequest, MessageSquareText } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  FileText,
+  GitPullRequest,
+  MessageSquareText
+} from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { createTaskSession, updateTask } from "@/api/tasks";
@@ -13,6 +19,13 @@ import type {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { PullRequestStatusMap } from "./use-pull-request-statuses";
@@ -70,6 +83,12 @@ export function TaskGrid({
 
 type TaskStateMeta = {
   readonly iconClassName: string;
+};
+
+type PendingDuplicateAction = {
+  readonly action: ApiTaskAction;
+  readonly closeActionsWhenReady: boolean;
+  readonly sessions: readonly ApiSession[];
 };
 
 const taskStateMetaByState: Record<TaskState, TaskStateMeta> = {
@@ -136,6 +155,8 @@ function TaskCard({
   const [selectedSession, setSelectedSession] = useState<ApiSession | null>(null);
   const [selectedKind, setSelectedKind] = useState<ResourceKind | null>(null);
   const [selectedAction, setSelectedAction] = useState<ApiTaskAction | null>(null);
+  const [pendingDuplicateAction, setPendingDuplicateAction] =
+    useState<PendingDuplicateAction | null>(null);
   const [showAllActions, setShowAllActions] = useState(false);
   const selectedGroup =
     groupedResources.find((group) => group.kind === selectedKind) ?? null;
@@ -208,7 +229,35 @@ function TaskCard({
   }
 
   function selectAction(action: ApiTaskAction): void {
-    void openActionPrompt(action, { closeActionsWhenReady: showAllActions });
+    const closeActionsWhenReady = showAllActions;
+    const existingActionSessions = getExistingActionSessions(
+      bundle.resources.sessions,
+      action.id
+    );
+
+    if (existingActionSessions.length > 0) {
+      if (closeActionsWhenReady) {
+        setShowAllActions(false);
+      }
+      setPendingDuplicateAction({
+        action,
+        closeActionsWhenReady,
+        sessions: existingActionSessions
+      });
+      return;
+    }
+
+    void openActionPrompt(action, { closeActionsWhenReady });
+  }
+
+  function continueDuplicateAction(): void {
+    if (pendingDuplicateAction == null) {
+      return;
+    }
+
+    const { action, closeActionsWhenReady } = pendingDuplicateAction;
+    setPendingDuplicateAction(null);
+    void openActionPrompt(action, { closeActionsWhenReady });
   }
 
   function openAllActions(): void {
@@ -313,6 +362,11 @@ function TaskCard({
         session={selectedSession}
         taskId={bundle.task.id}
       />
+      <DuplicateActionWarningDialog
+        pendingAction={pendingDuplicateAction}
+        onCancel={() => setPendingDuplicateAction(null)}
+        onContinue={continueDuplicateAction}
+      />
       <ResourceTableDialog
         group={selectedGroup}
         onOpenResource={openResource}
@@ -326,6 +380,104 @@ function TaskCard({
       />
     </>
   );
+}
+
+function DuplicateActionWarningDialog({
+  onCancel,
+  onContinue,
+  pendingAction
+}: {
+  readonly onCancel: () => void;
+  readonly onContinue: () => void;
+  readonly pendingAction: PendingDuplicateAction | null;
+}): React.JSX.Element {
+  const latestSession = pendingAction?.sessions[0] ?? null;
+  const sessionCount = pendingAction?.sessions.length ?? 0;
+
+  return (
+    <Dialog
+      open={pendingAction != null}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          onCancel();
+        }
+      }}
+    >
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <div className="flex items-center gap-2 text-warning">
+            <AlertTriangle className="size-4" />
+            <span className="text-xs font-medium uppercase tracking-[0.12em]">
+              Duplicate work warning
+            </span>
+          </div>
+          <DialogTitle>{pendingAction?.action.label ?? "Action"} already ran</DialogTitle>
+          <DialogDescription>
+            This task already has {sessionCountText(sessionCount)} for this action.
+            Starting another one can duplicate work.
+          </DialogDescription>
+        </DialogHeader>
+
+        {latestSession == null ? null : (
+          <div className="mx-5 rounded-lg border border-border bg-secondary/25 px-3 py-2 text-sm">
+            <div className="font-medium text-foreground">
+              {latestSession.displayTitle ??
+                latestSession.providerId ??
+                capitalize(latestSession.provider)}
+            </div>
+            <div className="mt-1 text-muted-foreground">
+              {capitalize(latestSession.provider)} session,{" "}
+              {formatSessionTime(latestSession.claimedAt ?? latestSession.createdAt)}
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 border-t border-border p-5 pt-4">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="button" variant="default" onClick={onContinue}>
+            Continue anyway
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function getExistingActionSessions(
+  sessions: readonly ApiSession[],
+  actionId: string
+): readonly ApiSession[] {
+  return sessions
+    .filter((session) => session.actionId === actionId)
+    .sort((left, right) => getSessionTime(right) - getSessionTime(left));
+}
+
+function getSessionTime(session: ApiSession): number {
+  const value = new Date(session.claimedAt ?? session.createdAt).getTime();
+  return Number.isNaN(value) ? 0 : value;
+}
+
+function sessionCountText(count: number): string {
+  return `${String(count)} ${count === 1 ? "session" : "sessions"}`;
+}
+
+function formatSessionTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "unknown time";
+  }
+
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short"
+  });
+}
+
+function capitalize(value: string): string {
+  const firstCharacter = value[0];
+  return firstCharacter == null ? value : `${firstCharacter.toUpperCase()}${value.slice(1)}`;
 }
 
 function TaskStatePicker({

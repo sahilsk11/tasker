@@ -277,12 +277,8 @@ function formatActivityTime(value: string): string {
     return `${String(elapsedMinutes)} min`;
   }
 
-  if (elapsedMs >= 0 && elapsedMs <= 24 * 60 * 60 * 1000) {
-    return new Intl.DateTimeFormat(undefined, {
-      hour: "numeric",
-      hour12: true,
-      minute: "2-digit"
-    }).format(date);
+  if (elapsedMs >= 0 && elapsedMs < 24 * 60 * 60 * 1000) {
+    return `${String(Math.max(1, Math.floor(elapsedMs / (60 * 60 * 1000))))} hr`;
   }
 
   return new Intl.DateTimeFormat(undefined, {

@@ -1,7 +1,11 @@
 import { stat, readFile } from "node:fs/promises";
 import { basename, extname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { TaskAction } from "../domain/task-action.js";
+import type {
+  TaskAction,
+  TaskActionDetails,
+  UpdateTaskActionInput
+} from "../domain/task-action.js";
 import type { CreateTaskArtifactInput, TaskArtifact } from "../domain/task-artifact.js";
 import type {
   CreateTaskPullRequestInput,
@@ -24,7 +28,10 @@ import type { TaskPullRequestRepository } from "../repository/task-pull-request.
 import type { TaskSessionRepository } from "../repository/task-session.repository.js";
 import type { TaskTicketRepository } from "../repository/task-ticket.repository.js";
 import type { TaskActionRepository } from "../repository/task-action.repository.js";
-import { toTaskAction } from "../repository/task-action.repository.js";
+import {
+  toTaskAction,
+  toTaskActionDetails
+} from "../repository/task-action.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 import { BadRequestError, NotFoundError } from "./errors.js";
 import {
@@ -332,6 +339,11 @@ export class TaskService {
     return records.map(toTaskAction);
   }
 
+  public async listActionSettings(): Promise<readonly TaskActionDetails[]> {
+    const records = await this.actions.listAll();
+    return records.map(toTaskActionDetails);
+  }
+
   public async getTask(taskId: TaskId): Promise<Task> {
     return this.requireTask(taskId);
   }
@@ -378,6 +390,18 @@ export class TaskService {
     }
 
     return task;
+  }
+
+  public async updateActionSettings(
+    actionId: string,
+    input: UpdateTaskActionInput
+  ): Promise<TaskActionDetails> {
+    const action = await this.actions.update(actionId, input);
+    if (action == null) {
+      throw new NotFoundError(`Task action ${actionId} not found`);
+    }
+
+    return toTaskActionDetails(action);
   }
 
   private async requireTask(taskId: TaskId): Promise<Task> {

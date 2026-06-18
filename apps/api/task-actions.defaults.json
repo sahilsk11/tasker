@@ -2,6 +2,7 @@
   {
     "id": "investigate",
     "label": "Investigate",
+    "iconName": "search",
     "description": "Inspect the task and produce a concise recommendation.",
     "promptTemplate": "{{taskHeader}}\n\n## Action\nInvestigate this task and summarize what should happen next.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
     "options": null,
@@ -11,6 +12,7 @@
   {
     "id": "plan",
     "label": "Plan",
+    "iconName": "map",
     "description": "Turn the task into a concrete plan before implementation.",
     "promptTemplate": "{{taskHeader}}\n\n## Action\nCreate a practical implementation plan for this task.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
     "options": null,
@@ -20,6 +22,7 @@
   {
     "id": "breakdown",
     "label": "Break down",
+    "iconName": "list-tree",
     "description": "Break the task into smaller child tasks or a dependency outline.",
     "promptTemplate": "{{taskHeader}}\n\n## Action\nBreak this task down into smaller subtasks and dependencies.\n\n{{breakdownWorkflow}}\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
     "options": null,
@@ -29,6 +32,7 @@
   {
     "id": "implement",
     "label": "Implement",
+    "iconName": "code-2",
     "description": "Start implementing the task from the available context.",
     "promptTemplate": "{{taskHeader}}\n\n## Action\nImplement this task using the current repository context.\n\n{{worktree}}\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
     "options": {
@@ -50,6 +54,7 @@
   {
     "id": "code_review",
     "label": "Code review",
+    "iconName": "clipboard-check",
     "description": "Review the current work and identify issues or missing tests.",
     "promptTemplate": "{{taskHeader}}\n\n## Action\nReview the work attached to this task and call out concrete issues.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
     "options": null,
@@ -59,6 +64,7 @@
   {
     "id": "new_session",
     "label": "New session",
+    "iconName": "message-square-text",
     "description": "Open a general-purpose agent session attached to this task.",
     "promptTemplate": "{{taskHeader}}\n\n## Action\nStart a new session for this task.\n\n{{registerSession}}\n\n{{artifactAttribution}}\n\n{{registerDoc}}\n\n{{registerPr}}",
     "options": null,

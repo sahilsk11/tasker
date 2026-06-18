@@ -1,21 +1,14 @@
 import {
   ArrowLeft,
   Check,
-  ClipboardCheck,
   Copy,
-  Code2,
   LoaderCircle,
-  ListTree,
-  MapIcon,
-  MessageSquareText,
   MoreHorizontal,
   Pencil,
   Play,
   Save,
-  Search,
   Workflow
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { defaultWorktreePath } from "@tasker/core";
 import { useEffect, useState } from "react";
 import type { ApiSession, ApiTaskAction, TaskActionPromptValues } from "@/api/tasks";
@@ -32,18 +25,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { taskActionIcons } from "./task-action-icons";
 
 const railActionCount = 3;
 const rowActionCount = 2;
-
-const taskActionIcons: Record<string, LucideIcon> = {
-  breakdown: ListTree,
-  code_review: ClipboardCheck,
-  implement: Code2,
-  investigate: Search,
-  new_session: MessageSquareText,
-  plan: MapIcon
-};
 
 export function TaskActionRow({
   actions,
@@ -266,7 +251,10 @@ export function TaskActionPromptDialog({
     }
   }
 
-  const Icon = action == null ? Workflow : taskActionIcons[action.id] ?? Workflow;
+  const Icon =
+    action == null
+      ? Workflow
+      : taskActionIcons[action.iconName ?? action.id] ?? Workflow;
   const hasWorkingPath = workingPath.trim().length > 0;
   const canRunPrompt =
     promptDraft.trim().length > 0 && hasWorkingPath && !isLoadingPrompt && !isRunningAgent;
@@ -458,8 +446,8 @@ function TaskActionButton({
   readonly layout: "rail" | "row";
   readonly onSelect: () => void;
 }): React.JSX.Element {
-  const Icon = taskActionIcons[action.id] ?? Workflow;
   const isRail = layout === "rail";
+  const Icon = taskActionIcons[action.iconName ?? action.id] ?? Workflow;
 
   return (
     <Button
@@ -521,7 +509,7 @@ function TaskActionListItem({
   readonly disabled: boolean;
   readonly onSelect: () => void;
 }): React.JSX.Element {
-  const Icon = taskActionIcons[action.id] ?? Workflow;
+  const Icon = taskActionIcons[action.iconName ?? action.id] ?? Workflow;
 
   return (
     <button

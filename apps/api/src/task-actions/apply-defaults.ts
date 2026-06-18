@@ -83,6 +83,7 @@ async function insertTaskAction(
       created_at: now,
       description: action.description,
       enabled: action.enabled ? 1 : 0,
+      icon_name: action.iconName ?? null,
       id: action.id,
       label: action.label,
       options_json: serializeOptions(action.options),
@@ -101,6 +102,7 @@ function toRowValues(
   return {
     description: action.description,
     enabled: action.enabled ? 1 : 0,
+    icon_name: action.iconName ?? null,
     label: action.label,
     options_json: serializeOptions(action.options),
     prompt_template: action.promptTemplate,

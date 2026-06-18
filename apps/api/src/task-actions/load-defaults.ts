@@ -7,6 +7,7 @@ import { taskActionOptionsSchema } from "../domain/task-action-options.js";
 const taskActionDefaultSchema = z.object({
   description: z.string().min(1),
   enabled: z.boolean().default(true),
+  iconName: z.string().min(1).nullable().optional(),
   id: z.string().min(1),
   label: z.string().min(1),
   options: taskActionOptionsSchema.nullable().optional(),

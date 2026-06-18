@@ -100,7 +100,6 @@ export function HomePage(): React.JSX.Element {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <SettingsDialog />
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8 2xl:max-w-[96rem]">
         <header className="flex items-center justify-between gap-4 border-b border-border/70 pb-5">
           <div className="flex min-w-0 items-center gap-3">
@@ -108,7 +107,10 @@ export function HomePage(): React.JSX.Element {
               Tasker
             </h1>
           </div>
-          <NewTaskDialog />
+          <div className="flex shrink-0 items-center gap-2">
+            <SettingsDialog />
+            <NewTaskDialog />
+          </div>
         </header>
 
         {tasksQuery.isLoading ? <TaskGridSkeleton /> : null}

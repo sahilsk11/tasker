@@ -32,14 +32,18 @@ const rowActionCount = 2;
 
 export function TaskActionRow({
   actions,
+  isPreparingPrompt = false,
   layout = "row",
   onSelectAction,
-  onViewAll
+  onViewAll,
+  preparingActionId = null
 }: {
   readonly actions: readonly ApiTaskAction[];
+  readonly isPreparingPrompt?: boolean;
   readonly layout?: "rail" | "row";
   readonly onSelectAction: (action: ApiTaskAction) => void;
   readonly onViewAll: () => void;
+  readonly preparingActionId?: string | null;
 }): React.JSX.Element {
   const isRail = layout === "rail";
   const quickActions = actions.slice(0, isRail ? railActionCount : rowActionCount);
@@ -56,7 +60,9 @@ export function TaskActionRow({
           <TaskActionButton
             key={action.id}
             action={action}
+            disabled={isPreparingPrompt}
             emphasized={index === 0}
+            isPreparing={preparingActionId === action.id}
             layout={layout}
             onSelect={() => onSelectAction(action)}
           />
@@ -71,6 +77,7 @@ export function TaskActionRow({
               ? "h-8 w-full justify-center rounded-[9px] border-[#232429] bg-transparent px-2.5 py-0 text-sm text-[#c2c4ca] hover:border-[#2e2f36] hover:bg-[#1a1b21]"
               : "h-8 w-36 px-3"
           )}
+          disabled={isPreparingPrompt}
           onClick={onViewAll}
         >
           {isRail ? null : <MoreHorizontal className="size-4" />}
@@ -437,12 +444,16 @@ async function copyPlainText(value: string): Promise<void> {
 
 function TaskActionButton({
   action,
+  disabled,
   emphasized,
+  isPreparing,
   layout,
   onSelect
 }: {
   readonly action: ApiTaskAction;
+  readonly disabled: boolean;
   readonly emphasized: boolean;
+  readonly isPreparing: boolean;
   readonly layout: "rail" | "row";
   readonly onSelect: () => void;
 }): React.JSX.Element {
@@ -462,9 +473,14 @@ function TaskActionButton({
             ? "h-8 w-full justify-center rounded-[9px] border-[#232429] bg-transparent px-2.5 py-0 text-sm text-[#c2c4ca] hover:border-[#2e2f36] hover:bg-[#1a1b21]"
             : "h-8 w-36 px-3"
       )}
+      disabled={disabled}
       onClick={onSelect}
     >
-      <Icon className="size-4 shrink-0" />
+      {isPreparing ? (
+        <LoaderCircle className="size-4 shrink-0 animate-spin" />
+      ) : (
+        <Icon className="size-4 shrink-0" />
+      )}
       <span className="min-w-0 truncate">{action.label}</span>
     </Button>
   );

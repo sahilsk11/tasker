@@ -84,6 +84,7 @@ export class SqliteTaskRepository implements TaskRepository {
     const values: {
       readonly description?: string | null;
       readonly parent_task_id?: string | null;
+      readonly state?: TaskState;
       readonly title?: string;
       readonly updated_at: string;
     } = {
@@ -96,6 +97,7 @@ export class SqliteTaskRepository implements TaskRepository {
         ...values,
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.parentTaskId !== undefined ? { parent_task_id: input.parentTaskId } : {}),
+        ...(input.state !== undefined ? { state: input.state } : {}),
         ...(input.title !== undefined ? { title: input.title } : {})
       })
       .where("id", "=", id)

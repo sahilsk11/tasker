@@ -11,6 +11,7 @@ import type { CreateTaskArtifactInput } from "../domain/task-artifact.js";
 import type { CreateTaskPullRequestInput } from "../domain/task-pull-request.js";
 import type { CreateTaskTicketInput } from "../domain/task-ticket.js";
 import type { UpdateTaskActionInput } from "../domain/task-action.js";
+import { taskStates } from "../domain/task.js";
 import type { UpdateTaskInput } from "../domain/task.js";
 import type { TaskService } from "../service/task.service.js";
 
@@ -53,6 +54,7 @@ const createTaskSchema = z.object({
 const updateTaskSchema = z.object({
   description: z.string().nullable().optional(),
   parentTaskId: z.string().nullable().optional(),
+  state: z.enum(taskStates).optional(),
   title: z.string().min(1).optional()
 });
 
@@ -323,6 +325,7 @@ function parseUpdateTaskInput(body: unknown): UpdateTaskInput {
   return {
     ...(parsed.description !== undefined ? { description: parsed.description } : {}),
     ...(parsed.parentTaskId !== undefined ? { parentTaskId: parsed.parentTaskId } : {}),
+    ...(parsed.state !== undefined ? { state: parsed.state } : {}),
     ...(parsed.title !== undefined ? { title: parsed.title } : {})
   };
 }

@@ -19,6 +19,16 @@ export type TaskState =
   | "merged"
   | "done";
 
+export const taskStates = [
+  "ready",
+  "research",
+  "plan",
+  "implement",
+  "code_review",
+  "merged",
+  "done"
+] as const satisfies readonly TaskState[];
+
 export type ApiArtifact = {
   readonly createdAt: string;
   readonly createdBySessionId: string | null;
@@ -204,6 +214,13 @@ export type CreateTaskInput = {
   readonly title: string;
 };
 
+export type UpdateTaskInput = {
+  readonly description?: string | null;
+  readonly parentTaskId?: string | null;
+  readonly state?: TaskState;
+  readonly title?: string;
+};
+
 export type CreateTicketInput = {
   readonly externalId: string;
   readonly url: string | null;
@@ -306,6 +323,17 @@ export async function createTask(input: CreateTaskInput): Promise<ApiTask> {
 
 export async function getTask(taskId: string): Promise<ApiTask> {
   const { task } = await apiClient.get<{ readonly task: ApiTask }>(`/tasks/${taskId}`);
+  return task;
+}
+
+export async function updateTask(
+  taskId: string,
+  input: UpdateTaskInput
+): Promise<ApiTask> {
+  const { task } = await apiClient.patch<{ readonly task: ApiTask }>(
+    `/tasks/${taskId}`,
+    input
+  );
   return task;
 }
 

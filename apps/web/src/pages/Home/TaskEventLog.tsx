@@ -24,8 +24,8 @@ const eventIcons: Partial<Record<ResourceKind, LucideIcon>> = {
 
 const eventVerbs: Partial<Record<ResourceKind, string>> = {
   artifact: "Artifact saved",
-  pr: "Pull request opened",
-  session: "Session ran",
+  pr: "Opened",
+  session: "Session started",
   subtask: "Subtask created",
   ticket: "Ticket linked"
 };
@@ -82,13 +82,18 @@ function TaskEventRow({
       type="button"
       onClick={onOpen}
       className={cn(
-        "grid min-h-9 min-w-0 grid-cols-[1.5rem_1fr_auto] items-center gap-[9px] rounded-md border border-transparent px-2 py-1 text-left",
+        "grid min-h-11 min-w-0 grid-cols-[2.375rem_minmax(0,1fr)] items-start gap-[9px] rounded-md border border-transparent px-2 py-1 text-left",
         "transition-colors hover:border-[#2c2d34] hover:bg-[#16171c] hover:text-[#cdd0d6]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       )}
     >
-      <span className={cn("flex size-6 items-center justify-center", iconClassName)}>
-        <Icon className="size-4" />
+      <span className="flex min-w-0 flex-col items-center gap-1 pt-0.5">
+        <span className={cn("flex size-6 items-center justify-center", iconClassName)}>
+          <Icon className="size-4" />
+        </span>
+        <span className="max-w-full truncate font-mono text-[10px] leading-none text-[#5c5f68]">
+          {resource.updatedAt}
+        </span>
       </span>
       <span className="grid min-w-0 gap-0.5">
         <span className="flex min-w-0 items-center gap-1.5 text-sm text-[#a9abb2]">
@@ -97,12 +102,7 @@ function TaskEventRow({
           </span>
           <span className="min-w-0 truncate font-medium">{title}</span>
         </span>
-        {note == null ? null : (
-          <span className="min-w-0 truncate text-sm text-[#83868f]">{note}</span>
-        )}
-      </span>
-      <span className="ml-1 shrink-0 font-mono text-xs text-[#5c5f68]">
-        {resource.updatedAt}
+        {note == null ? null : <span className="min-w-0">{note}</span>}
       </span>
     </button>
   );
@@ -126,19 +126,7 @@ function getEventTitle(
   }
 
   if (resource.kind === "artifact") {
-    return (
-      <>
-        <span className="truncate">{resource.label}</span>
-        {resource.metaLabel == null ? null : (
-          <Badge
-            className="h-5 shrink-0 rounded-md border-[#1c1d22] bg-[#1a1b21] px-1.5 text-xs text-[#c2c4ca]"
-            variant="secondary"
-          >
-            {resource.metaLabel}
-          </Badge>
-        )}
-      </>
-    );
+    return <span className="truncate">{resource.label}</span>;
   }
 
   return resource.label;
@@ -147,20 +135,43 @@ function getEventTitle(
 function getEventNote(
   resource: Resource,
   pullRequestStatuses: PullRequestStatusMap
-): string | null {
+): ReactNode | null {
   if (resource.kind === "pr") {
-    return formatPullRequestReference(resource, pullRequestStatuses);
+    return (
+      <span className="block min-w-0 truncate text-sm text-[#83868f]">
+        {formatPullRequestReference(resource, pullRequestStatuses)}
+      </span>
+    );
   }
 
   if (resource.kind === "artifact") {
-    return resource.metaLabel == null ? resource.detail : `${resource.metaLabel} note`;
+    if (resource.metaLabel == null) {
+      return null;
+    }
+
+    return (
+      <Badge
+        className="h-5 w-fit rounded-md border-[#1c1d22] bg-[#1a1b21] px-1.5 text-xs text-[#c2c4ca]"
+        variant="secondary"
+      >
+        {resource.metaLabel}
+      </Badge>
+    );
   }
 
   if (resource.kind === "session") {
-    return resource.detail;
+    return (
+      <span className="block min-w-0 truncate text-sm text-[#83868f]">
+        {resource.detail}
+      </span>
+    );
   }
 
-  return resource.state;
+  return (
+    <span className="block min-w-0 truncate text-sm text-[#83868f]">
+      {resource.state}
+    </span>
+  );
 }
 
 function getEventIconClassName(resource: Resource): string {

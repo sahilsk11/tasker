@@ -82,7 +82,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
         ticket.externalId,
         ticket.url == null ? "Ticket" : getUrlHost(ticket.url),
         ticket.url == null ? "Unlinked" : "Linked",
-        formatDate(ticket.createdAt),
+        formatActivityTime(ticket.createdAt),
         ticket.createdAt,
         {
           href: ticket.url,
@@ -97,7 +97,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
         session.displayTitle ?? session.providerId ?? capitalize(session.provider),
         capitalize(session.provider),
         "Claimed",
-        formatDate(session.claimedAt ?? session.createdAt),
+        formatActivityTime(session.claimedAt ?? session.createdAt),
         session.claimedAt ?? session.createdAt,
         {
           href: null,
@@ -114,7 +114,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
         child.title,
         child.id.slice(0, 8),
         "Open",
-        formatDate(child.createdAt),
+        formatActivityTime(child.createdAt),
         child.updatedAt,
         {
           href: null,
@@ -127,7 +127,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
 }
 
 function resourceFromArtifact(artifact: ApiArtifact): Resource {
-  const createdAt = formatDate(artifact.createdAt);
+  const createdAt = formatActivityTime(artifact.createdAt);
 
   return resource(
     "artifact",
@@ -152,7 +152,7 @@ function resourceFromPullRequest(pullRequest: ApiPullRequest): Resource {
     pullRequestNumber == null ? "Pull request" : `PR ${String(pullRequestNumber)}`,
     pullRequest.url,
     "Registered",
-    formatDate(pullRequest.createdAt),
+    formatActivityTime(pullRequest.createdAt),
     pullRequest.createdAt,
     {
       href: pullRequest.url,
@@ -265,10 +265,20 @@ function decodeUriPart(value: string): string {
   }
 }
 
-function formatDate(value: string): string {
+function formatActivityTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
+  }
+
+  const elapsedMs = Date.now() - date.getTime();
+  if (elapsedMs >= 0 && elapsedMs < 60 * 60 * 1000) {
+    const elapsedMinutes = Math.max(1, Math.floor(elapsedMs / 60_000));
+    return `${String(elapsedMinutes)} min`;
+  }
+
+  if (elapsedMs >= 0 && elapsedMs < 24 * 60 * 60 * 1000) {
+    return `${String(Math.max(1, Math.floor(elapsedMs / (60 * 60 * 1000))))} hr`;
   }
 
   return new Intl.DateTimeFormat(undefined, {

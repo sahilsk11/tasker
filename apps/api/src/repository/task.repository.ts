@@ -4,6 +4,7 @@ import type { Database, TaskRow } from "../db/schema.js";
 import type {
   CreateTaskInput,
   Task,
+  TaskDependencySummary,
   TaskId,
   TaskState,
   UpdateTaskInput
@@ -15,9 +16,17 @@ export type TaskRepository = {
   readonly createSubtasks: (input: CreateSubtasksInput) => Promise<readonly Task[]>;
   readonly findById: (id: TaskId) => Promise<Task | null>;
   readonly findChildren: (parentTaskId: TaskId) => Promise<readonly Task[]>;
+  readonly listWaitingDependenciesByTaskIds: (
+    taskIds: readonly TaskId[]
+  ) => Promise<readonly TaskDependencyState[]>;
   readonly listByParentTaskId: (parentTaskId: TaskId | null) => Promise<readonly Task[]>;
   readonly updateStateAtLeast: (id: TaskId, state: TaskState) => Promise<Task | null>;
   readonly update: (id: TaskId, input: UpdateTaskInput) => Promise<Task | null>;
+};
+
+export type TaskDependencyState = {
+  readonly taskId: TaskId;
+  readonly waitingDependencies: readonly TaskDependencySummary[];
 };
 
 export type CreateSubtaskInput = {
@@ -143,6 +152,48 @@ export class SqliteTaskRepository implements TaskRepository {
         : await query.where("parent_task_id", "=", parentTaskId).execute();
 
     return rows.map(toTask);
+  }
+
+  public async listWaitingDependenciesByTaskIds(
+    taskIds: readonly TaskId[]
+  ): Promise<readonly TaskDependencyState[]> {
+    if (taskIds.length === 0) {
+      return [];
+    }
+
+    const rows = await this.db
+      .selectFrom("task_dependencies")
+      .innerJoin(
+        "tasks as dependency",
+        "dependency.id",
+        "task_dependencies.depends_on_task_id"
+      )
+      .select([
+        "task_dependencies.task_id as taskId",
+        "dependency.id as id",
+        "dependency.state as state",
+        "dependency.title as title"
+      ])
+      .where("task_dependencies.task_id", "in", taskIds)
+      .where("dependency.state", "!=", "done")
+      .orderBy("dependency.created_at", "asc")
+      .execute();
+
+    const dependenciesByTaskId = new Map<TaskId, TaskDependencySummary[]>();
+    rows.forEach((row) => {
+      const dependencies = dependenciesByTaskId.get(row.taskId) ?? [];
+      dependencies.push({
+        id: row.id,
+        state: row.state,
+        title: row.title
+      });
+      dependenciesByTaskId.set(row.taskId, dependencies);
+    });
+
+    return taskIds.map((taskId) => ({
+      taskId,
+      waitingDependencies: dependenciesByTaskId.get(taskId) ?? []
+    }));
   }
 
   public async update(id: TaskId, input: UpdateTaskInput): Promise<Task | null> {

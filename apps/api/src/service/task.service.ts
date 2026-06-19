@@ -27,6 +27,7 @@ import type {
   Task,
   TaskId,
   TaskState,
+  TaskWithDependencyState,
   UpdateTaskInput
 } from "../domain/task.js";
 import type { TaskArtifactRepository } from "../repository/task-artifact.repository.js";
@@ -60,10 +61,10 @@ export type ListTasksInput = {
 
 export type TaskOverview = {
   readonly action: TaskAction | null;
-  readonly children: readonly Task[];
+  readonly children: readonly TaskWithDependencyState[];
   readonly latestTaskActivityAt: Date;
   readonly resources: TaskResources;
-  readonly task: Task;
+  readonly task: TaskWithDependencyState;
 };
 
 export type ClaimTaskSessionResult = {
@@ -255,22 +256,25 @@ export class TaskService {
     return this.tickets.createForTask(taskId, input);
   }
 
-  public async createTask(input: CreateTaskInput): Promise<Task> {
+  public async createTask(input: CreateTaskInput): Promise<TaskWithDependencyState> {
     if (input.parentTaskId != null) {
       await this.requireTask(input.parentTaskId);
     }
 
-    return this.tasks.create({
-      ...input,
-      ...(input.workingDirectory !== undefined
-        ? {
-            workingDirectory: await normalizeOptionalDirectoryPath(
-              input.workingDirectory,
-              "Working directory"
-            )
-          }
-        : {})
-    });
+    return withWaitingDependencies(
+      await this.tasks.create({
+        ...input,
+        ...(input.workingDirectory !== undefined
+          ? {
+              workingDirectory: await normalizeOptionalDirectoryPath(
+                input.workingDirectory,
+                "Working directory"
+              )
+            }
+          : {})
+      }),
+      []
+    );
   }
 
   public async getResources(taskId: TaskId): Promise<TaskResources> {
@@ -375,8 +379,8 @@ export class TaskService {
     return records.map(toTaskActionDetails);
   }
 
-  public async getTask(taskId: TaskId): Promise<Task> {
-    return this.requireTask(taskId);
+  public async getTask(taskId: TaskId): Promise<TaskWithDependencyState> {
+    return this.addDependencyState(await this.requireTask(taskId));
   }
 
   public async listArtifacts(taskId: TaskId): Promise<readonly TaskArtifact[]> {
@@ -389,9 +393,9 @@ export class TaskService {
     return this.pullRequests.listByTaskId(taskId);
   }
 
-  public async listChildren(taskId: TaskId): Promise<readonly Task[]> {
+  public async listChildren(taskId: TaskId): Promise<readonly TaskWithDependencyState[]> {
     await this.requireTask(taskId);
-    return this.tasks.findChildren(taskId);
+    return this.addDependencyStates(await this.tasks.findChildren(taskId));
   }
 
   public async listSessions(taskId: TaskId): Promise<readonly TaskSession[]> {
@@ -401,12 +405,14 @@ export class TaskService {
     );
   }
 
-  public async listTasks(input: ListTasksInput): Promise<readonly Task[]> {
+  public async listTasks(input: ListTasksInput): Promise<readonly TaskWithDependencyState[]> {
     if (input.parentTaskId != null) {
       await this.requireTask(input.parentTaskId);
     }
 
-    return this.tasks.listByParentTaskId(input.parentTaskId);
+    return this.addDependencyStates(
+      await this.tasks.listByParentTaskId(input.parentTaskId)
+    );
   }
 
   public async listTickets(taskId: TaskId): Promise<readonly TaskTicket[]> {
@@ -414,7 +420,10 @@ export class TaskService {
     return this.tickets.listByTaskId(taskId);
   }
 
-  public async updateTask(taskId: TaskId, input: UpdateTaskInput): Promise<Task> {
+  public async updateTask(
+    taskId: TaskId,
+    input: UpdateTaskInput
+  ): Promise<TaskWithDependencyState> {
     if (input.parentTaskId != null) {
       await this.requireTask(input.parentTaskId);
     }
@@ -434,7 +443,7 @@ export class TaskService {
       throw new NotFoundError(`Task ${taskId} not found`);
     }
 
-    return task;
+    return this.addDependencyState(task);
   }
 
   public async updateActionSettings(
@@ -481,7 +490,7 @@ export class TaskService {
 
   private async getTaskOverview(session: TaskSession): Promise<TaskOverview> {
     const [task, resources, children] = await Promise.all([
-      this.requireTask(session.taskId),
+      this.getTask(session.taskId),
       this.getResources(session.taskId),
       this.listChildren(session.taskId)
     ]);
@@ -506,6 +515,31 @@ export class TaskService {
     };
   }
 
+  private async addDependencyState(task: Task): Promise<TaskWithDependencyState> {
+    const [dependencyState] = await this.tasks.listWaitingDependenciesByTaskIds([
+      task.id
+    ]);
+    return withWaitingDependencies(
+      task,
+      dependencyState?.waitingDependencies ?? []
+    );
+  }
+
+  private async addDependencyStates(
+    tasks: readonly Task[]
+  ): Promise<readonly TaskWithDependencyState[]> {
+    const dependencyStates = await this.tasks.listWaitingDependenciesByTaskIds(
+      tasks.map((task) => task.id)
+    );
+    const dependenciesByTaskId = new Map(
+      dependencyStates.map((state) => [state.taskId, state.waitingDependencies])
+    );
+
+    return tasks.map((task) =>
+      withWaitingDependencies(task, dependenciesByTaskId.get(task.id) ?? [])
+    );
+  }
+
   private async inferTaskStateFromArtifact(
     taskId: TaskId,
     artifact: TaskArtifact
@@ -516,6 +550,16 @@ export class TaskService {
 
     await this.tasks.updateStateAtLeast(taskId, getTaskStateForArtifact(artifact));
   }
+}
+
+function withWaitingDependencies(
+  task: Task,
+  waitingDependencies: TaskWithDependencyState["waitingDependencies"]
+): TaskWithDependencyState {
+  return {
+    ...task,
+    waitingDependencies
+  };
 }
 
 function getTaskStateForArtifact(artifact: TaskArtifact): TaskState {

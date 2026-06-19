@@ -166,6 +166,7 @@ function TaskCard({
   const [selectedAction, setSelectedAction] = useState<ApiTaskAction | null>(null);
   const [pendingDuplicateAction, setPendingDuplicateAction] =
     useState<PendingDuplicateAction | null>(null);
+  const [isDependencyDialogOpen, setIsDependencyDialogOpen] = useState(false);
   const [showAllActions, setShowAllActions] = useState(false);
   const selectedGroup =
     groupedResources.find((group) => group.kind === selectedKind) ?? null;
@@ -308,6 +309,17 @@ function TaskCard({
                 open={isStateOpen}
                 stateDefinitions={taskStateDefinitions}
               />
+              {bundle.task.waitingDependencies.length === 0 ? null : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-7 rounded-full border-destructive/30 bg-destructive/10 px-3 text-[13px] font-semibold text-destructive hover:border-destructive/45 hover:bg-destructive/15 hover:text-destructive"
+                  title={getWaitingDependenciesTitle(bundle.task)}
+                  onClick={() => setIsDependencyDialogOpen(true)}
+                >
+                  Not Ready
+                </Button>
+              )}
               {stateError == null ? null : (
                 <span className="text-sm text-destructive">{stateError}</span>
               )}
@@ -382,6 +394,12 @@ function TaskCard({
         onCancel={() => setPendingDuplicateAction(null)}
         onContinue={continueDuplicateAction}
       />
+      <DependencyDialog
+        onOpenChange={setIsDependencyDialogOpen}
+        open={isDependencyDialogOpen}
+        task={bundle.task}
+        taskStateDefinitions={taskStateDefinitions}
+      />
       <ResourceTableDialog
         group={selectedGroup}
         onOpenResource={openResource}
@@ -395,6 +413,69 @@ function TaskCard({
       />
     </>
   );
+}
+
+function DependencyDialog({
+  onOpenChange,
+  open,
+  task,
+  taskStateDefinitions
+}: {
+  readonly onOpenChange: (open: boolean) => void;
+  readonly open: boolean;
+  readonly task: ApiTask;
+  readonly taskStateDefinitions: readonly TaskStateDefinition[];
+}): React.JSX.Element {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Not Ready</DialogTitle>
+          <DialogDescription>
+            This task is dependent on:
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-2 px-5 pb-5">
+          {task.waitingDependencies.map((dependency) => {
+            const stateMeta = taskStateMetaByState[dependency.state];
+            const stateLabel = getTaskStateLabel(
+              dependency.state,
+              taskStateDefinitions
+            );
+
+            return (
+              <div
+                key={dependency.id}
+                className="rounded-[8px] border border-[#24252b] bg-[#101116] p-3"
+              >
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <h3 className="min-w-0 truncate text-sm font-semibold text-[#f1f2f4]">
+                    {dependency.title}
+                  </h3>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "h-6 shrink-0 rounded-full px-2.5 text-xs font-semibold",
+                      stateMeta.iconClassName
+                    )}
+                  >
+                    <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
+                    {stateLabel}
+                  </Badge>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function getWaitingDependenciesTitle(task: ApiTask): string {
+  return `Not ready: ${task.waitingDependencies
+    .map((dependency) => dependency.title)
+    .join(", ")}`;
 }
 
 function DuplicateActionWarningDialog({

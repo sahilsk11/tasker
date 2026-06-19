@@ -31,6 +31,16 @@ export type Task = {
   readonly workingDirectory: string | null;
 };
 
+export type TaskDependencySummary = {
+  readonly id: TaskId;
+  readonly state: TaskState;
+  readonly title: string;
+};
+
+export type TaskWithDependencyState = Task & {
+  readonly waitingDependencies: readonly TaskDependencySummary[];
+};
+
 export type CreateTaskInput = {
   readonly description: string | null;
   readonly parentTaskId: TaskId | null;

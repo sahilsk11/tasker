@@ -8,7 +8,14 @@ export type ApiTask = {
   readonly state: TaskState;
   readonly title: string;
   readonly updatedAt: string;
+  readonly waitingDependencies: readonly ApiTaskDependency[];
   readonly workingDirectory: string | null;
+};
+
+export type ApiTaskDependency = {
+  readonly id: string;
+  readonly state: TaskState;
+  readonly title: string;
 };
 
 export type TaskStateDefinition = {

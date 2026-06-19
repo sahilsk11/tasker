@@ -45,6 +45,7 @@ import {
   type StartedTaskSession
 } from "./session-provider.js";
 import { renderActionPrompt } from "./task-action-prompt.js";
+import { normalizeOptionalDirectoryPath } from "./working-directory.js";
 
 export type TaskResources = {
   readonly artifacts: readonly TaskArtifact[];
@@ -257,7 +258,17 @@ export class TaskService {
       await this.requireTask(input.parentTaskId);
     }
 
-    return this.tasks.create(input);
+    return this.tasks.create({
+      ...input,
+      ...(input.workingDirectory !== undefined
+        ? {
+            workingDirectory: await normalizeOptionalDirectoryPath(
+              input.workingDirectory,
+              "Working directory"
+            )
+          }
+        : {})
+    });
   }
 
   public async getResources(taskId: TaskId): Promise<TaskResources> {
@@ -401,7 +412,17 @@ export class TaskService {
       await this.requireTask(input.parentTaskId);
     }
 
-    const task = await this.tasks.update(taskId, input);
+    const task = await this.tasks.update(taskId, {
+      ...input,
+      ...(input.workingDirectory !== undefined
+        ? {
+            workingDirectory: await normalizeOptionalDirectoryPath(
+              input.workingDirectory,
+              "Working directory"
+            )
+          }
+        : {})
+    });
     if (task == null) {
       throw new NotFoundError(`Task ${taskId} not found`);
     }

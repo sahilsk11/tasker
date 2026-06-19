@@ -167,6 +167,59 @@ void test("task working directory persists on create and update", async () => {
       readonly task: { readonly workingDirectory: string | null };
     }).task;
     assert.equal(cleared.workingDirectory, null);
+
+    const missingPathResponse = await app.inject({
+      method: "POST",
+      payload: {
+        title: "Missing path",
+        workingDirectory: join(dir, "missing")
+      },
+      url: "/tasks"
+    });
+    assert.equal(missingPathResponse.statusCode, 400);
+
+    const filePath = join(dir, "file.txt");
+    await writeFile(filePath, "not a directory");
+    const filePathResponse = await app.inject({
+      method: "PATCH",
+      payload: { workingDirectory: filePath },
+      url: `/tasks/${created.id}`
+    });
+    assert.equal(filePathResponse.statusCode, 400);
+
+    const fileChildResponse = await app.inject({
+      method: "POST",
+      payload: {
+        title: "File child path",
+        workingDirectory: join(filePath, "child")
+      },
+      url: "/tasks"
+    });
+    assert.equal(fileChildResponse.statusCode, 400);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+void test("omitted task working directory stays unset", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-unset-working-directory-"));
+  const app = await createApp({
+    databasePath: join(dir, "tasker.sqlite"),
+    linearApiKey: null
+  });
+
+  try {
+    const createResponse = await app.inject({
+      method: "POST",
+      payload: { title: "No path task" },
+      url: "/tasks"
+    });
+    assert.equal(createResponse.statusCode, 201);
+    const created = (readJson(createResponse.body) as {
+      readonly task: { readonly workingDirectory: string | null };
+    }).task;
+    assert.equal(created.workingDirectory, null);
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });

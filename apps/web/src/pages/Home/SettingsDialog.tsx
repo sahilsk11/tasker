@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   Code2,
   Eye,
+  FolderGit2,
   ListTree,
   LoaderCircle,
   MapIcon,
@@ -21,13 +22,16 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type {
+  ApiWorkingPathSettings,
   ApiTaskActionDetails,
   ApiTaskActionOptions,
   UpdateTaskActionInput
 } from "@/api/tasks";
 import {
+  getWorkingPaths,
   listTaskActionSettings,
-  updateTaskActionSettings
+  updateTaskActionSettings,
+  updateWorkingPathSettings
 } from "@/api/tasks";
 import { MarkdownDocument } from "@/components/MarkdownDocument";
 import {
@@ -63,6 +67,7 @@ import {
   type PreviewOptionValues
 } from "./action-options-utils";
 import { taskActionIcons } from "./task-action-icons";
+import type { LucideIcon } from "lucide-react";
 
 type ActionDraft = {
   readonly description: string;
@@ -78,6 +83,8 @@ type RenderedPromptTemplate = {
   readonly error: string | null;
   readonly value: string;
 };
+
+type SettingsSection = "working-paths" | "actions";
 
 const iconOptions = [
   { Icon: Search, label: "Search", value: "search" },
@@ -95,6 +102,8 @@ const iconOptions = [
 
 export function SettingsDialog(): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedSection, setSelectedSection] =
+    useState<SettingsSection>("working-paths");
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ActionDraft | null>(null);
   const queryClient = useQueryClient();
@@ -102,6 +111,11 @@ export function SettingsDialog(): React.JSX.Element {
     enabled: isOpen,
     queryFn: listTaskActionSettings,
     queryKey: ["action-settings"]
+  });
+  const workingPathsQuery = useQuery({
+    enabled: isOpen,
+    queryFn: getWorkingPaths,
+    queryKey: ["working-paths"]
   });
   const actions = actionsQuery.data ?? [];
   const selectedAction =
@@ -129,6 +143,7 @@ export function SettingsDialog(): React.JSX.Element {
 
   useEffect(() => {
     if (!isOpen) {
+      setSelectedSection("working-paths");
       setSelectedActionId(null);
     }
   }, [isOpen]);
@@ -204,10 +219,27 @@ export function SettingsDialog(): React.JSX.Element {
           </DialogHeader>
           <div className="grid min-h-0 border-t border-border md:grid-cols-[15rem_minmax(0,1fr)]">
             <SettingsSidebar
-              isSelected={selectedActionId == null}
-              onSelectActions={() => setSelectedActionId(null)}
+              selectedSection={selectedSection}
+              onSelectActions={() => {
+                setSelectedSection("actions");
+                setSelectedActionId(null);
+              }}
+              onSelectWorkingPaths={() => {
+                setSelectedSection("working-paths");
+                setSelectedActionId(null);
+              }}
             />
-            {selectedAction == null ? (
+            {selectedSection === "working-paths" ? (
+              <WorkingPathsSettings
+                error={
+                  workingPathsQuery.error instanceof Error
+                    ? workingPathsQuery.error.message
+                    : null
+                }
+                isLoading={workingPathsQuery.isLoading}
+                settings={workingPathsQuery.data?.settings ?? null}
+              />
+            ) : selectedAction == null ? (
               <ActionSettingsOverview
                 actions={actions}
                 error={
@@ -242,28 +274,57 @@ export function SettingsDialog(): React.JSX.Element {
 }
 
 function SettingsSidebar({
-  isSelected,
-  onSelectActions
+  onSelectActions,
+  onSelectWorkingPaths,
+  selectedSection
 }: {
-  readonly isSelected: boolean;
   readonly onSelectActions: () => void;
+  readonly onSelectWorkingPaths: () => void;
+  readonly selectedSection: SettingsSection;
 }): React.JSX.Element {
   return (
-    <aside className="min-h-0 border-b border-border bg-secondary/30 p-2 md:border-b-0 md:border-r">
-      <button
-        type="button"
-        className={cn(
-          "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
-          isSelected
-            ? "bg-background text-foreground shadow-sm"
-            : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
-        )}
+    <aside className="grid min-h-0 content-start gap-1 border-b border-border bg-secondary/30 p-2 md:border-b-0 md:border-r">
+      <SettingsNavButton
+        Icon={FolderGit2}
+        isSelected={selectedSection === "working-paths"}
+        label="Working paths"
+        onClick={onSelectWorkingPaths}
+      />
+      <SettingsNavButton
+        Icon={Workflow}
+        isSelected={selectedSection === "actions"}
+        label="Actions"
         onClick={onSelectActions}
-      >
-        <Workflow className="size-4 text-muted-foreground" />
-        <span>Actions</span>
-      </button>
+      />
     </aside>
+  );
+}
+
+function SettingsNavButton({
+  Icon,
+  isSelected,
+  label,
+  onClick
+}: {
+  readonly Icon: LucideIcon;
+  readonly isSelected: boolean;
+  readonly label: string;
+  readonly onClick: () => void;
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
+        isSelected
+          ? "bg-background text-foreground shadow-sm"
+          : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
+      )}
+      onClick={onClick}
+    >
+      <Icon className="size-4 text-muted-foreground" />
+      <span>{label}</span>
+    </button>
   );
 }
 
@@ -295,6 +356,104 @@ function ActionSettingsOverview({
             onSelect={() => onSelectAction(action.id)}
           />
         ))}
+      </div>
+    </section>
+  );
+}
+
+function WorkingPathsSettings({
+  error,
+  isLoading,
+  settings
+}: {
+  readonly error: string | null;
+  readonly isLoading: boolean;
+  readonly settings: ApiWorkingPathSettings | null;
+}): React.JSX.Element {
+  const [defaultWorkingDirectory, setDefaultWorkingDirectory] = useState("");
+  const [defaultWorktreePath, setDefaultWorktreePath] = useState("~/wt");
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () =>
+      updateWorkingPathSettings({
+        defaultWorkingDirectory:
+          defaultWorkingDirectory.trim().length === 0
+            ? null
+            : defaultWorkingDirectory.trim(),
+        defaultWorktreePath: defaultWorktreePath.trim()
+      }),
+    onSuccess: async (updatedSettings) => {
+      setDefaultWorkingDirectory(updatedSettings.defaultWorkingDirectory ?? "");
+      setDefaultWorktreePath(updatedSettings.defaultWorktreePath);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["working-paths"] })
+      ]);
+    }
+  });
+
+  useEffect(() => {
+    if (settings == null || mutation.isPending) {
+      return;
+    }
+
+    setDefaultWorkingDirectory(settings.defaultWorkingDirectory ?? "");
+    setDefaultWorktreePath(settings.defaultWorktreePath);
+  }, [mutation.isPending, settings]);
+
+  const mutationError =
+    mutation.error instanceof Error ? mutation.error.message : null;
+
+  return (
+    <section className="min-h-0 overflow-y-auto p-5">
+      <div className="grid max-w-3xl gap-3">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-foreground">Working paths</h3>
+          {isLoading ? (
+            <span className="flex items-center gap-2 text-sm text-muted-foreground">
+              <LoaderCircle className="size-4 animate-spin" />
+              Loading
+            </span>
+          ) : null}
+        </div>
+        <div className="grid gap-3 rounded-lg border border-border bg-secondary/20 p-4">
+          <Field label="Default working directory" id="default-working-directory">
+            <Input
+              id="default-working-directory"
+              value={defaultWorkingDirectory}
+              onChange={(event) => setDefaultWorkingDirectory(event.target.value)}
+              placeholder="/path/to/project"
+            />
+          </Field>
+          <Field label="Default worktree path" id="default-worktree-path">
+            <Input
+              id="default-worktree-path"
+              value={defaultWorktreePath}
+              onChange={(event) => setDefaultWorktreePath(event.target.value)}
+              placeholder="~/wt"
+            />
+          </Field>
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => mutation.mutate()}
+              disabled={mutation.isPending || defaultWorktreePath.trim().length === 0}
+            >
+              {mutation.isPending ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : (
+                <Save className="size-4" />
+              )}
+              <span>Save</span>
+            </Button>
+          </div>
+        </div>
+        {error == null ? null : <p className="text-sm text-destructive">{error}</p>}
+        {mutationError == null ? null : (
+          <p className="text-sm text-destructive">{mutationError}</p>
+        )}
       </div>
     </section>
   );

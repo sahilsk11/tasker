@@ -72,6 +72,7 @@ const updateTaskActionSchema = z
     label: z.string().min(1).optional(),
     options: taskActionOptionsSchema.nullable().optional(),
     promptTemplate: z.string().min(1).optional(),
+    recommendationStates: z.array(z.enum(taskStates)).optional(),
     sortOrder: z.number().int().min(0).optional()
   })
   .strict();
@@ -373,6 +374,9 @@ function parseUpdateTaskActionInput(body: unknown): UpdateTaskActionInput {
     ...(parsed.options !== undefined ? { options: parsed.options } : {}),
     ...(parsed.promptTemplate !== undefined
       ? { promptTemplate: parsed.promptTemplate }
+      : {}),
+    ...(parsed.recommendationStates !== undefined
+      ? { recommendationStates: parsed.recommendationStates }
       : {}),
     ...(parsed.sortOrder !== undefined ? { sortOrder: parsed.sortOrder } : {})
   };

@@ -88,6 +88,7 @@ async function insertTaskAction(
       label: action.label,
       options_json: serializeOptions(action.options),
       prompt_template: action.promptTemplate,
+      recommendation_states_json: serializeRecommendationStates(action.recommendationStates),
       sort_order: action.sortOrder,
       updated_at: now
     })
@@ -106,6 +107,7 @@ function toRowValues(
     label: action.label,
     options_json: serializeOptions(action.options),
     prompt_template: action.promptTemplate,
+    recommendation_states_json: serializeRecommendationStates(action.recommendationStates),
     sort_order: action.sortOrder,
     updated_at: now,
     ...(preserveCreatedAt ? {} : { created_at: now })
@@ -114,4 +116,10 @@ function toRowValues(
 
 function serializeOptions(options: TaskActionDefault["options"]): string | null {
   return options == null ? null : JSON.stringify(options);
+}
+
+function serializeRecommendationStates(
+  states: TaskActionDefault["recommendationStates"]
+): string {
+  return JSON.stringify(states);
 }

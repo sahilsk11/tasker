@@ -1,9 +1,11 @@
 import type { TaskActionOptions } from "./task-action-options.js";
+import type { TaskState } from "./task.js";
 
 export type TaskAction = {
   readonly description: string;
   readonly iconName: string | null;
   readonly id: string;
+  readonly isRecommended: boolean;
   readonly label: string;
   readonly options: TaskActionOptions | null;
 };
@@ -12,6 +14,7 @@ export type TaskActionRecord = TaskAction & {
   readonly createdAt: Date;
   readonly enabled: boolean;
   readonly promptTemplate: string;
+  readonly recommendationStates: readonly TaskState[];
   readonly sortOrder: number;
   readonly updatedAt: Date;
 };
@@ -20,6 +23,7 @@ export type TaskActionDetails = TaskAction & {
   readonly createdAt: string;
   readonly enabled: boolean;
   readonly promptTemplate: string;
+  readonly recommendationStates: readonly TaskState[];
   readonly sortOrder: number;
   readonly updatedAt: string;
 };
@@ -31,6 +35,7 @@ export type UpdateTaskActionInput = {
   readonly label?: string;
   readonly options?: TaskActionOptions | null;
   readonly promptTemplate?: string;
+  readonly recommendationStates?: readonly TaskState[];
   readonly sortOrder?: number;
 };
 

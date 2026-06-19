@@ -172,6 +172,21 @@ export type TaskResources = {
   readonly tickets: readonly ApiTicket[];
 };
 
+export type ApiWorkingPathSettings = {
+  readonly defaultWorkingDirectory: string | null;
+  readonly defaultWorktreePath: string;
+  readonly updatedAt: string;
+};
+
+export type WorkingPathConfig = {
+  readonly settings: ApiWorkingPathSettings;
+};
+
+export type UpdateWorkingPathSettingsInput = {
+  readonly defaultWorkingDirectory?: string | null;
+  readonly defaultWorktreePath?: string;
+};
+
 export type TaskBundle = {
   readonly actions: readonly ApiTaskAction[];
   readonly children: readonly ApiTask[];
@@ -345,6 +360,19 @@ export async function updateTaskActionSettings(
     readonly action: ApiTaskActionDetails;
   }>(`/actions/${actionId}`, input);
   return action;
+}
+
+export async function getWorkingPaths(): Promise<WorkingPathConfig> {
+  return apiClient.get<WorkingPathConfig>("/working-paths");
+}
+
+export async function updateWorkingPathSettings(
+  input: UpdateWorkingPathSettingsInput
+): Promise<ApiWorkingPathSettings> {
+  const { settings } = await apiClient.patch<{
+    readonly settings: ApiWorkingPathSettings;
+  }>("/working-paths/settings", input);
+  return settings;
 }
 
 export async function createTask(input: CreateTaskInput): Promise<ApiTask> {

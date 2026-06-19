@@ -4,6 +4,7 @@ import type {
 } from "../domain/working-paths.js";
 import type { WorkingPathRepository } from "../repository/working-path.repository.js";
 import { BadRequestError } from "./errors.js";
+import { normalizeOptionalDirectoryPath } from "./working-directory.js";
 
 export type WorkingPathConfig = {
   readonly settings: WorkingPathSettings;
@@ -21,18 +22,18 @@ export class WorkingPathService {
   ): Promise<WorkingPathSettings> {
     return this.workingPaths.updateSettings({
       ...(input.defaultWorkingDirectory !== undefined
-        ? { defaultWorkingDirectory: optionalText(input.defaultWorkingDirectory) }
+        ? {
+            defaultWorkingDirectory: await normalizeOptionalDirectoryPath(
+              input.defaultWorkingDirectory,
+              "Default working directory"
+            )
+          }
         : {}),
       ...(input.defaultWorktreePath !== undefined
         ? { defaultWorktreePath: requireText(input.defaultWorktreePath, "Default worktree path") }
         : {})
     });
   }
-}
-
-function optionalText(value: string | null): string | null {
-  const trimmed = value?.trim();
-  return trimmed == null || trimmed.length === 0 ? null : trimmed;
 }
 
 function requireText(value: string, label: string): string {

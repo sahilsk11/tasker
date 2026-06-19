@@ -147,6 +147,7 @@ export function TaskActionsDialog({
 
 export function TaskActionPromptDialog({
   action,
+  defaultWorkingPath,
   onBack,
   onRunComplete,
   onOpenChange,
@@ -154,6 +155,7 @@ export function TaskActionPromptDialog({
   taskId
 }: {
   readonly action: ApiTaskAction | null;
+  readonly defaultWorkingPath: string;
   readonly onBack: () => void;
   readonly onRunComplete: (session: ApiSession) => void;
   readonly onOpenChange: (isOpen: boolean) => void;
@@ -188,8 +190,8 @@ export function TaskActionPromptDialog({
     );
     setPromptError(null);
     setRunError(null);
-    setWorkingPath("");
-  }, [action, session]);
+    setWorkingPath(defaultWorkingPath);
+  }, [action, defaultWorkingPath, session]);
 
   useEffect(() => {
     setOptionValues((currentValues) =>

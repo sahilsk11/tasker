@@ -1,11 +1,12 @@
 import { Check, Plus } from "lucide-react";
-import { type SyntheticEvent, useEffect, useMemo, useState } from "react";
+import { type SyntheticEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createLinearTaskTicket,
   createTask,
   createTaskTicket,
   getLinearOptions,
+  getWorkingPaths,
   type LinearIssueDetails,
   resolveLinearIssue
 } from "@/api/tasks";
@@ -41,6 +42,7 @@ export function NewTaskDialog(): React.JSX.Element {
   const [linearTeamId, setLinearTeamId] = useState("");
   const [linearProjectId, setLinearProjectId] = useState("");
   const [linearStateId, setLinearStateId] = useState("");
+  const didApplyDefaultWorkingDirectory = useRef(false);
   const queryClient = useQueryClient();
   const hasExistingTicket = ticket.trim().length > 0;
   const linearOptionsQuery = useQuery({
@@ -48,7 +50,14 @@ export function NewTaskDialog(): React.JSX.Element {
     queryFn: getLinearOptions,
     queryKey: ["linear-options"]
   });
+  const workingPathsQuery = useQuery({
+    enabled: open,
+    queryFn: getWorkingPaths,
+    queryKey: ["working-paths"]
+  });
   const linearOptions = linearOptionsQuery.data ?? null;
+  const defaultWorkingDirectory =
+    workingPathsQuery.data?.settings.defaultWorkingDirectory ?? "";
   const selectedLinearTeam = getSelectedLinearTeam(linearOptions, linearTeamId);
   const linearStateOptions = useMemo(
     () => selectedLinearTeam?.states ?? [],
@@ -131,6 +140,18 @@ export function NewTaskDialog(): React.JSX.Element {
       setLinearStateId(firstState.id);
     }
   }, [createTicket, linearStateId, linearStateOptions, linearTeamId]);
+
+  useEffect(() => {
+    if (!open) {
+      didApplyDefaultWorkingDirectory.current = false;
+      return;
+    }
+
+    if (!didApplyDefaultWorkingDirectory.current) {
+      setWorkingDirectory(defaultWorkingDirectory);
+      didApplyDefaultWorkingDirectory.current = true;
+    }
+  }, [defaultWorkingDirectory, open]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -274,6 +295,11 @@ export function NewTaskDialog(): React.JSX.Element {
                 onChange={(event) => setWorkingDirectory(event.target.value)}
                 placeholder="/path/to/project"
               />
+              {workingPathsQuery.isError ? (
+                <p className="text-sm text-destructive">
+                  {getMutationErrorMessage(workingPathsQuery.error)}
+                </p>
+              ) : null}
             </div>
             <label
               className={

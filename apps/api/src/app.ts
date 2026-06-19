@@ -80,9 +80,8 @@ export async function createApp(options: CreateAppOptions) {
   const sessionProviders = new TaskSessionProviderRegistry(providers, {
     defaultLaunchProvider: options.agentRunProvider ?? null
   });
-  const workingPathService = new WorkingPathService(
-    new SqliteWorkingPathRepository(db)
-  );
+  const workingPathRepository = new SqliteWorkingPathRepository(db);
+  const workingPathService = new WorkingPathService(workingPathRepository);
   const taskService = new TaskService(
     taskRepository,
     new SqliteTaskArtifactRepository(db),

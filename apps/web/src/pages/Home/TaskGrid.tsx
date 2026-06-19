@@ -155,6 +155,7 @@ function TaskCard({
   const queryClient = useQueryClient();
   const groupedResources = getResourceGroupsForBundle(bundle);
   const timelineResources = getTimelineResourcesForBundle(bundle);
+  const defaultWorkingPath = bundle.task.workingDirectory ?? "";
   const [actionError, setActionError] = useState<string | null>(null);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
   const [preparingActionId, setPreparingActionId] = useState<string | null>(null);
@@ -369,6 +370,7 @@ function TaskCard({
       />
       <TaskActionPromptDialog
         action={selectedAction}
+        defaultWorkingPath={defaultWorkingPath}
         onBack={() => {
           setSelectedAction(null);
           setSelectedSession(null);

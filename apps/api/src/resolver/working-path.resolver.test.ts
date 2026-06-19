@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -51,6 +51,22 @@ void test("working path settings can be read and updated", async () => {
       url: "/working-paths/settings"
     });
     assert.equal(invalidResponse.statusCode, 400);
+
+    const missingDirectoryResponse = await app.inject({
+      method: "PATCH",
+      payload: { defaultWorkingDirectory: join(dir, "missing") },
+      url: "/working-paths/settings"
+    });
+    assert.equal(missingDirectoryResponse.statusCode, 400);
+
+    const filePath = join(dir, "file.txt");
+    await writeFile(filePath, "not a directory");
+    const filePathResponse = await app.inject({
+      method: "PATCH",
+      payload: { defaultWorkingDirectory: filePath },
+      url: "/working-paths/settings"
+    });
+    assert.equal(filePathResponse.statusCode, 400);
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });

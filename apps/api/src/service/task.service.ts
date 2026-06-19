@@ -349,9 +349,14 @@ export class TaskService {
   }
 
   public async listActions(taskId: TaskId): Promise<readonly TaskAction[]> {
-    await this.requireTask(taskId);
+    const task = await this.requireTask(taskId);
     const records = await this.actions.listEnabled();
-    return records.map(toTaskAction);
+    return records.map((record) =>
+      toTaskAction({
+        ...record,
+        isRecommended: record.recommendationStates.includes(task.state)
+      })
+    );
   }
 
   public async listActionSettings(): Promise<readonly TaskActionDetails[]> {

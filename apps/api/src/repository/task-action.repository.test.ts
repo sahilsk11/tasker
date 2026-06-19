@@ -36,6 +36,7 @@ void test("task actions are loaded from the database", async () => {
       readonly actions: ReadonlyArray<{
         readonly description: string;
         readonly id: string;
+        readonly isRecommended: boolean;
         readonly label: string;
         readonly options: Record<string, unknown> | null;
       }>;
@@ -51,6 +52,7 @@ void test("task actions are loaded from the database", async () => {
     assert.ok(firstAction);
     assert.ok(implementAction);
     assert.equal(firstAction.label, "Scope");
+    assert.equal(firstAction.isRecommended, true);
     assert.match(firstAction.description, /codebase surface/);
     assert.equal(implementAction.options?.["worktree"] != null, true);
     assert.equal(firstAction.options, null);
@@ -190,6 +192,7 @@ void test("task action settings can be updated through the catalog endpoint", as
         enabled: false,
         iconName: "workflow",
         label: "Plan next",
+        recommendationStates: ["done"],
         sortOrder: 8
       },
       url: "/actions/plan"
@@ -201,12 +204,14 @@ void test("task action settings can be updated through the catalog endpoint", as
         readonly enabled: boolean;
         readonly iconName: string;
         readonly label: string;
+        readonly recommendationStates: readonly string[];
         readonly sortOrder: number;
       };
     };
     assert.equal(updated.action.label, "Plan next");
     assert.equal(updated.action.enabled, false);
     assert.equal(updated.action.iconName, "workflow");
+    assert.deepEqual(updated.action.recommendationStates, ["done"]);
     assert.equal(updated.action.sortOrder, 8);
 
     const catalogResponse = await app.inject({
@@ -239,6 +244,109 @@ void test("task action settings can be updated through the catalog endpoint", as
       readonly actions: ReadonlyArray<{ readonly id: string }>;
     };
     assert.equal(enabledActions.actions.some((action) => action.id === "plan"), false);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+void test("task actions derive recommendations from configured task states", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-task-action-recommendations-"));
+  const databasePath = join(dir, "tasker.sqlite");
+  const app = await createApp({
+    databasePath,
+    linearApiKey: null
+  });
+  await seedTaskActionDefaults(databasePath);
+
+  try {
+    const readyTaskResponse = await app.inject({
+      method: "POST",
+      payload: {
+        title: "Ready action task"
+      },
+      url: "/tasks"
+    });
+    assert.equal(readyTaskResponse.statusCode, 201);
+    const readyTask = (JSON.parse(readyTaskResponse.body) as {
+      readonly task: { readonly id: string };
+    }).task;
+
+    const readyActionsResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${readyTask.id}/actions`
+    });
+    assert.equal(readyActionsResponse.statusCode, 200);
+    const readyActions = (JSON.parse(readyActionsResponse.body) as {
+      readonly actions: ReadonlyArray<{
+        readonly id: string;
+        readonly isRecommended: boolean;
+      }>;
+    }).actions;
+    assert.deepEqual(
+      readyActions.filter((action) => action.isRecommended).map((action) => action.id),
+      ["scope", "breakdown"]
+    );
+
+    const doneTaskResponse = await app.inject({
+      method: "POST",
+      payload: {
+        title: "Done action task"
+      },
+      url: "/tasks"
+    });
+    assert.equal(doneTaskResponse.statusCode, 201);
+    const doneTask = (JSON.parse(doneTaskResponse.body) as {
+      readonly task: { readonly id: string };
+    }).task;
+    const doneTaskUpdateResponse = await app.inject({
+      method: "PATCH",
+      payload: {
+        state: "done"
+      },
+      url: `/tasks/${doneTask.id}`
+    });
+    assert.equal(doneTaskUpdateResponse.statusCode, 200);
+
+    const doneActionsResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${doneTask.id}/actions`
+    });
+    assert.equal(doneActionsResponse.statusCode, 200);
+    const doneActions = (JSON.parse(doneActionsResponse.body) as {
+      readonly actions: ReadonlyArray<{
+        readonly isRecommended: boolean;
+      }>;
+    }).actions;
+    assert.equal(doneActions.length, 6);
+    assert.equal(doneActions.some((action) => action.isRecommended), false);
+
+    const updateResponse = await app.inject({
+      method: "PATCH",
+      payload: {
+        recommendationStates: ["done"]
+      },
+      url: "/actions/code_review"
+    });
+    assert.equal(updateResponse.statusCode, 200);
+
+    const updatedDoneActionsResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${doneTask.id}/actions`
+    });
+    assert.equal(updatedDoneActionsResponse.statusCode, 200);
+    const updatedDoneActions = (JSON.parse(updatedDoneActionsResponse.body) as {
+      readonly actions: ReadonlyArray<{
+        readonly id: string;
+        readonly isRecommended: boolean;
+      }>;
+    }).actions;
+    assert.deepEqual(
+      updatedDoneActions
+        .filter((action) => action.isRecommended)
+        .map((action) => action.id),
+      ["code_review"]
+    );
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });

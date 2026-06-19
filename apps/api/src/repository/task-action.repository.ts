@@ -6,6 +6,7 @@ import type {
   TaskActionRecord,
   UpdateTaskActionInput
 } from "../domain/task-action.js";
+import { taskStates, type TaskState } from "../domain/task.js";
 
 export type TaskActionRepository = {
   readonly findById: (id: string) => Promise<TaskActionRecord | null>;
@@ -95,6 +96,9 @@ function toTaskActionUpdateValues(input: UpdateTaskActionInput) {
     ...(input.promptTemplate !== undefined
       ? { prompt_template: input.promptTemplate }
       : {}),
+    ...(input.recommendationStates !== undefined
+      ? { recommendation_states_json: serializeRecommendationStates(input.recommendationStates) }
+      : {}),
     ...(input.sortOrder !== undefined ? { sort_order: input.sortOrder } : {})
   };
 }
@@ -106,9 +110,11 @@ function toTaskActionRecord(row: TaskActionRow): TaskActionRecord {
     enabled: row.enabled === 1,
     iconName: row.icon_name,
     id: row.id,
+    isRecommended: false,
     label: row.label,
     options: parseTaskActionOptions(row.options_json),
     promptTemplate: row.prompt_template,
+    recommendationStates: parseRecommendationStates(row.recommendation_states_json),
     sortOrder: row.sort_order,
     updatedAt: new Date(row.updated_at)
   };
@@ -119,6 +125,7 @@ function toTaskActionSummary(record: TaskActionRecord) {
     description: record.description,
     iconName: record.iconName,
     id: record.id,
+    isRecommended: record.isRecommended,
     label: record.label,
     options: record.options
   };
@@ -135,9 +142,11 @@ export function toTaskActionDetails(record: TaskActionRecord): TaskActionDetails
     enabled: record.enabled,
     iconName: record.iconName,
     id: record.id,
+    isRecommended: record.isRecommended,
     label: record.label,
     options: record.options,
     promptTemplate: record.promptTemplate,
+    recommendationStates: record.recommendationStates,
     sortOrder: record.sortOrder,
     updatedAt: record.updatedAt.toISOString()
   };
@@ -145,4 +154,23 @@ export function toTaskActionDetails(record: TaskActionRecord): TaskActionDetails
 
 function serializeOptions(options: UpdateTaskActionInput["options"]): string | null {
   return options == null ? null : JSON.stringify(options);
+}
+
+function parseRecommendationStates(value: string | null): readonly TaskState[] {
+  if (value == null) {
+    return [];
+  }
+
+  const parsed = JSON.parse(value) as unknown;
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed.filter((state): state is TaskState =>
+    taskStates.includes(state as TaskState)
+  );
+}
+
+function serializeRecommendationStates(states: readonly TaskState[]): string {
+  return JSON.stringify([...states]);
 }

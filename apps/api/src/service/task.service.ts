@@ -124,7 +124,9 @@ export class TaskService {
     input: CreateTaskPullRequestInput
   ): Promise<TaskPullRequest> {
     await this.requireTask(taskId);
-    return this.pullRequests.createForTask(taskId, input);
+    const pullRequest = await this.pullRequests.createForTask(taskId, input);
+    await this.tasks.updateStateAtLeast(taskId, "implementation");
+    return pullRequest;
   }
 
   public async addSession(

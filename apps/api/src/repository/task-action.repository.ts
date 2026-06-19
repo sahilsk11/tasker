@@ -99,7 +99,8 @@ function toTaskActionUpdateValues(input: UpdateTaskActionInput) {
     ...(input.recommendationStates !== undefined
       ? { recommendation_states_json: serializeRecommendationStates(input.recommendationStates) }
       : {}),
-    ...(input.sortOrder !== undefined ? { sort_order: input.sortOrder } : {})
+    ...(input.sortOrder !== undefined ? { sort_order: input.sortOrder } : {}),
+    ...(input.startState !== undefined ? { start_state: input.startState } : {})
   };
 }
 
@@ -116,6 +117,7 @@ function toTaskActionRecord(row: TaskActionRow): TaskActionRecord {
     promptTemplate: row.prompt_template,
     recommendationStates: parseRecommendationStates(row.recommendation_states_json),
     sortOrder: row.sort_order,
+    startState: parseTaskState(row.start_state),
     updatedAt: new Date(row.updated_at)
   };
 }
@@ -148,6 +150,7 @@ export function toTaskActionDetails(record: TaskActionRecord): TaskActionDetails
     promptTemplate: record.promptTemplate,
     recommendationStates: record.recommendationStates,
     sortOrder: record.sortOrder,
+    startState: record.startState,
     updatedAt: record.updatedAt.toISOString()
   };
 }
@@ -173,4 +176,8 @@ function parseRecommendationStates(value: string | null): readonly TaskState[] {
 
 function serializeRecommendationStates(states: readonly TaskState[]): string {
   return JSON.stringify([...states]);
+}
+
+function parseTaskState(value: string | null): TaskState | null {
+  return taskStates.includes(value as TaskState) ? (value as TaskState) : null;
 }

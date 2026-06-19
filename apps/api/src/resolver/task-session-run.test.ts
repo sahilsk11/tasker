@@ -151,6 +151,33 @@ void test("launching a session through an unsupported provider is rejected", asy
   }
 });
 
+void test("starting action sessions advances task state without regression", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-session-state-"));
+  const databasePath = join(dir, "tasker.sqlite");
+  const app = await createApp({
+    databasePath,
+    linearApiKey: null
+  });
+  await seedTaskActionDefaults(databasePath);
+
+  try {
+    const task = await createTask(app);
+    assert.equal(await getTaskState(app, task.id), "ready");
+
+    await createUnclaimedSession(app, task.id, "plan");
+    assert.equal(await getTaskState(app, task.id), "planning");
+
+    await createUnclaimedSession(app, task.id, "scope");
+    assert.equal(await getTaskState(app, task.id), "planning");
+
+    await createUnclaimedSession(app, task.id, "implement");
+    assert.equal(await getTaskState(app, task.id), "implementation");
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 async function createTask(
   app: Awaited<ReturnType<typeof createApp>>
 ): Promise<{ readonly id: string }> {
@@ -168,12 +195,13 @@ async function createTask(
 
 async function createUnclaimedSession(
   app: Awaited<ReturnType<typeof createApp>>,
-  taskId: string
+  taskId: string,
+  actionId = "scope"
 ): Promise<{ readonly id: string }> {
   const response = await app.inject({
     method: "POST",
     payload: {
-      actionId: "scope",
+      actionId,
       claimed: false,
       provider: "codex"
     },
@@ -182,6 +210,20 @@ async function createUnclaimedSession(
   assert.equal(response.statusCode, 201);
   return (readJson(response.body) as { readonly session: { readonly id: string } })
     .session;
+}
+
+async function getTaskState(
+  app: Awaited<ReturnType<typeof createApp>>,
+  taskId: string
+): Promise<string> {
+  const response = await app.inject({
+    method: "GET",
+    url: `/tasks/${taskId}`
+  });
+  assert.equal(response.statusCode, 200);
+  return (readJson(response.body) as {
+    readonly task: { readonly state: string };
+  }).task.state;
 }
 
 function readJson(value: string): unknown {

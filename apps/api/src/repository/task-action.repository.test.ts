@@ -193,7 +193,8 @@ void test("task action settings can be updated through the catalog endpoint", as
         iconName: "workflow",
         label: "Plan next",
         recommendationStates: ["done"],
-        sortOrder: 8
+        sortOrder: 8,
+        startState: "planning"
       },
       url: "/actions/plan"
     });
@@ -206,6 +207,7 @@ void test("task action settings can be updated through the catalog endpoint", as
         readonly label: string;
         readonly recommendationStates: readonly string[];
         readonly sortOrder: number;
+        readonly startState: string | null;
       };
     };
     assert.equal(updated.action.label, "Plan next");
@@ -213,6 +215,7 @@ void test("task action settings can be updated through the catalog endpoint", as
     assert.equal(updated.action.iconName, "workflow");
     assert.deepEqual(updated.action.recommendationStates, ["done"]);
     assert.equal(updated.action.sortOrder, 8);
+    assert.equal(updated.action.startState, "planning");
 
     const catalogResponse = await app.inject({
       method: "GET",

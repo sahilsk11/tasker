@@ -151,6 +151,7 @@ export type ApiTaskActionDetails = ApiTaskAction & {
   readonly promptTemplate: string;
   readonly recommendationStates: readonly TaskState[];
   readonly sortOrder: number;
+  readonly startState: TaskState | null;
   readonly updatedAt: string;
 };
 
@@ -163,6 +164,7 @@ export type UpdateTaskActionInput = {
   readonly promptTemplate?: string;
   readonly recommendationStates?: readonly TaskState[];
   readonly sortOrder?: number;
+  readonly startState?: TaskState | null;
 };
 
 export type TaskResources = {

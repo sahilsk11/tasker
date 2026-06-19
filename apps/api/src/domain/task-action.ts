@@ -16,6 +16,7 @@ export type TaskActionRecord = TaskAction & {
   readonly promptTemplate: string;
   readonly recommendationStates: readonly TaskState[];
   readonly sortOrder: number;
+  readonly startState: TaskState | null;
   readonly updatedAt: Date;
 };
 
@@ -25,6 +26,7 @@ export type TaskActionDetails = TaskAction & {
   readonly promptTemplate: string;
   readonly recommendationStates: readonly TaskState[];
   readonly sortOrder: number;
+  readonly startState: TaskState | null;
   readonly updatedAt: string;
 };
 
@@ -37,6 +39,7 @@ export type UpdateTaskActionInput = {
   readonly promptTemplate?: string;
   readonly recommendationStates?: readonly TaskState[];
   readonly sortOrder?: number;
+  readonly startState?: TaskState | null;
 };
 
 export type TaskActionPromptContext = {

@@ -81,6 +81,7 @@ type ActionDraft = {
   readonly promptTemplate: string;
   readonly recommendationStates: readonly TaskState[];
   readonly sortOrder: string;
+  readonly startState: TaskState | "";
 };
 
 type RenderedPromptTemplate = {
@@ -195,7 +196,8 @@ export function SettingsDialog(): React.JSX.Element {
         options: draft.options,
         promptTemplate: draft.promptTemplate,
         recommendationStates: draft.recommendationStates,
-        sortOrder: Number.parseInt(draft.sortOrder, 10)
+        sortOrder: Number.parseInt(draft.sortOrder, 10),
+        startState: draft.startState === "" ? null : draft.startState
       }
     });
   }
@@ -645,6 +647,11 @@ function ActionEditor({
               stateDefinitions={taskStateDefinitions}
               onDraftChange={onDraftChange}
             />
+            <StartStateEditor
+              draft={draft}
+              stateDefinitions={taskStateDefinitions}
+              onDraftChange={onDraftChange}
+            />
             <ActionOptionsEditor draft={draft} onDraftChange={onDraftChange} />
             <Field label="Prompt template" id="action-prompt-template">
               <Textarea
@@ -781,6 +788,38 @@ function RecommendationStateEditor({
   );
 }
 
+function StartStateEditor({
+  draft,
+  onDraftChange,
+  stateDefinitions
+}: {
+  readonly draft: ActionDraft;
+  readonly onDraftChange: (draft: ActionDraft) => void;
+  readonly stateDefinitions: readonly TaskStateDefinition[];
+}): React.JSX.Element {
+  return (
+    <Field label="Move task to state when session starts" id="action-start-state">
+      <NativeSelect
+        id="action-start-state"
+        value={draft.startState}
+        onChange={(event) =>
+          onDraftChange({
+            ...draft,
+            startState: event.target.value as TaskState | ""
+          })
+        }
+      >
+        <option value="">No automatic change</option>
+        {stateDefinitions.map((state) => (
+          <option key={state.value} value={state.value}>
+            {state.label}
+          </option>
+        ))}
+      </NativeSelect>
+    </Field>
+  );
+}
+
 function ActionSettingsCard({
   action,
   onSelect
@@ -840,7 +879,8 @@ function toDraft(action: ApiTaskActionDetails): ActionDraft {
     options: action.options,
     promptTemplate: action.promptTemplate,
     recommendationStates: action.recommendationStates,
-    sortOrder: String(action.sortOrder)
+    sortOrder: String(action.sortOrder),
+    startState: action.startState ?? ""
   };
 }
 

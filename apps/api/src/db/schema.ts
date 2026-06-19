@@ -30,6 +30,7 @@ export type TaskActionsTable = {
   readonly prompt_template: string;
   readonly recommendation_states_json: string | null;
   readonly sort_order: Generated<number>;
+  readonly start_state: TaskState | null;
   readonly updated_at: Generated<string>;
 };
 

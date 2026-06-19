@@ -14,7 +14,8 @@ const taskActionDefaultSchema = z.object({
   options: taskActionOptionsSchema.nullable().optional(),
   promptTemplate: z.string().min(1),
   recommendationStates: z.array(z.enum(taskStates)).default([]),
-  sortOrder: z.number().int().nonnegative()
+  sortOrder: z.number().int().nonnegative(),
+  startState: z.enum(taskStates).nullable().default(null)
 });
 
 const taskActionDefaultsSchema = z.array(taskActionDefaultSchema).min(1);

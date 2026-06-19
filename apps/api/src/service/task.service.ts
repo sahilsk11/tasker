@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type {
   TaskAction,
   TaskActionDetails,
+  TaskActionRecord,
   UpdateTaskActionInput
 } from "../domain/task-action.js";
 import type { CreateTaskArtifactInput, TaskArtifact } from "../domain/task-artifact.js";
@@ -136,12 +137,13 @@ export class TaskService {
     input: CreateTaskSessionInput
   ): Promise<TaskSession> {
     await this.requireTask(taskId);
-    if (input.actionId != null) {
-      await this.requireEnabledAction(input.actionId);
+    const action =
+      input.actionId == null ? null : await this.requireEnabledAction(input.actionId);
+    const session = await this.sessions.createForTask(taskId, input);
+    if (action?.startState != null) {
+      await this.tasks.updateStateAtLeast(taskId, action.startState);
     }
-    return this.sessionProviders.enrichSession(
-      await this.sessions.createForTask(taskId, input)
-    );
+    return this.sessionProviders.enrichSession(session);
   }
 
   public async renderSessionPrompt(
@@ -481,11 +483,13 @@ export class TaskService {
     }
   }
 
-  private async requireEnabledAction(actionId: string): Promise<void> {
+  private async requireEnabledAction(actionId: string): Promise<TaskActionRecord> {
     const action = await this.actions.findById(actionId);
     if (action == null) {
       throw new BadRequestError(`Task action ${actionId} not found`);
     }
+
+    return action;
   }
 
   private async getTaskOverview(session: TaskSession): Promise<TaskOverview> {

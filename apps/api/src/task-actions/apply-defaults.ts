@@ -90,6 +90,7 @@ async function insertTaskAction(
       prompt_template: action.promptTemplate,
       recommendation_states_json: serializeRecommendationStates(action.recommendationStates),
       sort_order: action.sortOrder,
+      start_state: action.startState,
       updated_at: now
     })
     .execute();
@@ -109,6 +110,7 @@ function toRowValues(
     prompt_template: action.promptTemplate,
     recommendation_states_json: serializeRecommendationStates(action.recommendationStates),
     sort_order: action.sortOrder,
+    start_state: action.startState,
     updated_at: now,
     ...(preserveCreatedAt ? {} : { created_at: now })
   };

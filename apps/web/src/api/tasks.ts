@@ -133,6 +133,7 @@ export type ApiTaskAction = {
   readonly description: string;
   readonly iconName: string | null;
   readonly id: string;
+  readonly isRecommended: boolean;
   readonly label: string;
   readonly options: ApiTaskActionOptions | null;
 };
@@ -141,6 +142,7 @@ export type ApiTaskActionDetails = ApiTaskAction & {
   readonly createdAt: string;
   readonly enabled: boolean;
   readonly promptTemplate: string;
+  readonly recommendationStates: readonly TaskState[];
   readonly sortOrder: number;
   readonly updatedAt: string;
 };
@@ -152,6 +154,7 @@ export type UpdateTaskActionInput = {
   readonly label?: string;
   readonly options?: ApiTaskActionOptions | null;
   readonly promptTemplate?: string;
+  readonly recommendationStates?: readonly TaskState[];
   readonly sortOrder?: number;
 };
 

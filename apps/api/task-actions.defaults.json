@@ -6,6 +6,7 @@
     "description": "Map the relevant codebase surface and work with the user to finalize scope.",
     "promptTemplate": "# [scoping] {{taskTitle}}\n\nScope this task before planning or implementation.\n\nYour job is to figure out what parts of the codebase matter, what existing patterns should be followed, and what decisions the user needs to make before the final system shape is locked.\n\nDo not implement product code. Do not write a detailed implementation plan yet. Produce a bounded, codebase-aware scope and keep the user in the loop.\n\n## Process\n1. Read the task title, description, existing resources, child tasks, and directly mentioned files.\n2. Inspect the relevant codebase surface. Identify modules, routes, components, services, persistence layers, tests, and design-system patterns that matter for this task.\n3. Summarize the current system as it exists today. Prefer concrete file references and existing patterns over speculation.\n4. Create or update a cohesive scope artifact. It should include:\n   - Problem shape\n   - Relevant codebase areas\n   - Patterns to follow\n   - Likely in scope\n   - Likely out of scope\n   - Decisions needed\n   - Recommended next step\n5. Ask the user exactly one high-leverage scope question at a time. When useful, offer two or three options with tradeoffs and a recommendation grounded in the codebase.\n6. After each user answer, revise the scope artifact so it reads like a current scope document, not a Q&A transcript.\n7. Stop when the scope is clear enough to hand off to research, design, planning, or implementation.\n\n## Guardrails\n- Stay focused on scope and system shape.\n- Do not accept the initial request blindly if codebase patterns suggest a better boundary.\n- For frontend work, inspect the local UI and design-system conventions before recommending a shape.\n- For backend work, identify the owning layer and existing test patterns before recommending a shape.\n- Treat the most recent task artifact as higher precedence than older notes when they conflict.\n\n## Task Description\n{{taskDescription}}\n\n\n{{registerSession}}\n\n{{registerArtifact}}\n\n{{registerPr}}",
     "options": null,
+    "recommendationStates": ["ready"],
     "enabled": true,
     "sortOrder": 0
   },
@@ -16,6 +17,7 @@
     "description": "Turn the task and available artifacts into a phased implementation plan.",
     "promptTemplate": "# [planning] {{taskTitle}}\n\nCreate a practical implementation plan for this task.\n\nYou are planning this task, not implementing it.\n\nUse the task overview, relevant artifacts, docs, and source files to understand the current scope. Prefer newer artifacts when they conflict. If a scope artifact exists, treat it as the primary input. If no scope artifact exists, plan directly from the task and available context.\n\nDo not force a question phase. Only stop for user input if the task is too ambiguous to plan responsibly.\n\n## Planning focus\nInspect the relevant codebase surface enough to identify:\n- Current flows and ownership boundaries\n- Existing patterns to follow\n- Likely files or modules touched\n- Testing and verification patterns\n- External docs only when they materially affect the plan\n\n## Plan artifact\nWrite or update a detailed implementation plan artifact for future agents. It should include:\n- Overview\n- Current state\n- Desired end state\n- Scope cuts and non-goals\n- Recommended implementation approach\n- Phased implementation checklist\n- Per-phase file or module changes\n- Per-phase automated verification\n- Manual verification only when useful\n- Open assumptions, if any\n\nStructure phases as vertical slices where possible. Each phase should be independently verifiable. If the request is too large, plan the smallest useful first slice and explicitly defer the rest.\n\nDo not implement code. Do not open a pull request.\n\n## Task Description\n{{taskDescription}}\n\n{{registerSession}}\n\n{{registerArtifact}}\n\n{{registerPr}}",
     "options": null,
+    "recommendationStates": ["scoping"],
     "enabled": true,
     "sortOrder": 1
   },
@@ -26,6 +28,7 @@
     "description": "Create a validated child-task breakdown for the user to review and accept.",
     "promptTemplate": "# [breakdown] {{taskTitle}}\n\nCreate a validated Tasker breakdown for this task.\n\nYou are decomposing the work, not implementing it. Do not edit product code, open a pull request, or create child tasks directly. Produce a reviewable breakdown JSON file and hand the user the preview URL.\n\n## Process\n1. Read the task title, description, existing resources, child tasks, and directly mentioned files.\n2. Inspect the relevant codebase or artifacts just enough to understand natural boundaries, dependencies, existing patterns, and verification needs.\n3. Prefer newer task artifacts when they conflict with older notes.\n4. Break the work into one level of cohesive child tasks. Each child should be independently understandable by a future agent session.\n5. Use dependencies only when one child task materially blocks another. Order dependencies before dependents.\n6. Validate the breakdown JSON. If validation returns errors or avoidable warnings, revise it and validate again.\n7. Finish with the preview URL and a concise summary of the proposed child tasks.\n\n## Guardrails\n- Stay focused on decomposition and handoff quality.\n- Do not turn the breakdown into a detailed implementation plan.\n- Do not duplicate existing child tasks. Represent remaining work or dependencies around them.\n- Prefer concrete deliverables and verification boundaries over arbitrary file-by-file tasks.\n- Ask the user one concrete question only if the task is too ambiguous to decompose responsibly.\n\n## Task Description\n{{taskDescription}}\n\n{{breakdownWorkflow}}\n\n{{registerSession}}\n\n{{registerArtifact}}\n\n{{registerPr}}",
     "options": null,
+    "recommendationStates": ["ready", "scoping", "planning"],
     "enabled": true,
     "sortOrder": 2
   },
@@ -52,6 +55,7 @@
         }
       }
     },
+    "recommendationStates": ["planning"],
     "enabled": true,
     "sortOrder": 3
   },
@@ -62,6 +66,7 @@
     "description": "Review the current work and identify issues or missing tests.",
     "promptTemplate": "# {{taskTitle}}\n\n## Description\n{{taskDescription}}\n\n## Action\nReview the work attached to this task and call out concrete issues.\n\n{{registerSession}}\n\n{{registerArtifact}}\n\n{{registerPr}}",
     "options": null,
+    "recommendationStates": ["implementation"],
     "enabled": true,
     "sortOrder": 4
   },
@@ -72,6 +77,7 @@
     "description": "Open a general-purpose agent session attached to this task.",
     "promptTemplate": "# {{taskTitle}}\n\n## Description\n{{taskDescription}}\n\n## Action\nStart a new session for this task.\n\n{{registerSession}}\n\n{{registerArtifact}}\n\n{{registerPr}}",
     "options": null,
+    "recommendationStates": [],
     "enabled": true,
     "sortOrder": 5
   }

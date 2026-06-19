@@ -25,10 +25,13 @@ import type {
   ApiWorkingPathSettings,
   ApiTaskActionDetails,
   ApiTaskActionOptions,
+  TaskState,
+  TaskStateDefinition,
   UpdateTaskActionInput
 } from "@/api/tasks";
 import {
   getWorkingPaths,
+  listTaskStates,
   listTaskActionSettings,
   updateTaskActionSettings,
   updateWorkingPathSettings
@@ -76,6 +79,7 @@ type ActionDraft = {
   readonly label: string;
   readonly options: ApiTaskActionOptions | null;
   readonly promptTemplate: string;
+  readonly recommendationStates: readonly TaskState[];
   readonly sortOrder: string;
 };
 
@@ -116,6 +120,11 @@ export function SettingsDialog(): React.JSX.Element {
     enabled: isOpen,
     queryFn: getWorkingPaths,
     queryKey: ["working-paths"]
+  });
+  const taskStatesQuery = useQuery({
+    enabled: isOpen,
+    queryFn: listTaskStates,
+    queryKey: ["task-states"]
   });
   const actions = actionsQuery.data ?? [];
   const selectedAction =
@@ -185,6 +194,7 @@ export function SettingsDialog(): React.JSX.Element {
         label: draft.label,
         options: draft.options,
         promptTemplate: draft.promptTemplate,
+        recommendationStates: draft.recommendationStates,
         sortOrder: Number.parseInt(draft.sortOrder, 10)
       }
     });
@@ -262,6 +272,7 @@ export function SettingsDialog(): React.JSX.Element {
                 preview={preview}
                 previewContext={previewContext}
                 selectedAction={selectedAction}
+                taskStateDefinitions={taskStatesQuery.data ?? []}
                 onDraftChange={setDraft}
                 onSave={saveSelectedAction}
               />
@@ -467,7 +478,8 @@ function ActionEditor({
   onSave,
   preview: fallbackPreview,
   previewContext,
-  selectedAction
+  selectedAction,
+  taskStateDefinitions
 }: {
   readonly draft: ActionDraft | null;
   readonly error: string | null;
@@ -477,6 +489,7 @@ function ActionEditor({
   readonly preview: string;
   readonly previewContext: TaskActionPromptContext | null;
   readonly selectedAction: ApiTaskActionDetails | null;
+  readonly taskStateDefinitions: readonly TaskStateDefinition[];
 }): React.JSX.Element {
   const [mode, setMode] = useState<"editor" | "preview">("editor");
   const [previewOptionValues, setPreviewOptionValues] = useState<PreviewOptionValues>(
@@ -627,6 +640,11 @@ function ActionEditor({
               />
               <span>Enabled</span>
             </label>
+            <RecommendationStateEditor
+              draft={draft}
+              stateDefinitions={taskStateDefinitions}
+              onDraftChange={onDraftChange}
+            />
             <ActionOptionsEditor draft={draft} onDraftChange={onDraftChange} />
             <Field label="Prompt template" id="action-prompt-template">
               <Textarea
@@ -726,6 +744,43 @@ function TemplateReference({
   );
 }
 
+function RecommendationStateEditor({
+  draft,
+  onDraftChange,
+  stateDefinitions
+}: {
+  readonly draft: ActionDraft;
+  readonly onDraftChange: (draft: ActionDraft) => void;
+  readonly stateDefinitions: readonly TaskStateDefinition[];
+}): React.JSX.Element {
+  function toggleState(state: TaskState, checked: boolean): void {
+    const nextStates = checked
+      ? [...draft.recommendationStates, state]
+      : draft.recommendationStates.filter((currentState) => currentState !== state);
+    onDraftChange({ ...draft, recommendationStates: nextStates });
+  }
+
+  return (
+    <section className="grid gap-2">
+      <Label>Recommend this action when state is</Label>
+      <div className="flex flex-wrap gap-2">
+        {stateDefinitions.map((state) => (
+          <label
+            key={state.value}
+            className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
+          >
+            <Checkbox
+              checked={draft.recommendationStates.includes(state.value)}
+              onChange={(event) => toggleState(state.value, event.target.checked)}
+            />
+            <span>{state.label}</span>
+          </label>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ActionSettingsCard({
   action,
   onSelect
@@ -784,6 +839,7 @@ function toDraft(action: ApiTaskActionDetails): ActionDraft {
     label: action.label,
     options: action.options,
     promptTemplate: action.promptTemplate,
+    recommendationStates: action.recommendationStates,
     sortOrder: String(action.sortOrder)
   };
 }

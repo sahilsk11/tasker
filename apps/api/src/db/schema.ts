@@ -28,6 +28,7 @@ export type TaskActionsTable = {
   readonly label: string;
   readonly options_json: string | null;
   readonly prompt_template: string;
+  readonly recommendation_states_json: string | null;
   readonly sort_order: Generated<number>;
   readonly updated_at: Generated<string>;
 };

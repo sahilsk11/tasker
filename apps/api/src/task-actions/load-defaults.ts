@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { taskActionOptionsSchema } from "../domain/task-action-options.js";
+import { taskStates } from "../domain/task.js";
 
 const taskActionDefaultSchema = z.object({
   description: z.string().min(1),
@@ -12,6 +13,7 @@ const taskActionDefaultSchema = z.object({
   label: z.string().min(1),
   options: taskActionOptionsSchema.nullable().optional(),
   promptTemplate: z.string().min(1),
+  recommendationStates: z.array(z.enum(taskStates)).default([]),
   sortOrder: z.number().int().nonnegative()
 });
 

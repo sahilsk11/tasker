@@ -78,6 +78,7 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
     assert.equal(acceptResponse.statusCode, 201);
     const accepted = readJson(acceptResponse.body) as {
       readonly createdSubtasks: ReadonlyArray<{
+        readonly id: string;
         readonly parentTaskId: string;
         readonly title: string;
       }>;
@@ -97,11 +98,49 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
     });
     assert.equal(childrenResponse.statusCode, 200);
     const children = (readJson(childrenResponse.body) as {
-      readonly tasks: ReadonlyArray<{ readonly title: string }>;
+      readonly tasks: ReadonlyArray<{
+        readonly title: string;
+        readonly waitingDependencies: ReadonlyArray<{ readonly title: string }>;
+      }>;
     }).tasks;
     assert.deepEqual(
       children.map((child) => child.title),
       ["Existing child", "Add breakdown API", "Teach agents the workflow"]
+    );
+    assert.deepEqual(
+      children.map((child) =>
+        child.waitingDependencies.map((dependency) => dependency.title)
+      ),
+      [[], [], ["Add breakdown API"]]
+    );
+
+    const [apiContract] = accepted.createdSubtasks;
+    if (apiContract == null) {
+      assert.fail("Expected accepted breakdown to create an API contract subtask.");
+    }
+    const doneResponse = await app.inject({
+      method: "PATCH",
+      payload: { state: "done" },
+      url: `/tasks/${apiContract.id}`
+    });
+    assert.equal(doneResponse.statusCode, 200);
+
+    const updatedChildrenResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${parent.id}/children`
+    });
+    assert.equal(updatedChildrenResponse.statusCode, 200);
+    const updatedChildren = (readJson(updatedChildrenResponse.body) as {
+      readonly tasks: ReadonlyArray<{
+        readonly title: string;
+        readonly waitingDependencies: ReadonlyArray<{ readonly title: string }>;
+      }>;
+    }).tasks;
+    assert.deepEqual(
+      updatedChildren.map((child) =>
+        child.waitingDependencies.map((dependency) => dependency.title)
+      ),
+      [[], [], []]
     );
 
     const database = new SqliteDatabase(databasePath);

@@ -366,6 +366,7 @@ void test("task resources aggregate and dedupe explicit resource types", async (
     const task = await createTask(app, "Dedupe resources");
     const otherTask = await createTask(app, "Other task");
     const session = await createSession(app, task.id);
+    const unclaimedSession = await createSession(app, task.id, { claimed: false });
     const otherSession = await createSession(app, otherTask.id);
 
     const artifactPayload = {
@@ -425,13 +426,26 @@ void test("task resources aggregate and dedupe explicit resource types", async (
       readonly resources: {
         readonly artifacts: ReadonlyArray<{ readonly id: string }>;
         readonly pullRequests: ReadonlyArray<{ readonly id: string }>;
-        readonly sessions: ReadonlyArray<{ readonly id: string }>;
+        readonly sessions: ReadonlyArray<{
+          readonly claimedAt: string | null;
+          readonly id: string;
+        }>;
         readonly tickets: ReadonlyArray<{ readonly id: string }>;
       };
     }).resources;
     assert.equal(resources.artifacts.length, 1);
     assert.equal(resources.pullRequests.length, 1);
     assert.equal(resources.sessions.length, 1);
+    assert.deepEqual(resources.sessions.map((resourceSession) => resourceSession.id), [
+      session.id
+    ]);
+    assert.equal(resources.sessions[0]?.claimedAt != null, true);
+    assert.equal(
+      resources.sessions.some(
+        (resourceSession) => resourceSession.id === unclaimedSession.id
+      ),
+      false
+    );
     assert.equal(resources.tickets.length, 1);
 
     const wrongSessionResponse = await app.inject({
@@ -553,11 +567,13 @@ async function createPullRequest(
 
 async function createSession(
   app: Awaited<ReturnType<typeof createApp>>,
-  taskId: string
+  taskId: string,
+  options: { readonly claimed?: boolean } = {}
 ): Promise<{ readonly id: string }> {
   const response = await app.inject({
     method: "POST",
     payload: {
+      ...(options.claimed === undefined ? {} : { claimed: options.claimed }),
       provider: "codex"
     },
     url: `/tasks/${taskId}/sessions`

@@ -274,6 +274,88 @@ void test("external task sessions can be claimed with flexible metadata", async 
   }
 });
 
+void test("task session creation allows repeated unclaimed sessions that stay hidden until claimed", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-session-create-"));
+  const databasePath = join(dir, "tasker.sqlite");
+  const app = await createApp({
+    databasePath,
+    linearApiKey: null
+  });
+  await seedTaskActionDefaults(databasePath);
+
+  try {
+    const taskResponse = await app.inject({
+      method: "POST",
+      payload: {
+        title: "Fresh action sessions"
+      },
+      url: "/tasks"
+    });
+    assert.equal(taskResponse.statusCode, 201);
+    const task = (readJson(taskResponse.body) as {
+      readonly task: { readonly id: string };
+    }).task;
+
+    const firstSession = await createUnclaimedTaskSession(app, task.id);
+    const secondSession = await createUnclaimedTaskSession(app, task.id);
+    assert.notEqual(firstSession.id, secondSession.id);
+    assert.equal(firstSession.claimedAt, null);
+    assert.equal(secondSession.claimedAt, null);
+
+    const unclaimedListResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/sessions`
+    });
+    assert.equal(unclaimedListResponse.statusCode, 200);
+    assert.deepEqual(readSessionIds(unclaimedListResponse.body), []);
+
+    const claimResponse = await app.inject({
+      method: "POST",
+      payload: {
+        provider: "codex",
+        providerId: "claim-visible-session"
+      },
+      url: `/sessions/${firstSession.id}/claim`
+    });
+    assert.equal(claimResponse.statusCode, 200);
+
+    const claimedListResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/sessions`
+    });
+    assert.equal(claimedListResponse.statusCode, 200);
+    assert.deepEqual(readSessionIds(claimedListResponse.body), [firstSession.id]);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+async function createUnclaimedTaskSession(
+  app: Awaited<ReturnType<typeof createApp>>,
+  taskId: string
+): Promise<{
+  readonly claimedAt: string | null;
+  readonly id: string;
+}> {
+  const response = await app.inject({
+    method: "POST",
+    payload: {
+      actionId: "scope",
+      claimed: false,
+      provider: "codex"
+    },
+    url: `/tasks/${taskId}/sessions`
+  });
+  assert.equal(response.statusCode, 201);
+  return (readJson(response.body) as {
+    readonly session: {
+      readonly claimedAt: string | null;
+      readonly id: string;
+    };
+  }).session;
+}
+
 function readSessionIds(body: string): readonly string[] {
   const parsed = readJson(body) as {
     readonly sessions: ReadonlyArray<{ readonly id: string }>;

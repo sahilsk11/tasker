@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import {
@@ -13,16 +13,32 @@ import { TaskToolbar } from "./TaskToolbar";
 import { getVisibleTaskBundles, type TaskFilter } from "./task-filtering";
 import { usePullRequestStatuses } from "./use-pull-request-statuses";
 
+type TaskViewState = {
+  readonly filter: TaskFilter;
+  readonly hasTaskStateSelectionChanged: boolean;
+  readonly query: string;
+  readonly taskStates: readonly TaskState[];
+};
+
+const rootTaskViewKey = "__root__";
+
+const defaultTaskViewState: TaskViewState = {
+  filter: "all",
+  hasTaskStateSelectionChanged: false,
+  query: "",
+  taskStates: []
+};
+
 export function HomePage(): React.JSX.Element {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const parentTaskId = searchParams.get("parentTask");
-  const [filter, setFilter] = useState<TaskFilter>("all");
+  const taskViewKey = parentTaskId ?? rootTaskViewKey;
+  const [taskViewStates, setTaskViewStates] = useState<
+    Readonly<Record<string, TaskViewState>>
+  >({});
+  const taskViewState = taskViewStates[taskViewKey] ?? defaultTaskViewState;
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [hasTaskStateSelectionChanged, setHasTaskStateSelectionChanged] =
-    useState(false);
-  const [query, setQuery] = useState("");
-  const [taskStates, setTaskStates] = useState<readonly TaskState[]>([]);
   const tasksQuery = useQuery({
     queryFn: () => listTaskBundles(parentTaskId),
     queryKey: ["tasks", parentTaskId]
@@ -39,28 +55,55 @@ export function HomePage(): React.JSX.Element {
     () =>
       tasksQuery.isSuccess
         ? getVisibleTaskBundles(tasksQuery.data, {
-            filter,
-            query,
+            filter: taskViewState.filter,
+            query: taskViewState.query,
             taskAllStates: allTaskStates,
-            taskStates
+            taskStates: taskViewState.taskStates
           })
         : [],
     [
       allTaskStates,
-      filter,
-      query,
-      taskStates,
+      taskViewState.filter,
+      taskViewState.query,
+      taskViewState.taskStates,
       tasksQuery.data,
       tasksQuery.isSuccess
     ]
   );
   const pullRequestStatuses = usePullRequestStatuses(visibleBundles);
 
+  const updateTaskViewState = useCallback(
+    (update: (state: TaskViewState) => TaskViewState): void => {
+      setTaskViewStates((current) => ({
+        ...current,
+        [taskViewKey]: update(current[taskViewKey] ?? defaultTaskViewState)
+      }));
+    },
+    [taskViewKey]
+  );
+
   useEffect(() => {
-    if (!hasTaskStateSelectionChanged && allTaskStates.length > 0) {
-      setTaskStates(allTaskStates);
+    if (
+      !taskViewState.hasTaskStateSelectionChanged &&
+      allTaskStates.length > 0 &&
+      !areTaskStatesEqual(taskViewState.taskStates, allTaskStates)
+    ) {
+      updateTaskViewState((state) => ({
+        ...state,
+        taskStates: allTaskStates
+      }));
     }
-  }, [allTaskStates, hasTaskStateSelectionChanged]);
+  }, [
+    allTaskStates,
+    taskViewKey,
+    taskViewState.hasTaskStateSelectionChanged,
+    taskViewState.taskStates,
+    updateTaskViewState
+  ]);
+
+  useEffect(() => {
+    setIsFilterOpen(false);
+  }, [taskViewKey]);
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -83,17 +126,24 @@ export function HomePage(): React.JSX.Element {
         {tasksQuery.isSuccess ? (
           <>
             <TaskToolbar
-              filter={filter}
+              filter={taskViewState.filter}
               isFilterOpen={isFilterOpen}
-              onFilterChange={setFilter}
+              onFilterChange={(filter) => {
+                updateTaskViewState((state) => ({ ...state, filter }));
+              }}
               onFilterOpenChange={setIsFilterOpen}
               onTaskStatesChange={(states) => {
-                setHasTaskStateSelectionChanged(true);
-                setTaskStates(states);
+                updateTaskViewState((state) => ({
+                  ...state,
+                  hasTaskStateSelectionChanged: true,
+                  taskStates: states
+                }));
               }}
-              onQueryChange={setQuery}
-              query={query}
-              selectedTaskStates={taskStates}
+              onQueryChange={(query) => {
+                updateTaskViewState((state) => ({ ...state, query }));
+              }}
+              query={taskViewState.query}
+              selectedTaskStates={taskViewState.taskStates}
               taskStates={taskStatesQuery.data ?? []}
             />
             <TaskGrid
@@ -108,6 +158,16 @@ export function HomePage(): React.JSX.Element {
         ) : null}
       </div>
     </main>
+  );
+}
+
+function areTaskStatesEqual(
+  left: readonly TaskState[],
+  right: readonly TaskState[]
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((state, index) => state === right[index])
   );
 }
 

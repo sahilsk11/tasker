@@ -107,11 +107,14 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000004_task_session_tracking_metadata",
         "000005_resource_attribution_and_dedupe",
         "000006_task_state_and_pull_requests",
+        "000007_task_actions",
+        "000008_task_action_icons",
         "000009_task_state_phase_names",
         "000010_scope_action_defaults",
         "000011_task_working_directory",
         "000012_task_dependencies",
         "000013_working_paths",
+        "000014_action_recommendation_states",
         "000015_drop_task_actions"
       ]);
 
@@ -183,6 +186,8 @@ void test("migrations rename legacy investigate session action to scope", async 
         "000004_task_session_tracking_metadata",
         "000005_resource_attribution_and_dedupe",
         "000006_task_state_and_pull_requests",
+        "000007_task_actions",
+        "000008_task_action_icons",
         "000009_task_state_phase_names"
       ]) {
         database.exec(readFileSync(join(migrationsDirectory, `${version}.up.sql`), "utf8"));
@@ -202,6 +207,34 @@ void test("migrations rename legacy investigate session action to scope", async 
           "task-1",
           "Legacy action task",
           "ready",
+          "2026-01-01T00:00:00.000Z",
+          "2026-01-01T00:00:00.000Z"
+        );
+      database
+        .prepare(
+          `
+            INSERT INTO task_actions (
+              id,
+              label,
+              icon_name,
+              description,
+              prompt_template,
+              enabled,
+              sort_order,
+              created_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `
+        )
+        .run(
+          "investigate",
+          "Investigate",
+          "search",
+          "Inspect the task and produce a concise recommendation.",
+          "{{taskHeader}}",
+          1,
+          0,
           "2026-01-01T00:00:00.000Z",
           "2026-01-01T00:00:00.000Z"
         );
@@ -268,9 +301,24 @@ void test("migrations drop legacy task action table", async () => {
           recommendation_states_json text
         );
       `);
-      database.prepare("INSERT INTO schema_migrations (version) VALUES (?)").run(
+      for (const version of [
+        "000001_initial",
+        "000004_task_session_tracking_metadata",
+        "000005_resource_attribution_and_dedupe",
+        "000006_task_state_and_pull_requests",
+        "000007_task_actions",
+        "000008_task_action_icons",
+        "000009_task_state_phase_names",
+        "000010_scope_action_defaults",
+        "000011_task_working_directory",
+        "000012_task_dependencies",
+        "000013_working_paths",
         "000014_action_recommendation_states"
-      );
+      ]) {
+        database.prepare("INSERT INTO schema_migrations (version) VALUES (?)").run(
+          version
+        );
+      }
     } finally {
       database.close();
     }

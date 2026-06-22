@@ -19,13 +19,6 @@ let shuttingDown = false;
 
 await mkdir(manifestDirectory, { recursive: true });
 
-await run("pnpm", ["--filter", "@tasker/api", "apply:task-actions"], {
-  env: {
-    ...process.env,
-    DATABASE_PATH: databasePath
-  }
-});
-
 const api = spawnManaged(
   "pnpm",
   ["--dir", "apps/api", "exec", "tsx", "watch", "src/index.ts"],
@@ -97,25 +90,6 @@ async function findOpenPort() {
       }
       const port = address.port;
       server.close(() => resolvePort(port));
-    });
-  });
-}
-
-async function run(command, args, options) {
-  await new Promise((resolveRun, reject) => {
-    const child = spawn(command, args, {
-      cwd: root,
-      env: options.env,
-      stdio: "inherit"
-    });
-
-    child.on("error", reject);
-    child.on("exit", (code) => {
-      if (code === 0) {
-        resolveRun();
-      } else {
-        reject(new Error(`${command} ${args.join(" ")} exited with ${String(code)}`));
-      }
     });
   });
 }

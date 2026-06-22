@@ -5,7 +5,7 @@ import { z } from "zod";
 import { taskActionOptionsSchema } from "../domain/task-action-options.js";
 import { taskStates } from "../domain/task.js";
 
-const taskActionDefaultSchema = z.object({
+const taskActionCatalogEntrySchema = z.object({
   description: z.string().min(1),
   enabled: z.boolean().default(true),
   iconName: z.string().min(1).nullable().optional(),
@@ -17,17 +17,20 @@ const taskActionDefaultSchema = z.object({
   sortOrder: z.number().int().nonnegative()
 });
 
-const taskActionDefaultsSchema = z.array(taskActionDefaultSchema).min(1);
+const taskActionCatalogSchema = z.array(taskActionCatalogEntrySchema).min(1);
 
-export type TaskActionDefault = z.infer<typeof taskActionDefaultSchema>;
+export type TaskActionCatalogEntry = z.infer<typeof taskActionCatalogEntrySchema>;
 
-export function loadTaskActionDefaults(
-  defaultsPath = getDefaultTaskActionsPath()
-): readonly TaskActionDefault[] {
-  const raw = JSON.parse(readFileSync(defaultsPath, "utf8")) as unknown;
-  return taskActionDefaultsSchema.parse(raw);
+export function parseTaskActionCatalog(raw: unknown): readonly TaskActionCatalogEntry[] {
+  return taskActionCatalogSchema.parse(raw);
+}
+
+export function loadTaskActionCatalog(
+  catalogPath = getDefaultTaskActionsPath()
+): readonly TaskActionCatalogEntry[] {
+  return parseTaskActionCatalog(JSON.parse(readFileSync(catalogPath, "utf8")) as unknown);
 }
 
 export function getDefaultTaskActionsPath(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), "../../task-actions.defaults.json");
+  return join(dirname(fileURLToPath(import.meta.url)), "../../task-actions.json");
 }

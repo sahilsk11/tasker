@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
-import SqliteDatabase from "better-sqlite3";
+import SqliteDatabase, { type Database as BetterSqliteDatabase } from "better-sqlite3";
 import { migrate } from "./migrate.js";
 
 const migrationsDirectory = new URL("../../migrations", import.meta.url).pathname;
@@ -107,21 +107,15 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000004_task_session_tracking_metadata",
         "000005_resource_attribution_and_dedupe",
         "000006_task_state_and_pull_requests",
-        "000007_task_actions",
-        "000008_task_action_icons",
         "000009_task_state_phase_names",
         "000010_scope_action_defaults",
         "000011_task_working_directory",
         "000012_task_dependencies",
         "000013_working_paths",
-        "000014_action_recommendation_states"
+        "000015_drop_task_actions"
       ]);
 
-      const taskActions = database
-        .prepare("SELECT id FROM task_actions ORDER BY sort_order")
-        .all();
-
-      assert.deepEqual(taskActions, []);
+      assert.equal(tableExists(database, "task_actions"), false);
 
       database.exec(
         readFileSync(
@@ -170,7 +164,7 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
   }
 });
 
-void test("migrations rename legacy investigate action state to scope", async () => {
+void test("migrations rename legacy investigate session action to scope", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-migrate-scope-action-"));
   const databasePath = join(dir, "tasker.sqlite");
 
@@ -189,8 +183,6 @@ void test("migrations rename legacy investigate action state to scope", async ()
         "000004_task_session_tracking_metadata",
         "000005_resource_attribution_and_dedupe",
         "000006_task_state_and_pull_requests",
-        "000007_task_actions",
-        "000008_task_action_icons",
         "000009_task_state_phase_names"
       ]) {
         database.exec(readFileSync(join(migrationsDirectory, `${version}.up.sql`), "utf8"));
@@ -216,34 +208,6 @@ void test("migrations rename legacy investigate action state to scope", async ()
       database
         .prepare(
           `
-            INSERT INTO task_actions (
-              id,
-              label,
-              icon_name,
-              description,
-              prompt_template,
-              enabled,
-              sort_order,
-              created_at,
-              updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `
-        )
-        .run(
-          "investigate",
-          "Investigate",
-          "search",
-          "Inspect the task and produce a concise recommendation.",
-          "{{taskHeader}}",
-          1,
-          0,
-          "2026-01-01T00:00:00.000Z",
-          "2026-01-01T00:00:00.000Z"
-        );
-      database
-        .prepare(
-          `
             INSERT INTO task_sessions (id, task_id, provider, action_id, created_at)
             VALUES (?, ?, ?, ?, ?)
           `
@@ -263,16 +227,59 @@ void test("migrations rename legacy investigate action state to scope", async ()
 
     const migrated = new SqliteDatabase(databasePath);
     try {
-      assert.deepEqual(migrated.prepare("SELECT id FROM task_actions").all(), [
-        {
-          id: "scope"
-        }
-      ]);
       assert.deepEqual(migrated.prepare("SELECT action_id FROM task_sessions").all(), [
         {
           action_id: "scope"
         }
       ]);
+      assert.equal(tableExists(migrated, "task_actions"), false);
+    } finally {
+      migrated.close();
+    }
+  } finally {
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+void test("migrations drop legacy task action table", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-migrate-drop-actions-"));
+  const databasePath = join(dir, "tasker.sqlite");
+
+  try {
+    const database = new SqliteDatabase(databasePath);
+    try {
+      database.exec(`
+        CREATE TABLE schema_migrations (
+          version text PRIMARY KEY,
+          applied_at text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );
+
+        CREATE TABLE task_actions (
+          id text PRIMARY KEY,
+          label text NOT NULL,
+          description text NOT NULL,
+          prompt_template text NOT NULL,
+          options_json text,
+          enabled integer NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+          sort_order integer NOT NULL DEFAULT 0,
+          created_at text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+          updated_at text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+          icon_name text,
+          recommendation_states_json text
+        );
+      `);
+      database.prepare("INSERT INTO schema_migrations (version) VALUES (?)").run(
+        "000014_action_recommendation_states"
+      );
+    } finally {
+      database.close();
+    }
+
+    migrate({ databasePath, migrationsDirectory });
+
+    const migrated = new SqliteDatabase(databasePath);
+    try {
+      assert.equal(tableExists(migrated, "task_actions"), false);
     } finally {
       migrated.close();
     }
@@ -397,6 +404,13 @@ void test("task dependency migration persists task edges", async () => {
     await rm(dir, { force: true, recursive: true });
   }
 });
+
+function tableExists(database: BetterSqliteDatabase, tableName: string): boolean {
+  const row = database
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(tableName);
+  return row != null;
+}
 
 function seedLegacySessionDatabase(databasePath: string): void {
   const database = new SqliteDatabase(databasePath);

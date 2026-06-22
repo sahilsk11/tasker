@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,11 +9,12 @@ import type {
   StartTaskSessionInput,
   TaskSessionProvider
 } from "../service/session-provider.js";
-import { seedTaskActionDefaults } from "../test/seed-task-action-defaults.js";
+import { getDefaultTaskActionsPath } from "../task-actions/catalog.js";
 
 void test("action prompt sessions can be launched through a configured provider", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-session-run-"));
   const databasePath = join(dir, "tasker.sqlite");
+  const taskActionsPath = await copyTaskActionCatalog(dir);
   const launches: StartTaskSessionInput[] = [];
   const provider: TaskSessionProvider = {
     provider: "kanna",
@@ -42,9 +43,9 @@ void test("action prompt sessions can be launched through a configured provider"
     agentRunProvider: "kanna",
     databasePath,
     linearApiKey: null,
-    sessionProviders: [provider]
+    sessionProviders: [provider],
+    taskActionsPath
   });
-  await seedTaskActionDefaults(databasePath);
 
   try {
     const task = await createTask(app);
@@ -125,12 +126,13 @@ void test("action prompt sessions can be launched through a configured provider"
 void test("launching a session through an unsupported provider is rejected", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-session-run-unsupported-"));
   const databasePath = join(dir, "tasker.sqlite");
+  const taskActionsPath = await copyTaskActionCatalog(dir);
   const app = await createApp({
     agentRunProvider: "missing-agent",
     databasePath,
-    linearApiKey: null
+    linearApiKey: null,
+    taskActionsPath
   });
-  await seedTaskActionDefaults(databasePath);
 
   try {
     const task = await createTask(app);
@@ -193,4 +195,10 @@ function readSessionIds(value: string): readonly string[] {
     readonly sessions: ReadonlyArray<{ readonly id: string }>;
   };
   return parsed.sessions.map((session) => session.id);
+}
+
+async function copyTaskActionCatalog(dir: string): Promise<string> {
+  const taskActionsPath = join(dir, "task-actions.json");
+  await copyFile(getDefaultTaskActionsPath(), taskActionsPath);
+  return taskActionsPath;
 }

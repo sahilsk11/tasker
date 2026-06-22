@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { ZodError } from "zod";
 import { createDb } from "./db/client.js";
 import { migrate } from "./db/migrate.js";
-import { SqliteTaskActionRepository } from "./repository/task-action.repository.js";
+import { FileTaskActionRepository } from "./repository/task-action.repository.js";
 import { SqliteTaskArtifactRepository } from "./repository/task-artifact.repository.js";
 import { SqliteTaskPullRequestRepository } from "./repository/task-pull-request.repository.js";
 import { SqliteTaskSessionRepository } from "./repository/task-session.repository.js";
@@ -30,6 +30,7 @@ import {
 } from "./service/session-provider.js";
 import { TaskService } from "./service/task.service.js";
 import { WorkingPathService } from "./service/working-path.service.js";
+import { getDefaultTaskActionsPath } from "./task-actions/catalog.js";
 
 export type CreateAppOptions = {
   readonly agentRunProvider?: string | null;
@@ -45,6 +46,7 @@ export type CreateAppOptions = {
   readonly publicApiBaseUrl?: string;
   readonly routePrefix?: string;
   readonly sessionProviders?: readonly TaskSessionProvider[];
+  readonly taskActionsPath?: string;
 };
 
 export async function createApp(options: CreateAppOptions) {
@@ -82,13 +84,14 @@ export async function createApp(options: CreateAppOptions) {
   });
   const workingPathRepository = new SqliteWorkingPathRepository(db);
   const workingPathService = new WorkingPathService(workingPathRepository);
+  const taskActionsPath = options.taskActionsPath ?? getDefaultTaskActionsPath();
   const taskService = new TaskService(
     taskRepository,
     new SqliteTaskArtifactRepository(db),
     new SqliteTaskPullRequestRepository(db),
     new SqliteTaskSessionRepository(db),
     new SqliteTaskTicketRepository(db),
-    new SqliteTaskActionRepository(db),
+    new FileTaskActionRepository(taskActionsPath),
     publicApiBaseUrl,
     sessionProviders
   );
@@ -134,6 +137,7 @@ export async function createApp(options: CreateAppOptions) {
         pid: process.pid,
         publicApiBaseUrl,
         service: "tasker-api",
+        taskActionsPath: resolve(taskActionsPath),
         uptimeSeconds: Math.round(process.uptime())
       }));
 

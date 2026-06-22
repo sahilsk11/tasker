@@ -19,7 +19,8 @@ const app = await createApp({
     codexReasoningEffort: env.kannaCodexReasoningEffort
   },
   linearApiKey: env.linearApiKey,
-  publicApiBaseUrl: env.publicApiBaseUrl
+  publicApiBaseUrl: env.publicApiBaseUrl,
+  ...(env.taskActionsPath === undefined ? {} : { taskActionsPath: env.taskActionsPath })
 });
 
 await app.listen({ host: env.host, port: env.port });

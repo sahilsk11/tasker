@@ -51,4 +51,3 @@ void test("Kanna sessions use the latest local chat title when available", async
     await rm(dir, { force: true, recursive: true });
   }
 });
-

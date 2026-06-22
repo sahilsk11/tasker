@@ -99,11 +99,6 @@ export class KannaSessionProvider implements TaskSessionProvider {
       };
 
       return {
-        claim: {
-          metadata,
-          provider: this.provider,
-          providerId: launched.chatId
-        },
         launch: {
           metadata,
           openUrl: `${this.baseUrl}/chat/${encodeURIComponent(launched.chatId)}`,

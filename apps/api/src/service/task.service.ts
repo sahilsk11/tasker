@@ -204,6 +204,9 @@ export class TaskService {
     if (session?.taskId !== taskId) {
       throw new NotFoundError(`Task session ${sessionId} not found`);
     }
+    if (session.claimedAt != null) {
+      throw new BadRequestError(`Task session ${sessionId} has already been claimed`);
+    }
 
     const started = await this.sessionProviders.startSession({
       prompt,
@@ -212,14 +215,10 @@ export class TaskService {
       task,
       workingPath
     });
-    const claimedSession = await this.sessions.claim(sessionId, started.claim);
-    if (claimedSession == null) {
-      throw new BadRequestError(`Task session ${sessionId} has already been claimed`);
-    }
 
     return {
       launch: started.launch,
-      session: await this.sessionProviders.enrichSession(claimedSession)
+      session: await this.sessionProviders.enrichSession(session)
     };
   }
 

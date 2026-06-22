@@ -15,7 +15,6 @@ export type StartTaskSessionInput = {
 };
 
 export type StartedTaskSession = {
-  readonly claim: ClaimTaskSessionInput;
   readonly launch: {
     readonly metadata?: Record<string, unknown>;
     readonly openUrl?: string | null;

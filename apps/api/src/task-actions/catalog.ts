@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
@@ -32,5 +32,24 @@ export function loadTaskActionCatalog(
 }
 
 export function getDefaultTaskActionsPath(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), "../../task-actions.json");
+  const taskerRoot = normalizeOptionalEnv(process.env["TASKER_APP_ROOT"]);
+  if (taskerRoot != null) {
+    return join(taskerRoot, "apps/api/task-actions.json");
+  }
+
+  const moduleDirectory = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(moduleDirectory, "../task-actions.json"),
+    join(moduleDirectory, "../../task-actions.json")
+  ];
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0]!;
+}
+
+function normalizeOptionalEnv(value: string | undefined): string | null {
+  if (value == null) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }

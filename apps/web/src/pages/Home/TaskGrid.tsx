@@ -285,13 +285,27 @@ function TaskCard({
   }
 
   function openResource(resource: Resource): void {
-    if (resource.kind === "artifact") {
-      void navigate(`/tasks/${resource.taskId}/artifacts/${resource.id}`);
-      return;
-    }
-
-    if (resource.kind === "pr" && resource.href != null) {
-      window.open(resource.href, "_blank", "noopener,noreferrer");
+    switch (resource.kind) {
+      case "artifact":
+        void navigate(`/tasks/${resource.taskId}/artifacts/${resource.id}`);
+        return;
+      case "pr":
+      case "ticket":
+        if (resource.href != null) {
+          window.open(resource.href, "_blank", "noopener,noreferrer");
+          return;
+        }
+        setSelectedKind(resource.kind);
+        return;
+      case "subtask":
+        void navigate(`/?parentTask=${resource.taskId}`);
+        return;
+      case "session":
+        setSelectedKind(resource.kind);
+        return;
+      default:
+        setSelectedKind(resource.kind);
+        return;
     }
   }
 
@@ -333,7 +347,7 @@ function TaskCard({
 
           <div className="mt-2 min-w-0 flex-1">
             <TaskEventLog
-              onOpenResource={(resource) => setSelectedKind(resource.kind)}
+              onOpenResource={openResource}
               pullRequestStatuses={pullRequestStatuses}
               resources={timelineResources}
             />

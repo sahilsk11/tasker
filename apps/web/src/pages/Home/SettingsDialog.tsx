@@ -30,7 +30,6 @@ import type {
   UpdateTaskActionInput
 } from "@/api/tasks";
 import {
-  getWorkingPaths,
   listTaskStates,
   listTaskActionSettings,
   updateTaskActionSettings,
@@ -70,6 +69,10 @@ import {
   type PreviewOptionValues
 } from "./action-options-utils";
 import { taskActionIcons } from "./task-action-icons";
+import {
+  setWorkingPathSettingsCache,
+  workingPathsQueryOptions
+} from "./working-paths-query";
 import type { LucideIcon } from "lucide-react";
 
 type ActionDraft = {
@@ -118,8 +121,7 @@ export function SettingsDialog(): React.JSX.Element {
   });
   const workingPathsQuery = useQuery({
     enabled: isOpen,
-    queryFn: getWorkingPaths,
-    queryKey: ["working-paths"]
+    ...workingPathsQueryOptions
   });
   const taskStatesQuery = useQuery({
     enabled: isOpen,
@@ -396,10 +398,8 @@ function WorkingPathsSettings({
     onSuccess: async (updatedSettings) => {
       setDefaultWorkingDirectory(updatedSettings.defaultWorkingDirectory ?? "");
       setDefaultWorktreePath(updatedSettings.defaultWorktreePath);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["tasks"] }),
-        queryClient.invalidateQueries({ queryKey: ["working-paths"] })
-      ]);
+      setWorkingPathSettingsCache(queryClient, updatedSettings);
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
     }
   });
 

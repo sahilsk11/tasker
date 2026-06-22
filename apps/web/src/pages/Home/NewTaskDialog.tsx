@@ -6,7 +6,6 @@ import {
   createTask,
   createTaskTicket,
   getLinearOptions,
-  getWorkingPaths,
   type LinearIssueDetails,
   resolveLinearIssue
 } from "@/api/tasks";
@@ -29,6 +28,7 @@ import {
   normalizeOptionalText,
   parseTicketInput
 } from "./new-task-utils";
+import { workingPathsQueryOptions } from "./working-paths-query";
 
 export function NewTaskDialog(): React.JSX.Element {
   const [open, setOpen] = useState(false);
@@ -52,12 +52,9 @@ export function NewTaskDialog(): React.JSX.Element {
   });
   const workingPathsQuery = useQuery({
     enabled: open,
-    queryFn: getWorkingPaths,
-    queryKey: ["working-paths"]
+    ...workingPathsQueryOptions
   });
   const linearOptions = linearOptionsQuery.data ?? null;
-  const defaultWorkingDirectory =
-    workingPathsQuery.data?.settings.defaultWorkingDirectory ?? "";
   const selectedLinearTeam = getSelectedLinearTeam(linearOptions, linearTeamId);
   const linearStateOptions = useMemo(
     () => selectedLinearTeam?.states ?? [],
@@ -147,11 +144,15 @@ export function NewTaskDialog(): React.JSX.Element {
       return;
     }
 
-    if (!didApplyDefaultWorkingDirectory.current) {
-      setWorkingDirectory(defaultWorkingDirectory);
-      didApplyDefaultWorkingDirectory.current = true;
+    if (!workingPathsQuery.isSuccess || didApplyDefaultWorkingDirectory.current) {
+      return;
     }
-  }, [defaultWorkingDirectory, open]);
+
+    setWorkingDirectory(
+      workingPathsQuery.data.settings.defaultWorkingDirectory ?? ""
+    );
+    didApplyDefaultWorkingDirectory.current = true;
+  }, [open, workingPathsQuery.data, workingPathsQuery.isSuccess]);
 
   const mutation = useMutation({
     mutationFn: async () => {

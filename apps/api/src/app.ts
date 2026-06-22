@@ -24,6 +24,7 @@ import {
 } from "./service/kanna-session-provider.js";
 import { LinearService, type LinearServiceOptions } from "./service/linear.service.js";
 import { TaskBreakdownService } from "./service/task-breakdown.service.js";
+import { PublicUrlService } from "./service/public-url.service.js";
 import {
   TaskSessionProviderRegistry,
   type TaskSessionProvider
@@ -44,6 +45,7 @@ export type CreateAppOptions = {
   readonly linearApiKey: string | null;
   readonly migrationsDirectory?: string;
   readonly publicApiBaseUrl?: string;
+  readonly publicAppBaseUrl?: string | null;
   readonly routePrefix?: string;
   readonly sessionProviders?: readonly TaskSessionProvider[];
   readonly taskActionsPath?: string;
@@ -82,8 +84,22 @@ export async function createApp(options: CreateAppOptions) {
   const sessionProviders = new TaskSessionProviderRegistry(providers, {
     defaultLaunchProvider: options.agentRunProvider ?? null
   });
-  const workingPathRepository = new SqliteWorkingPathRepository(db);
+  const workingPathRepository = new SqliteWorkingPathRepository(db, {
+    ...(options.publicAppBaseUrl == null
+      ? {}
+      : { generatedUrlMode: "public", publicAppBaseUrl: options.publicAppBaseUrl })
+  });
   const workingPathService = new WorkingPathService(workingPathRepository);
+  if (options.publicAppBaseUrl != null) {
+    const settings = await workingPathRepository.getSettings();
+    if (settings.generatedUrlMode === "localhost" && settings.publicAppBaseUrl == null) {
+      await workingPathService.updateSettings({
+        generatedUrlMode: "public",
+        publicAppBaseUrl: options.publicAppBaseUrl
+      });
+    }
+  }
+  const publicUrlService = new PublicUrlService(publicApiBaseUrl, workingPathRepository);
   const taskActionsPath = options.taskActionsPath ?? getDefaultTaskActionsPath();
   const taskService = new TaskService(
     taskRepository,
@@ -92,13 +108,10 @@ export async function createApp(options: CreateAppOptions) {
     new SqliteTaskSessionRepository(db),
     new SqliteTaskTicketRepository(db),
     new FileTaskActionRepository(taskActionsPath),
-    publicApiBaseUrl,
+    publicUrlService,
     sessionProviders
   );
-  const taskBreakdownService = new TaskBreakdownService(
-    taskRepository,
-    publicApiBaseUrl
-  );
+  const taskBreakdownService = new TaskBreakdownService(taskRepository, publicUrlService);
   const linearService = new LinearService(options.linearApiKey, options.linear);
   const githubService = new GitHubService(options.github);
 

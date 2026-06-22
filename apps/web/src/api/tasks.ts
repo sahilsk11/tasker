@@ -175,6 +175,8 @@ export type TaskResources = {
 export type ApiWorkingPathSettings = {
   readonly defaultWorkingDirectory: string | null;
   readonly defaultWorktreePath: string;
+  readonly generatedUrlMode: "localhost" | "public";
+  readonly publicAppBaseUrl: string | null;
   readonly updatedAt: string;
 };
 
@@ -185,6 +187,8 @@ export type WorkingPathConfig = {
 export type UpdateWorkingPathSettingsInput = {
   readonly defaultWorkingDirectory?: string | null;
   readonly defaultWorktreePath?: string;
+  readonly generatedUrlMode?: "localhost" | "public";
+  readonly publicAppBaseUrl?: string | null;
 };
 
 export type TaskBundle = {

@@ -385,6 +385,9 @@ function WorkingPathsSettings({
 }): React.JSX.Element {
   const [defaultWorkingDirectory, setDefaultWorkingDirectory] = useState("");
   const [defaultWorktreePath, setDefaultWorktreePath] = useState("~/wt");
+  const [generatedUrlMode, setGeneratedUrlMode] =
+    useState<ApiWorkingPathSettings["generatedUrlMode"]>("localhost");
+  const [publicAppBaseUrl, setPublicAppBaseUrl] = useState("");
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: () =>
@@ -393,11 +396,16 @@ function WorkingPathsSettings({
           defaultWorkingDirectory.trim().length === 0
             ? null
             : defaultWorkingDirectory.trim(),
-        defaultWorktreePath: defaultWorktreePath.trim()
+        defaultWorktreePath: defaultWorktreePath.trim(),
+        generatedUrlMode,
+        publicAppBaseUrl:
+          publicAppBaseUrl.trim().length === 0 ? null : publicAppBaseUrl.trim()
       }),
     onSuccess: async (updatedSettings) => {
       setDefaultWorkingDirectory(updatedSettings.defaultWorkingDirectory ?? "");
       setDefaultWorktreePath(updatedSettings.defaultWorktreePath);
+      setGeneratedUrlMode(updatedSettings.generatedUrlMode);
+      setPublicAppBaseUrl(updatedSettings.publicAppBaseUrl ?? "");
       setWorkingPathSettingsCache(queryClient, updatedSettings);
       await queryClient.invalidateQueries({ queryKey: ["tasks"] });
     }
@@ -410,6 +418,8 @@ function WorkingPathsSettings({
 
     setDefaultWorkingDirectory(settings.defaultWorkingDirectory ?? "");
     setDefaultWorktreePath(settings.defaultWorktreePath);
+    setGeneratedUrlMode(settings.generatedUrlMode);
+    setPublicAppBaseUrl(settings.publicAppBaseUrl ?? "");
   }, [mutation.isPending, settings]);
 
   const mutationError =
@@ -444,13 +454,43 @@ function WorkingPathsSettings({
               placeholder="~/wt"
             />
           </Field>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Generated URL mode" id="generated-url-mode">
+              <NativeSelect
+                id="generated-url-mode"
+                value={generatedUrlMode}
+                onChange={(event) =>
+                  setGeneratedUrlMode(
+                    event.target.value as ApiWorkingPathSettings["generatedUrlMode"]
+                  )
+                }
+              >
+                <option value="localhost">Localhost</option>
+                <option value="public">Public domain</option>
+              </NativeSelect>
+            </Field>
+            <Field label="Public app URL" id="public-app-base-url">
+              <Input
+                id="public-app-base-url"
+                value={publicAppBaseUrl}
+                onChange={(event) => setPublicAppBaseUrl(event.target.value)}
+                placeholder="http://tasker.localhost:48273"
+                type="url"
+              />
+            </Field>
+          </div>
           <div className="flex justify-end">
             <Button
               type="button"
               variant="default"
               size="sm"
               onClick={() => mutation.mutate()}
-              disabled={mutation.isPending || defaultWorktreePath.trim().length === 0}
+              disabled={
+                mutation.isPending ||
+                defaultWorktreePath.trim().length === 0 ||
+                (generatedUrlMode === "public" &&
+                  publicAppBaseUrl.trim().length === 0)
+              }
             >
               {mutation.isPending ? (
                 <LoaderCircle className="size-4 animate-spin" />

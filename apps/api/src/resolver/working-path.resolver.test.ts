@@ -21,12 +21,16 @@ void test("working path settings can be read and updated", async () => {
     const initial = readConfig(initialResponse.body);
     assert.equal(initial.settings.defaultWorkingDirectory, null);
     assert.equal(initial.settings.defaultWorktreePath, "~/wt");
+    assert.equal(initial.settings.generatedUrlMode, "localhost");
+    assert.equal(initial.settings.publicAppBaseUrl, null);
 
     const updateResponse = await app.inject({
       method: "PATCH",
       payload: {
         defaultWorkingDirectory: `  ${dir}  `,
-        defaultWorktreePath: "  ~/custom-wt  "
+        defaultWorktreePath: "  ~/custom-wt  ",
+        generatedUrlMode: "public",
+        publicAppBaseUrl: "  http://tasker.localhost:48273/api/  "
       },
       url: "/working-paths/settings"
     });
@@ -34,16 +38,20 @@ void test("working path settings can be read and updated", async () => {
     const updated = readSettings(updateResponse.body);
     assert.equal(updated.defaultWorkingDirectory, dir);
     assert.equal(updated.defaultWorktreePath, "~/custom-wt");
+    assert.equal(updated.generatedUrlMode, "public");
+    assert.equal(updated.publicAppBaseUrl, "http://tasker.localhost:48273");
 
     const clearResponse = await app.inject({
       method: "PATCH",
-      payload: { defaultWorkingDirectory: "" },
+      payload: { defaultWorkingDirectory: "", generatedUrlMode: "localhost" },
       url: "/working-paths/settings"
     });
     assert.equal(clearResponse.statusCode, 200);
     const cleared = readSettings(clearResponse.body);
     assert.equal(cleared.defaultWorkingDirectory, null);
     assert.equal(cleared.defaultWorktreePath, "~/custom-wt");
+    assert.equal(cleared.generatedUrlMode, "localhost");
+    assert.equal(cleared.publicAppBaseUrl, "http://tasker.localhost:48273");
 
     const invalidResponse = await app.inject({
       method: "PATCH",
@@ -67,6 +75,20 @@ void test("working path settings can be read and updated", async () => {
       url: "/working-paths/settings"
     });
     assert.equal(filePathResponse.statusCode, 400);
+
+    const missingPublicUrlResponse = await app.inject({
+      method: "PATCH",
+      payload: { generatedUrlMode: "public", publicAppBaseUrl: "" },
+      url: "/working-paths/settings"
+    });
+    assert.equal(missingPublicUrlResponse.statusCode, 400);
+
+    const invalidPublicUrlResponse = await app.inject({
+      method: "PATCH",
+      payload: { publicAppBaseUrl: "ftp://tasker.localhost" },
+      url: "/working-paths/settings"
+    });
+    assert.equal(invalidPublicUrlResponse.statusCode, 400);
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });
@@ -81,12 +103,16 @@ function readConfig(body: string): {
   readonly settings: {
     readonly defaultWorkingDirectory: string | null;
     readonly defaultWorktreePath: string;
+    readonly generatedUrlMode: "localhost" | "public";
+    readonly publicAppBaseUrl: string | null;
   };
 } {
   return readJson(body) as {
     readonly settings: {
       readonly defaultWorkingDirectory: string | null;
       readonly defaultWorktreePath: string;
+      readonly generatedUrlMode: "localhost" | "public";
+      readonly publicAppBaseUrl: string | null;
     };
   };
 }
@@ -94,11 +120,15 @@ function readConfig(body: string): {
 function readSettings(body: string): {
   readonly defaultWorkingDirectory: string | null;
   readonly defaultWorktreePath: string;
+  readonly generatedUrlMode: "localhost" | "public";
+  readonly publicAppBaseUrl: string | null;
 } {
   return (readJson(body) as {
     readonly settings: {
       readonly defaultWorkingDirectory: string | null;
       readonly defaultWorktreePath: string;
+      readonly generatedUrlMode: "localhost" | "public";
+      readonly publicAppBaseUrl: string | null;
     };
   }).settings;
 }

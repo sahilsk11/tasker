@@ -12,6 +12,7 @@ import type {
 } from "../domain/task-breakdown.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 import { BadRequestError, NotFoundError } from "./errors.js";
+import type { PublicUrlService } from "./public-url.service.js";
 
 const breakdownItemSchema = z.object({
   dependsOn: z.array(z.string().min(1)).default([]),
@@ -30,7 +31,7 @@ const breakdownSchema = z.object({
 export class TaskBreakdownService {
   public constructor(
     private readonly tasks: TaskRepository,
-    private readonly publicApiBaseUrl: string
+    private readonly publicUrls: PublicUrlService
   ) {}
 
   public async validate(
@@ -54,7 +55,7 @@ export class TaskBreakdownService {
       errors: semantic.errors,
       previewUrl:
         semantic.errors.length === 0 && source.uri != null
-          ? this.buildPreviewUrl(source.uri)
+          ? await this.buildPreviewUrl(source.uri)
           : null,
       valid: semantic.errors.length === 0,
       warnings: semantic.warnings
@@ -149,8 +150,8 @@ export class TaskBreakdownService {
     return { errors, warnings };
   }
 
-  private buildPreviewUrl(uri: string): string {
-    const url = new URL(`${getFrontendBaseUrl(this.publicApiBaseUrl)}/breakdowns/preview`);
+  private async buildPreviewUrl(uri: string): Promise<string> {
+    const url = new URL(`${await this.publicUrls.getAppBaseUrl()}/breakdowns/preview`);
     url.searchParams.set("uri", uri);
     return url.toString();
   }
@@ -243,14 +244,6 @@ function getLocalFilePath(uri: string): string {
   }
 
   throw new BadRequestError("Breakdown URI must be an absolute local file path");
-}
-
-function trimTrailingSlash(value: string): string {
-  return value.replace(/\/$/, "");
-}
-
-function getFrontendBaseUrl(publicApiBaseUrl: string): string {
-  return trimTrailingSlash(publicApiBaseUrl).replace(/\/api$/u, "");
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

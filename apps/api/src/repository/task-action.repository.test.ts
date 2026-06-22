@@ -82,6 +82,7 @@ void test("session prompt endpoint renders catalog templates", async () => {
     databasePath,
     linearApiKey: null,
     publicApiBaseUrl: "http://127.0.0.1:3000",
+    publicAppBaseUrl: "http://tasker.localhost:48273",
     taskActionsPath
   });
 
@@ -126,7 +127,26 @@ void test("session prompt endpoint renders catalog templates", async () => {
     assert.match(defaultPromptBody.prompt, /Relevant codebase areas/);
     assert.match(defaultPromptBody.prompt, /Prompt endpoint task/);
     assert.match(defaultPromptBody.prompt, /Prompt endpoint description/);
-    assert.match(defaultPromptBody.prompt, /http:\/\/127\.0\.0\.1:3000/);
+    assert.match(defaultPromptBody.prompt, /http:\/\/tasker\.localhost:48273\/api/);
+    assert.doesNotMatch(defaultPromptBody.prompt, /http:\/\/127\.0\.0\.1:3000/);
+
+    const settingsResponse = await app.inject({
+      method: "PATCH",
+      payload: { generatedUrlMode: "localhost" },
+      url: "/working-paths/settings"
+    });
+    assert.equal(settingsResponse.statusCode, 200);
+
+    const localPromptResponse = await app.inject({
+      method: "POST",
+      payload: {},
+      url: `/tasks/${task.id}/sessions/${created.session.id}/prompt`
+    });
+    assert.equal(localPromptResponse.statusCode, 200);
+    const localPromptBody = JSON.parse(localPromptResponse.body) as {
+      readonly prompt: string;
+    };
+    assert.match(localPromptBody.prompt, /http:\/\/127\.0\.0\.1:3000/);
 
     const promptResponse = await app.inject({
       method: "POST",

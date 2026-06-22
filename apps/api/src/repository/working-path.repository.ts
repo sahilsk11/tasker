@@ -1,6 +1,7 @@
 import type { Kysely } from "kysely";
 import type { Database, WorkingPathSettingsRow } from "../db/schema.js";
 import type {
+  GeneratedUrlMode,
   UpdateWorkingPathSettingsInput,
   WorkingPathSettings
 } from "../domain/working-paths.js";
@@ -12,8 +13,16 @@ export type WorkingPathRepository = {
   ) => Promise<WorkingPathSettings>;
 };
 
+export type WorkingPathRepositoryDefaults = {
+  readonly generatedUrlMode?: GeneratedUrlMode;
+  readonly publicAppBaseUrl?: string | null;
+};
+
 export class SqliteWorkingPathRepository implements WorkingPathRepository {
-  public constructor(private readonly db: Kysely<Database>) {}
+  public constructor(
+    private readonly db: Kysely<Database>,
+    private readonly defaults: WorkingPathRepositoryDefaults = {}
+  ) {}
 
   public async getSettings(): Promise<WorkingPathSettings> {
     const row = await this.db
@@ -38,6 +47,12 @@ export class SqliteWorkingPathRepository implements WorkingPathRepository {
         : {}),
       ...(input.defaultWorktreePath !== undefined
         ? { default_worktree_path: input.defaultWorktreePath }
+        : {}),
+      ...(input.generatedUrlMode !== undefined
+        ? { generated_url_mode: input.generatedUrlMode }
+        : {}),
+      ...(input.publicAppBaseUrl !== undefined
+        ? { public_app_base_url: input.publicAppBaseUrl }
         : {})
     };
 
@@ -47,7 +62,13 @@ export class SqliteWorkingPathRepository implements WorkingPathRepository {
         .values({
           default_working_directory: input.defaultWorkingDirectory ?? null,
           default_worktree_path: input.defaultWorktreePath ?? "~/wt",
+          generated_url_mode:
+            input.generatedUrlMode ?? this.defaults.generatedUrlMode ?? "localhost",
           id: 1,
+          public_app_base_url:
+            input.publicAppBaseUrl !== undefined
+              ? input.publicAppBaseUrl
+              : this.defaults.publicAppBaseUrl ?? null,
           updated_at: new Date().toISOString()
         })
         .onConflict((oc) =>
@@ -68,7 +89,9 @@ export class SqliteWorkingPathRepository implements WorkingPathRepository {
       .values({
         default_working_directory: null,
         default_worktree_path: "~/wt",
-        id: 1
+        generated_url_mode: this.defaults.generatedUrlMode ?? "localhost",
+        id: 1,
+        public_app_base_url: this.defaults.publicAppBaseUrl ?? null
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -81,6 +104,8 @@ function toWorkingPathSettings(row: WorkingPathSettingsRow): WorkingPathSettings
   return {
     defaultWorkingDirectory: row.default_working_directory,
     defaultWorktreePath: row.default_worktree_path,
+    generatedUrlMode: row.generated_url_mode,
+    publicAppBaseUrl: row.public_app_base_url,
     updatedAt: new Date(row.updated_at)
   };
 }

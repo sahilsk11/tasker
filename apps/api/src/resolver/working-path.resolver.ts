@@ -6,7 +6,9 @@ import type { WorkingPathService } from "../service/working-path.service.js";
 const updateWorkingPathSettingsSchema = z
   .object({
     defaultWorkingDirectory: z.string().nullable().optional(),
-    defaultWorktreePath: z.string().optional()
+    defaultWorktreePath: z.string().optional(),
+    generatedUrlMode: z.enum(["localhost", "public"]).optional(),
+    publicAppBaseUrl: z.string().nullable().optional()
   })
   .strict();
 
@@ -33,6 +35,12 @@ function parseUpdateWorkingPathSettingsInput(
       : {}),
     ...(parsed.defaultWorktreePath !== undefined
       ? { defaultWorktreePath: parsed.defaultWorktreePath }
+      : {}),
+    ...(parsed.generatedUrlMode !== undefined
+      ? { generatedUrlMode: parsed.generatedUrlMode }
+      : {}),
+    ...(parsed.publicAppBaseUrl !== undefined
+      ? { publicAppBaseUrl: parsed.publicAppBaseUrl }
       : {})
   };
 }

@@ -1,6 +1,7 @@
 import type { Generated, Selectable } from "kysely";
 import type { TaskArtifactLabel } from "../domain/task-artifact.js";
 import type { TaskState } from "../domain/task.js";
+import type { GeneratedUrlMode } from "../domain/working-paths.js";
 
 export type Database = {
   readonly task_artifacts: TaskArtifactsTable;
@@ -69,7 +70,9 @@ export type TaskTicketsTable = {
 export type WorkingPathSettingsTable = {
   readonly default_working_directory: string | null;
   readonly default_worktree_path: Generated<string>;
+  readonly generated_url_mode: Generated<GeneratedUrlMode>;
   readonly id: 1;
+  readonly public_app_base_url: string | null;
   readonly updated_at: Generated<string>;
 };
 

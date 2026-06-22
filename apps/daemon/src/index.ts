@@ -12,6 +12,8 @@ const app = await createApp({
   ...(env.migrationsDirectory === undefined
     ? {}
     : { migrationsDirectory: env.migrationsDirectory }),
+  publicApiBaseUrl: env.publicApiBaseUrl,
+  publicAppBaseUrl: env.publicAppBaseUrl,
   routePrefix: "/api"
 });
 

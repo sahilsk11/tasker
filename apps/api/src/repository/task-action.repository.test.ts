@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -67,6 +67,17 @@ void test("session prompt endpoint renders catalog templates", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-prompt-"));
   const databasePath = join(dir, "tasker.sqlite");
   const taskActionsPath = await copyTaskActionCatalog(dir);
+  await appendTaskAction(taskActionsPath, {
+    description: "Verify the skill opt-out placeholder.",
+    enabled: true,
+    iconName: "message-square-text",
+    id: "ignore_skills_probe",
+    label: "Ignore skills probe",
+    options: null,
+    promptTemplate: "# {{taskTitle}}\n\n{{ignoreSkills}}\n\n{{taskDescription}}",
+    recommendationStates: [],
+    sortOrder: 99
+  });
   const app = await createApp({
     databasePath,
     linearApiKey: null,
@@ -131,6 +142,36 @@ void test("session prompt endpoint renders catalog templates", async () => {
     assert.match(promptBody.prompt, /Scope this task before planning or implementation/);
     assert.match(promptBody.prompt, /## Working path/);
     assert.match(promptBody.prompt, /\/tmp\/tasker-project/);
+
+    const ignoreSkillsSessionResponse = await app.inject({
+      method: "POST",
+      payload: {
+        actionId: "ignore_skills_probe",
+        claimed: false,
+        provider: "codex"
+      },
+      url: `/tasks/${task.id}/sessions`
+    });
+    assert.equal(ignoreSkillsSessionResponse.statusCode, 201);
+    const ignoreSkillsSession = JSON.parse(ignoreSkillsSessionResponse.body) as {
+      readonly session: { readonly id: string };
+    };
+
+    const ignoreSkillsPromptResponse = await app.inject({
+      method: "POST",
+      payload: {},
+      url: `/tasks/${task.id}/sessions/${ignoreSkillsSession.session.id}/prompt`
+    });
+    assert.equal(ignoreSkillsPromptResponse.statusCode, 200);
+    const ignoreSkillsPromptBody = JSON.parse(ignoreSkillsPromptResponse.body) as {
+      readonly prompt: string;
+    };
+    assert.match(ignoreSkillsPromptBody.prompt, /## Skill usage/);
+    assert.match(ignoreSkillsPromptBody.prompt, /Do not use any skills for this task/);
+    assert.match(
+      ignoreSkillsPromptBody.prompt,
+      /Follow the instructions in this prompt directly/
+    );
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });
@@ -373,4 +414,13 @@ async function copyTaskActionCatalog(dir: string): Promise<string> {
   const taskActionsPath = join(dir, "task-actions.json");
   await copyFile(getDefaultTaskActionsPath(), taskActionsPath);
   return taskActionsPath;
+}
+
+async function appendTaskAction(
+  taskActionsPath: string,
+  action: Record<string, unknown>
+): Promise<void> {
+  const existing = JSON.parse(await readFile(taskActionsPath, "utf8")) as unknown[];
+  existing.push(action);
+  await writeFile(taskActionsPath, JSON.stringify(existing, null, 2));
 }

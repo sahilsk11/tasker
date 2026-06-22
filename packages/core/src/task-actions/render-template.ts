@@ -2,6 +2,7 @@ import {
   buildArtifactAttributionSection,
   buildArtifactRegistrationSection,
   buildBreakdownWorkflowSection,
+  buildIgnoreSkillsSection,
   buildLegacyWorktreeSection,
   buildOptionsSection,
   buildPullRequestRegistrationSection,
@@ -20,6 +21,7 @@ const substitutionRegistry: Record<
 > = {
   artifactAttribution: buildArtifactAttributionSection,
   breakdownWorkflow: buildBreakdownWorkflowSection,
+  ignoreSkills: buildIgnoreSkillsSection,
   options: buildOptionsSection,
   registerDoc: buildTaskNotesRegistrationSection,
   registerArtifact: buildArtifactRegistrationSection,

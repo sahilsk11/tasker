@@ -117,6 +117,12 @@ EOF
 \`\`\``;
 }
 
+export function buildIgnoreSkillsSection(): string {
+  return `## Skill usage
+
+Do not use any skills for this task. Follow the instructions in this prompt directly.`;
+}
+
 export function buildSessionClaimSection(context: TaskActionPromptContext): string {
   const claimCommand = buildCodexClaimCommand(context.apiBaseUrl, context.sessionId);
 

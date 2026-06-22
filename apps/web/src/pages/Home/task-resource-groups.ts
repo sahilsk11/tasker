@@ -141,7 +141,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
         {
           href: null,
           id: child.id,
-          taskId: child.id
+          taskId: child.parentTaskId ?? bundle.task.id
         }
       )
     )

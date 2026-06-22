@@ -21,14 +21,6 @@ void test("action prompt sessions can be launched through a configured provider"
     startSession(input): Promise<StartedTaskSession> {
       launches.push(input);
       return Promise.resolve({
-        claim: {
-          metadata: {
-            fakeChatId: "chat-123",
-            promptLength: input.prompt.length
-          },
-          provider: "kanna",
-          providerId: "chat-123"
-        },
         launch: {
           metadata: {
             fakeChatId: "chat-123"
@@ -96,13 +88,10 @@ void test("action prompt sessions can be launched through a configured provider"
     assert.equal(body.launch.provider, "kanna");
     assert.equal(body.launch.openUrl, "http://agent.local/chat/chat-123");
     assert.deepEqual(body.launch.metadata, { fakeChatId: "chat-123" });
-    assert.equal(typeof body.session.claimedAt, "string");
-    assert.equal(body.session.provider, "kanna");
-    assert.equal(body.session.providerId, "chat-123");
-    assert.deepEqual(body.session.metadata, {
-      fakeChatId: "chat-123",
-      promptLength: 15
-    });
+    assert.equal(body.session.claimedAt, null);
+    assert.equal(body.session.provider, "codex");
+    assert.equal(body.session.providerId, null);
+    assert.equal(body.session.metadata, null);
     assert.equal(launches.length, 1);
     const launch = launches[0];
     assert.ok(launch);
@@ -116,7 +105,53 @@ void test("action prompt sessions can be launched through a configured provider"
       url: `/tasks/${task.id}/sessions`
     });
     assert.equal(sessionsResponse.statusCode, 200);
-    assert.deepEqual(readSessionIds(sessionsResponse.body), [session.id]);
+    assert.deepEqual(readSessionIds(sessionsResponse.body), []);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+void test("launching an already claimed session is rejected before provider startup", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-session-run-claimed-"));
+  const databasePath = join(dir, "tasker.sqlite");
+  const taskActionsPath = await copyTaskActionCatalog(dir);
+  let launchCount = 0;
+  const provider: TaskSessionProvider = {
+    provider: "kanna",
+    startSession(): Promise<StartedTaskSession> {
+      launchCount += 1;
+      return Promise.resolve({
+        launch: {
+          openUrl: "http://agent.local/chat/chat-123",
+          provider: "kanna"
+        }
+      });
+    }
+  };
+  const app = await createApp({
+    agentRunProvider: "kanna",
+    databasePath,
+    linearApiKey: null,
+    sessionProviders: [provider],
+    taskActionsPath
+  });
+
+  try {
+    const task = await createTask(app);
+    const session = await createClaimedSession(app, task.id);
+    const response = await app.inject({
+      method: "POST",
+      payload: {
+        prompt: "run this prompt",
+        workingPath: "/tmp/tasker"
+      },
+      url: `/tasks/${task.id}/sessions/${session.id}/run`
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.match(response.body, /has already been claimed/u);
+    assert.equal(launchCount, 0);
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });
@@ -177,6 +212,23 @@ async function createUnclaimedSession(
     payload: {
       actionId: "scope",
       claimed: false,
+      provider: "codex"
+    },
+    url: `/tasks/${taskId}/sessions`
+  });
+  assert.equal(response.statusCode, 201);
+  return (readJson(response.body) as { readonly session: { readonly id: string } })
+    .session;
+}
+
+async function createClaimedSession(
+  app: Awaited<ReturnType<typeof createApp>>,
+  taskId: string
+): Promise<{ readonly id: string }> {
+  const response = await app.inject({
+    method: "POST",
+    payload: {
+      actionId: "scope",
       provider: "codex"
     },
     url: `/tasks/${taskId}/sessions`

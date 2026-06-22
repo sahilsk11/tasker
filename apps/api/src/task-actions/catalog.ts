@@ -38,11 +38,12 @@ export function getDefaultTaskActionsPath(): string {
   }
 
   const moduleDirectory = dirname(fileURLToPath(import.meta.url));
+  const fallbackPath = join(moduleDirectory, "../task-actions.json");
   const candidates = [
-    join(moduleDirectory, "../task-actions.json"),
+    fallbackPath,
     join(moduleDirectory, "../../task-actions.json")
   ];
-  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0]!;
+  return candidates.find((candidate) => existsSync(candidate)) ?? fallbackPath;
 }
 
 function normalizeOptionalEnv(value: string | undefined): string | null {

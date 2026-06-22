@@ -14,6 +14,7 @@ export type TaskActionPromptContext = {
 export const knownPromptPlaceholders = [
   "artifactAttribution",
   "breakdownWorkflow",
+  "ignoreSkills",
   "options",
   "registerDoc",
   "registerArtifact",

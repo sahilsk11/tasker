@@ -77,6 +77,14 @@ void test("renderTaskActionTemplate includes actionable breakdown workflow guida
   assert.match(rendered, /give the user the returned `previewUrl`/);
 });
 
+void test("renderTaskActionTemplate includes skill opt-out guidance", () => {
+  const rendered = renderTaskActionTemplate("{{ignoreSkills}}", baseContext);
+
+  assert.match(rendered, /## Skill usage/);
+  assert.match(rendered, /Do not use any skills for this task/);
+  assert.match(rendered, /Follow the instructions in this prompt directly/);
+});
+
 void test("renderTaskActionTemplate rejects unknown placeholders", () => {
   assert.throws(
     () => renderTaskActionTemplate("{{unknown}}", baseContext),
@@ -95,4 +103,8 @@ void test("findUnknownPlaceholders accepts legacy placeholders", () => {
     ),
     []
   );
+});
+
+void test("findUnknownPlaceholders accepts skill opt-out placeholder", () => {
+  assert.deepEqual(findUnknownPlaceholders("{{ignoreSkills}}"), []);
 });

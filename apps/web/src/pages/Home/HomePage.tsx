@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
 import {
+  getTask,
   listTaskBundles,
   listTaskStates,
   type TaskState
@@ -42,6 +43,11 @@ export function HomePage(): React.JSX.Element {
   const tasksQuery = useQuery({
     queryFn: () => listTaskBundles(parentTaskId),
     queryKey: ["tasks", parentTaskId]
+  });
+  const parentTaskQuery = useQuery({
+    enabled: parentTaskId != null,
+    queryFn: () => getTask(parentTaskId ?? ""),
+    queryKey: ["task", parentTaskId]
   });
   const taskStatesQuery = useQuery({
     queryFn: listTaskStates,
@@ -115,7 +121,10 @@ export function HomePage(): React.JSX.Element {
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <NewTaskDialog />
+            <NewTaskDialog
+              parentTaskId={parentTaskId}
+              parentTaskTitle={parentTaskQuery.data?.title ?? null}
+            />
             <SettingsDialog />
           </div>
         </header>

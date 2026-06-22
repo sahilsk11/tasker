@@ -1,4 +1,4 @@
-import { Check, Plus } from "lucide-react";
+import { AlertTriangle, Check, Plus } from "lucide-react";
 import { type SyntheticEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -30,7 +30,15 @@ import {
 } from "./new-task-utils";
 import { workingPathsQueryOptions } from "./working-paths-query";
 
-export function NewTaskDialog(): React.JSX.Element {
+type NewTaskDialogProps = {
+  readonly parentTaskId?: string | null;
+  readonly parentTaskTitle?: string | null;
+};
+
+export function NewTaskDialog({
+  parentTaskId = null,
+  parentTaskTitle = null
+}: NewTaskDialogProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -45,6 +53,14 @@ export function NewTaskDialog(): React.JSX.Element {
   const didApplyDefaultWorkingDirectory = useRef(false);
   const queryClient = useQueryClient();
   const hasExistingTicket = ticket.trim().length > 0;
+  const isSubtask = parentTaskId != null;
+  const createLabel = isSubtask ? "Create subtask" : "Create task";
+  const triggerLabel = isSubtask ? "Create subtask" : "New task";
+  const pendingLabel = isSubtask ? "Creating subtask..." : "Creating...";
+  const parentContext =
+    parentTaskTitle == null || parentTaskTitle.trim().length === 0
+      ? "the current task"
+      : `"${parentTaskTitle}"`;
   const linearOptionsQuery = useQuery({
     enabled: createTicket,
     queryFn: getLinearOptions,
@@ -158,7 +174,7 @@ export function NewTaskDialog(): React.JSX.Element {
     mutationFn: async () => {
       const task = await createTask({
         description: normalizeOptionalText(description),
-        parentTaskId: null,
+        parentTaskId,
         title: title.trim(),
         workingDirectory: normalizeOptionalText(workingDirectory)
       });
@@ -236,13 +252,15 @@ export function NewTaskDialog(): React.JSX.Element {
     >
       <Button size="sm" className="shrink-0" onClick={() => setOpen(true)}>
         <Plus className="size-4" />
-        New task
+        {triggerLabel}
       </Button>
       <DialogContent className="flex h-[min(582px,calc(100dvh-2rem))] max-w-xl flex-col gap-0 overflow-hidden p-0">
         <DialogHeader>
-          <DialogTitle>New task</DialogTitle>
+          <DialogTitle>{isSubtask ? "Create subtask" : "New task"}</DialogTitle>
           <DialogDescription>
-            Create a task, optionally linked to Linear.
+            {isSubtask
+              ? "Create a task nested under the current task, optionally linked to Linear."
+              : "Create a task, optionally linked to Linear."}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -250,6 +268,19 @@ export function NewTaskDialog(): React.JSX.Element {
           onSubmit={(event) => void handleSubmit(event)}
         >
           <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-5">
+            {isSubtask ? (
+              <div
+                aria-label={`You are creating a subtask inside ${parentContext}. It will not appear in the root task list.`}
+                className="flex gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100"
+                role="alert"
+              >
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-300" />
+                <p>
+                  You are creating a subtask inside {parentContext}. It will not
+                  appear in the root task list.
+                </p>
+              </div>
+            ) : null}
             <div className="grid gap-2">
               <Label htmlFor="task-ticket" className="flex items-center gap-1.5">
                 Optional Linear ticket
@@ -352,7 +383,7 @@ export function NewTaskDialog(): React.JSX.Element {
               Cancel
             </Button>
             <Button type="submit" disabled={!canSubmit}>
-              {mutation.isPending ? "Creating..." : "Create task"}
+              {mutation.isPending ? pendingLabel : createLabel}
             </Button>
           </div>
         </form>

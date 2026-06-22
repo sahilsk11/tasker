@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createApp } from "../app.js";
-import { seedTaskActionDefaults } from "../test/seed-task-action-defaults.js";
+import { getDefaultTaskActionsPath } from "../task-actions/catalog.js";
 
 void test("external task sessions can be claimed with flexible metadata", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-session-claim-"));
@@ -13,14 +13,15 @@ void test("external task sessions can be claimed with flexible metadata", async 
   const codexSessionIndexPath = join(dir, "codex", "session_index.jsonl");
   const codexStatePath = join(dir, "codex", "state.sqlite");
   const databasePath = join(dir, "tasker.sqlite");
+  const taskActionsPath = await copyTaskActionCatalog(dir);
   const app = await createApp({
     codexSessionIndexPath,
     codexSessionsRoot,
     codexStatePath,
     databasePath,
-    linearApiKey: null
+    linearApiKey: null,
+    taskActionsPath
   });
-  await seedTaskActionDefaults(databasePath);
 
   try {
     const taskResponse = await app.inject({
@@ -290,4 +291,10 @@ function readSessionDisplayTitles(body: string): ReadonlyArray<string | null> {
 
 function readJson(body: string): unknown {
   return JSON.parse(body) as unknown;
+}
+
+async function copyTaskActionCatalog(dir: string): Promise<string> {
+  const taskActionsPath = join(dir, "task-actions.json");
+  await copyFile(getDefaultTaskActionsPath(), taskActionsPath);
+  return taskActionsPath;
 }

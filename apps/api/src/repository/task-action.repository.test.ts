@@ -1,19 +1,20 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createApp } from "../app.js";
-import { seedTaskActionDefaults } from "../test/seed-task-action-defaults.js";
+import { getDefaultTaskActionsPath } from "../task-actions/catalog.js";
 
-void test("task actions are loaded from the database", async () => {
+void test("task actions are loaded from the catalog file", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-"));
   const databasePath = join(dir, "tasker.sqlite");
+  const taskActionsPath = await copyTaskActionCatalog(dir);
   const app = await createApp({
     databasePath,
-    linearApiKey: null
+    linearApiKey: null,
+    taskActionsPath
   });
-  await seedTaskActionDefaults(databasePath);
 
   try {
     const taskResponse = await app.inject({
@@ -62,15 +63,16 @@ void test("task actions are loaded from the database", async () => {
   }
 });
 
-void test("session prompt endpoint renders seeded templates", async () => {
+void test("session prompt endpoint renders catalog templates", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-prompt-"));
   const databasePath = join(dir, "tasker.sqlite");
+  const taskActionsPath = await copyTaskActionCatalog(dir);
   const app = await createApp({
     databasePath,
     linearApiKey: null,
-    publicApiBaseUrl: "http://127.0.0.1:3000"
+    publicApiBaseUrl: "http://127.0.0.1:3000",
+    taskActionsPath
   });
-  await seedTaskActionDefaults(databasePath);
 
   try {
     const taskResponse = await app.inject({
@@ -138,11 +140,12 @@ void test("session prompt endpoint renders seeded templates", async () => {
 void test("session create rejects unknown action ids", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-invalid-"));
   const databasePath = join(dir, "tasker.sqlite");
+  const taskActionsPath = await copyTaskActionCatalog(dir);
   const app = await createApp({
     databasePath,
-    linearApiKey: null
+    linearApiKey: null,
+    taskActionsPath
   });
-  await seedTaskActionDefaults(databasePath);
 
   try {
     const taskResponse = await app.inject({
@@ -178,11 +181,12 @@ void test("session create rejects unknown action ids", async () => {
 void test("task action settings can be updated through the catalog endpoint", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-actions-settings-"));
   const databasePath = join(dir, "tasker.sqlite");
+  const taskActionsPath = await copyTaskActionCatalog(dir);
   const app = await createApp({
     databasePath,
-    linearApiKey: null
+    linearApiKey: null,
+    taskActionsPath
   });
-  await seedTaskActionDefaults(databasePath);
 
   try {
     const updateResponse = await app.inject({
@@ -244,6 +248,17 @@ void test("task action settings can be updated through the catalog endpoint", as
       readonly actions: ReadonlyArray<{ readonly id: string }>;
     };
     assert.equal(enabledActions.actions.some((action) => action.id === "plan"), false);
+
+    const catalogFile = JSON.parse(await readFile(taskActionsPath, "utf8")) as ReadonlyArray<{
+      readonly enabled: boolean;
+      readonly id: string;
+      readonly label: string;
+    }>;
+    assert.ok(
+      catalogFile.some(
+        (action) => action.id === "plan" && action.label === "Plan next" && !action.enabled
+      )
+    );
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });
@@ -253,11 +268,12 @@ void test("task action settings can be updated through the catalog endpoint", as
 void test("task actions derive recommendations from configured task states", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-task-action-recommendations-"));
   const databasePath = join(dir, "tasker.sqlite");
+  const taskActionsPath = await copyTaskActionCatalog(dir);
   const app = await createApp({
     databasePath,
-    linearApiKey: null
+    linearApiKey: null,
+    taskActionsPath
   });
-  await seedTaskActionDefaults(databasePath);
 
   try {
     const readyTaskResponse = await app.inject({
@@ -352,3 +368,9 @@ void test("task actions derive recommendations from configured task states", asy
     await rm(dir, { force: true, recursive: true });
   }
 });
+
+async function copyTaskActionCatalog(dir: string): Promise<string> {
+  const taskActionsPath = join(dir, "task-actions.json");
+  await copyFile(getDefaultTaskActionsPath(), taskActionsPath);
+  return taskActionsPath;
+}

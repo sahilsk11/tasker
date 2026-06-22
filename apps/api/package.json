@@ -14,7 +14,6 @@
     }
   },
   "scripts": {
-    "apply:task-actions": "tsx scripts/apply-task-action-defaults.ts",
     "build": "tsup src/index.ts --format esm",
     "dev": "tsx watch src/index.ts",
     "smoke:migrations": "tsx --test src/db/migrate.test.ts",

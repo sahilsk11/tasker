@@ -12,6 +12,7 @@ export type Env = {
   readonly linearApiKey: string | null;
   readonly port: number;
   readonly publicApiBaseUrl: string;
+  readonly taskActionsPath: string | undefined;
 };
 
 export function loadEnv(): Env {
@@ -37,7 +38,8 @@ export function loadEnv(): Env {
     port,
     publicApiBaseUrl:
       normalizeOptionalEnv(process.env["PUBLIC_API_BASE_URL"]) ??
-      `http://${host}:${String(port)}`
+      `http://${host}:${String(port)}`,
+    taskActionsPath: normalizeOptionalEnv(process.env["TASK_ACTIONS_PATH"]) ?? undefined
   };
 }
 

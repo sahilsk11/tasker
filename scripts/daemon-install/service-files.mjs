@@ -101,6 +101,8 @@ RestartSec=2
 Environment=${systemdQuote("HOST=127.0.0.1")}
 Environment=${systemdQuote(`PORT=${String(choices.port)}`)}
 Environment=${systemdQuote(`DATABASE_PATH=${paths.databasePath}`)}
+Environment=${systemdQuote(`PUBLIC_API_BASE_URL=${getAccessUrl(choices)}/api`)}
+Environment=${systemdQuote(`TASKER_PUBLIC_APP_BASE_URL=${getAccessUrl(choices)}`)}
 Environment=${systemdQuote(`TASKER_WEB_DIST_DIR=${join(paths.appDir, "web")}`)}
 Environment=${systemdQuote(`TASKER_MIGRATIONS_DIR=${join(paths.appDir, "migrations")}`)}
 StandardOutput=append:${systemdEscapePath(join(paths.logsDir, "tasker.log"))}
@@ -132,7 +134,9 @@ function plistEnv(paths, choices) {
     DATABASE_PATH: paths.databasePath,
     HOST: "127.0.0.1",
     PORT: String(choices.port),
+    PUBLIC_API_BASE_URL: `${getAccessUrl(choices)}/api`,
     TASKER_MIGRATIONS_DIR: join(paths.appDir, "migrations"),
+    TASKER_PUBLIC_APP_BASE_URL: getAccessUrl(choices),
     TASKER_WEB_DIST_DIR: join(paths.appDir, "web")
   };
 
@@ -170,4 +174,10 @@ function systemdEscapePath(value) {
       `\\x${byte.toString(16).padStart(2, "0")}`
     ).join("");
   }).join("");
+}
+
+function getAccessUrl(choices) {
+  return choices.access === "pretty"
+    ? "http://tasker.localhost"
+    : `http://tasker.localhost:${String(choices.port)}`;
 }

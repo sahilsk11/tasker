@@ -115,7 +115,8 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000012_task_dependencies",
         "000013_working_paths",
         "000014_action_recommendation_states",
-        "000015_drop_task_actions"
+        "000015_drop_task_actions",
+        "000016_generated_url_settings"
       ]);
 
       assert.equal(tableExists(database, "task_actions"), false);
@@ -313,7 +314,8 @@ void test("migrations drop legacy task action table", async () => {
         "000011_task_working_directory",
         "000012_task_dependencies",
         "000013_working_paths",
-        "000014_action_recommendation_states"
+        "000014_action_recommendation_states",
+        "000016_generated_url_settings"
       ]) {
         database.prepare("INSERT INTO schema_migrations (version) VALUES (?)").run(
           version

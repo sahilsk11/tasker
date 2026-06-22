@@ -47,6 +47,7 @@ import {
 } from "./session-provider.js";
 import { renderActionPrompt } from "./task-action-prompt.js";
 import { normalizeOptionalDirectoryPath } from "./working-directory.js";
+import type { PublicUrlService } from "./public-url.service.js";
 
 export type TaskResources = {
   readonly artifacts: readonly TaskArtifact[];
@@ -106,7 +107,7 @@ export class TaskService {
     private readonly sessions: TaskSessionRepository,
     private readonly tickets: TaskTicketRepository,
     private readonly actions: TaskActionRepository,
-    private readonly publicApiBaseUrl: string,
+    private readonly publicUrls: PublicUrlService,
     private readonly sessionProviders = new TaskSessionProviderRegistry()
   ) {}
 
@@ -172,7 +173,7 @@ export class TaskService {
         id: action.id,
         label: action.label
       },
-      apiBaseUrl: this.publicApiBaseUrl,
+      apiBaseUrl: await this.publicUrls.getApiBaseUrl(),
       sessionId,
       taskDescription: task.description,
       taskId,

@@ -7,18 +7,27 @@ export type DaemonEnv = {
   readonly linearApiKey: string | null;
   readonly migrationsDirectory: string | undefined;
   readonly port: number;
+  readonly publicApiBaseUrl: string;
+  readonly publicAppBaseUrl: string | null;
   readonly webDistDirectory: string;
 };
 
 export function loadDaemonEnv(): DaemonEnv {
+  const host = process.env["HOST"] ?? "127.0.0.1";
+  const port = parsePort(process.env["PORT"] ?? "48273");
+
   return {
     codexSessionsRoot: normalizeOptionalEnv(process.env["CODEX_SESSIONS_ROOT"]) ?? undefined,
     databasePath: process.env["DATABASE_PATH"] ?? "./tasker.sqlite",
-    host: process.env["HOST"] ?? "127.0.0.1",
+    host,
     linearApiKey: normalizeOptionalEnv(process.env["LINEAR_API_KEY"]),
     migrationsDirectory:
       normalizeOptionalEnv(process.env["TASKER_MIGRATIONS_DIR"]) ?? undefined,
-    port: parsePort(process.env["PORT"] ?? "48273"),
+    port,
+    publicApiBaseUrl:
+      normalizeOptionalEnv(process.env["PUBLIC_API_BASE_URL"]) ??
+      `http://${host}:${String(port)}/api`,
+    publicAppBaseUrl: normalizeOptionalEnv(process.env["TASKER_PUBLIC_APP_BASE_URL"]),
     webDistDirectory: resolve(process.env["TASKER_WEB_DIST_DIR"] ?? "./web")
   };
 }

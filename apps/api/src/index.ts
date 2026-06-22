@@ -20,6 +20,7 @@ const app = await createApp({
   },
   linearApiKey: env.linearApiKey,
   publicApiBaseUrl: env.publicApiBaseUrl,
+  publicAppBaseUrl: env.publicAppBaseUrl,
   ...(env.taskActionsPath === undefined ? {} : { taskActionsPath: env.taskActionsPath })
 });
 

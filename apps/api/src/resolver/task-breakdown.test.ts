@@ -217,6 +217,80 @@ void test("breakdown validation reports structured errors", async () => {
   }
 });
 
+void test("breakdown preview URL follows public generated URL settings", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-breakdown-public-url-"));
+  const app = await createApp({
+    databasePath: join(dir, "tasker.sqlite"),
+    linearApiKey: null,
+    publicApiBaseUrl: "http://127.0.0.1:7501/api",
+    publicAppBaseUrl: "http://tasker.localhost:48273"
+  });
+
+  try {
+    const parent = await createTask(app, {
+      description: "Large task body",
+      title: "Large task"
+    });
+    const breakdownPath = join(dir, "breakdown.json");
+    await writeFile(
+      breakdownPath,
+      JSON.stringify({
+        items: [
+          {
+            description: "Add the public preview URL.",
+            dependsOn: [],
+            id: "preview-url",
+            title: "Add preview URL"
+          }
+        ],
+        schemaVersion: 1,
+        summary: "Verify public preview URL.",
+        taskId: parent.id
+      })
+    );
+
+    const validateResponse = await app.inject({
+      method: "POST",
+      payload: { uri: breakdownPath },
+      url: "/breakdowns/validate"
+    });
+    assert.equal(validateResponse.statusCode, 200);
+    const validation = readJson(validateResponse.body) as {
+      readonly previewUrl: string;
+      readonly valid: boolean;
+    };
+    assert.equal(validation.valid, true);
+    assert.equal(
+      validation.previewUrl,
+      `http://tasker.localhost:48273/breakdowns/preview?uri=${encodeURIComponent(breakdownPath)}`
+    );
+
+    const settingsResponse = await app.inject({
+      method: "PATCH",
+      payload: { generatedUrlMode: "localhost" },
+      url: "/working-paths/settings"
+    });
+    assert.equal(settingsResponse.statusCode, 200);
+
+    const localValidateResponse = await app.inject({
+      method: "POST",
+      payload: { uri: breakdownPath },
+      url: "/breakdowns/validate"
+    });
+    assert.equal(localValidateResponse.statusCode, 200);
+    const localValidation = readJson(localValidateResponse.body) as {
+      readonly previewUrl: string;
+    };
+    assert.equal(
+      localValidation.previewUrl,
+      `http://127.0.0.1:7501/breakdowns/preview?uri=${encodeURIComponent(breakdownPath)}`
+    );
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 async function createTask(
   app: Awaited<ReturnType<typeof createApp>>,
   payload: {

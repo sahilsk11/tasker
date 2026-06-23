@@ -229,6 +229,12 @@ function getClaimCommandDetails({
         missingIdentifierGuidance:
           "If CODEX_THREAD_ID is not set, still continue with the task and report that claim failed."
       };
+    case "cursor":
+      return {
+        command: buildCursorClaimCommand(apiBaseUrl, sessionId),
+        missingIdentifierGuidance:
+          "If CURSOR_BACKGROUND_AGENT_ID is not set, still continue with the task and report that claim used the explicit metadata fallback."
+      };
   }
 }
 
@@ -259,6 +265,22 @@ function buildClaudeCodeClaimCommand(apiBaseUrl: string, sessionId: string): str
   "metadata": {
     "reportedCwd": "$(pwd)",
     "claudeCodeSessionIdEnvPresent": $([ -n "\${CLAUDE_CODE_SESSION_ID:-}" ] && echo true || echo false)
+  }
+}
+EOF`;
+}
+
+function buildCursorClaimCommand(apiBaseUrl: string, sessionId: string): string {
+  const claimUrl = `${apiBaseUrl}/sessions/${sessionId}/claim`;
+  return `curl -sS -X POST "${claimUrl}" \\
+  -H "Content-Type: application/json" \\
+  --data-binary @- <<EOF
+{
+  "provider": "cursor",
+  "providerId": "\${CURSOR_BACKGROUND_AGENT_ID:-}",
+  "metadata": {
+    "reportedCwd": "$(pwd)",
+    "cursorBackgroundAgentIdEnvPresent": $([ -n "\${CURSOR_BACKGROUND_AGENT_ID:-}" ] && echo true || echo false)
   }
 }
 EOF`;

@@ -10,6 +10,24 @@ import type {
   TaskSessionProvider
 } from "./session-provider.js";
 
+/**
+ * Hard-coded default model per Kanna agent provider.
+ * Each provider gets a sensible default so the model field is always provider-appropriate.
+ */
+export const PROVIDER_DEFAULT_MODELS: Readonly<Record<string, string>> = {
+  claude: "claude-sonnet-4-5",
+  codex: "gpt-5.5",
+  cursor: "cursor-small"
+};
+
+/**
+ * Returns the default model for a given Kanna agent provider,
+ * falling back to `fallbackModel` for unknown providers.
+ */
+export function resolveModelForProvider(provider: string, fallbackModel: string): string {
+  return PROVIDER_DEFAULT_MODELS[provider] ?? fallbackModel;
+}
+
 type KannaCommand = {
   readonly [key: string]: unknown;
   readonly type: string;
@@ -58,6 +76,7 @@ export class KannaSessionProvider implements TaskSessionProvider {
     await this.requireHealthyBackend();
     const requestedAgentProvider = input.requestedAgentProvider ?? this.agentProvider;
     const agentProvider = toKannaAgentProvider(requestedAgentProvider);
+    const agentModel = resolveModelForProvider(agentProvider, this.agentModel);
 
     const socket = await openKannaSocket(this.baseUrl, this.timeoutMs);
     try {
@@ -77,7 +96,7 @@ export class KannaSessionProvider implements TaskSessionProvider {
         {
           type: "chat.send",
           content: input.prompt,
-          model: this.agentModel,
+          model: agentModel,
           modelOptions,
           projectId: project.projectId,
           provider: agentProvider
@@ -90,7 +109,7 @@ export class KannaSessionProvider implements TaskSessionProvider {
       }
 
       const metadata = {
-        agentModel: this.agentModel,
+        agentModel,
         agentProvider,
         backendUrl: this.baseUrl,
         kannaChatId: launched.chatId,

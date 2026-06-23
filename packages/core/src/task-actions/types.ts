@@ -1,4 +1,4 @@
-export const agentPromptProviderValues = ["codex", "claude-code"] as const;
+export const agentPromptProviderValues = ["codex", "claude-code", "cursor"] as const;
 
 export type AgentPromptProvider = (typeof agentPromptProviderValues)[number];
 
@@ -9,7 +9,8 @@ export const agentPromptProviders: ReadonlyArray<{
   readonly value: AgentPromptProvider;
 }> = [
   { label: "Codex", value: "codex" },
-  { label: "Claude Code", value: "claude-code" }
+  { label: "Claude Code", value: "claude-code" },
+  { label: "Cursor", value: "cursor" }
 ];
 
 export type TaskActionPromptContext = {

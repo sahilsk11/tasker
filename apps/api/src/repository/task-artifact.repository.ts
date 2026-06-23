@@ -3,20 +3,42 @@ import type { Kysely } from "kysely";
 import type { Database, TaskArtifactRow } from "../db/schema.js";
 import type {
   CreateTaskArtifactInput,
-  TaskArtifact
+  TaskArtifact,
+  TaskArtifactId
 } from "../domain/task-artifact.js";
 import type { TaskId } from "../domain/task.js";
 
+export type ListTaskArtifactsOptions = {
+  readonly includeArchived?: boolean;
+};
+
 export type TaskArtifactRepository = {
+  readonly archive: (
+    taskId: TaskId,
+    artifactId: TaskArtifactId,
+    input: { readonly uri: string }
+  ) => Promise<TaskArtifact | null>;
   readonly createForTask: (
     taskId: TaskId,
     input: CreateTaskArtifactInput
   ) => Promise<TaskArtifact>;
+  readonly deleteByTaskIdAndId: (
+    taskId: TaskId,
+    artifactId: TaskArtifactId
+  ) => Promise<TaskArtifact | null>;
   readonly findByTaskIdAndId: (
     taskId: TaskId,
-    artifactId: string
+    artifactId: TaskArtifactId
   ) => Promise<TaskArtifact | null>;
-  readonly listByTaskId: (taskId: TaskId) => Promise<readonly TaskArtifact[]>;
+  readonly listByTaskId: (
+    taskId: TaskId,
+    options?: ListTaskArtifactsOptions
+  ) => Promise<readonly TaskArtifact[]>;
+  readonly restore: (
+    taskId: TaskId,
+    artifactId: TaskArtifactId,
+    input: { readonly uri: string }
+  ) => Promise<TaskArtifact | null>;
 };
 
 export class SqliteTaskArtifactRepository implements TaskArtifactRepository {
@@ -26,12 +48,14 @@ export class SqliteTaskArtifactRepository implements TaskArtifactRepository {
     taskId: TaskId,
     input: CreateTaskArtifactInput
   ): Promise<TaskArtifact> {
+    const dedupeKey = getArtifactDedupeKey(input.label, input.uri);
     const row = await this.db
       .insertInto("task_artifacts")
       .values({
+        archived_at: null,
         created_at: new Date().toISOString(),
         created_by_session_id: input.createdBySessionId ?? null,
-        dedupe_key: getArtifactDedupeKey(input.label, input.uri),
+        dedupe_key: dedupeKey,
         id: randomUUID(),
         label: input.label,
         task_id: taskId,
@@ -42,17 +66,80 @@ export class SqliteTaskArtifactRepository implements TaskArtifactRepository {
       .executeTakeFirst();
 
     if (row == null) {
-      return this.findByTaskIdLabelAndUri(taskId, input.label, input.uri);
+      return this.findByTaskIdAndDedupeKey(taskId, dedupeKey);
     }
 
     return toTaskArtifact(row);
   }
 
-  public async listByTaskId(taskId: TaskId): Promise<readonly TaskArtifact[]> {
-    const rows = await this.db
+  public async archive(
+    taskId: TaskId,
+    artifactId: TaskArtifactId,
+    input: { readonly uri: string }
+  ): Promise<TaskArtifact | null> {
+    const row = await this.db
+      .updateTable("task_artifacts")
+      .set({
+        archived_at: new Date().toISOString(),
+        uri: input.uri
+      })
+      .where("task_id", "=", taskId)
+      .where("id", "=", artifactId)
+      .where("archived_at", "is", null)
+      .returningAll()
+      .executeTakeFirst();
+
+    return row == null ? null : toTaskArtifact(row);
+  }
+
+  public async restore(
+    taskId: TaskId,
+    artifactId: TaskArtifactId,
+    input: { readonly uri: string }
+  ): Promise<TaskArtifact | null> {
+    const row = await this.db
+      .updateTable("task_artifacts")
+      .set({
+        archived_at: null,
+        uri: input.uri
+      })
+      .where("task_id", "=", taskId)
+      .where("id", "=", artifactId)
+      .where("archived_at", "is not", null)
+      .returningAll()
+      .executeTakeFirst();
+
+    return row == null ? null : toTaskArtifact(row);
+  }
+
+  public async deleteByTaskIdAndId(
+    taskId: TaskId,
+    artifactId: TaskArtifactId
+  ): Promise<TaskArtifact | null> {
+    const row = await this.db
+      .deleteFrom("task_artifacts")
+      .where("task_id", "=", taskId)
+      .where("id", "=", artifactId)
+      .returningAll()
+      .executeTakeFirst();
+
+    return row == null ? null : toTaskArtifact(row);
+  }
+
+  public async listByTaskId(
+    taskId: TaskId,
+    options: ListTaskArtifactsOptions = {}
+  ): Promise<readonly TaskArtifact[]> {
+    let query = this.db
       .selectFrom("task_artifacts")
       .selectAll()
-      .where("task_id", "=", taskId)
+      .where("task_id", "=", taskId);
+
+    if (options.includeArchived !== true) {
+      query = query.where("archived_at", "is", null);
+    }
+
+    const rows = await query
       .orderBy("created_at", "asc")
       .execute();
 
@@ -61,7 +148,7 @@ export class SqliteTaskArtifactRepository implements TaskArtifactRepository {
 
   public async findByTaskIdAndId(
     taskId: TaskId,
-    artifactId: string
+    artifactId: TaskArtifactId
   ): Promise<TaskArtifact | null> {
     const row = await this.db
       .selectFrom("task_artifacts")
@@ -73,17 +160,15 @@ export class SqliteTaskArtifactRepository implements TaskArtifactRepository {
     return row == null ? null : toTaskArtifact(row);
   }
 
-  private async findByTaskIdLabelAndUri(
+  private async findByTaskIdAndDedupeKey(
     taskId: TaskId,
-    label: CreateTaskArtifactInput["label"],
-    uri: string
+    dedupeKey: string
   ): Promise<TaskArtifact> {
     const row = await this.db
       .selectFrom("task_artifacts")
       .selectAll()
       .where("task_id", "=", taskId)
-      .where("label", "=", label)
-      .where("uri", "=", uri)
+      .where("dedupe_key", "=", dedupeKey)
       .executeTakeFirstOrThrow();
 
     return toTaskArtifact(row);
@@ -92,6 +177,7 @@ export class SqliteTaskArtifactRepository implements TaskArtifactRepository {
 
 function toTaskArtifact(row: TaskArtifactRow): TaskArtifact {
   return {
+    archivedAt: row.archived_at == null ? null : new Date(row.archived_at),
     createdAt: new Date(row.created_at),
     createdBySessionId: row.created_by_session_id,
     id: row.id,

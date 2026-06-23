@@ -4,6 +4,12 @@ import { registerStaticFrontend } from "./static-frontend.js";
 
 const env = loadDaemonEnv();
 const app = await createApp({
+  artifactStorage: {
+    ...(env.artifactArchiveRoot === undefined
+      ? {}
+      : { archiveRoot: env.artifactArchiveRoot }),
+    ...(env.artifactRoot === undefined ? {} : { activeRoot: env.artifactRoot })
+  },
   ...(env.codexSessionsRoot === undefined
     ? {}
     : { codexSessionsRoot: env.codexSessionsRoot }),

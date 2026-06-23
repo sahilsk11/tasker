@@ -115,8 +115,15 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000012_task_dependencies",
         "000013_working_paths",
         "000014_action_recommendation_states",
-        "000015_drop_task_actions"
+        "000015_drop_task_actions",
+        "000016_artifact_lifecycle"
       ]);
+
+      const artifactColumns = database
+        .prepare("PRAGMA table_info(task_artifacts)")
+        .all()
+        .map((row) => (row as { name: string }).name);
+      assert.ok(artifactColumns.includes("archived_at"));
 
       assert.equal(tableExists(database, "task_actions"), false);
 
@@ -299,6 +306,27 @@ void test("migrations drop legacy task action table", async () => {
           updated_at text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
           icon_name text,
           recommendation_states_json text
+        );
+
+        CREATE TABLE tasks (
+          id text PRIMARY KEY,
+          title text NOT NULL,
+          description text,
+          state text NOT NULL DEFAULT 'ready',
+          parent_task_id text,
+          working_directory text,
+          created_at text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+          updated_at text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        );
+
+        CREATE TABLE task_artifacts (
+          id text PRIMARY KEY,
+          task_id text NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          label text NOT NULL CHECK (label IN ('research', 'plan', 'implement', 'other')),
+          uri text NOT NULL,
+          dedupe_key text NOT NULL,
+          created_at text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+          created_by_session_id text
         );
       `);
       for (const version of [

@@ -83,6 +83,13 @@ const createArtifactSchema = z.object({
   uri: z.string().min(1)
 });
 
+const listArtifactsQuerySchema = z.object({
+  includeArchived: z
+    .enum(["false", "true"])
+    .optional()
+    .transform((value) => (value === undefined ? undefined : value === "true"))
+});
+
 const createPullRequestSchema = z.object({
   url: z.string().url()
 });
@@ -171,7 +178,12 @@ export function registerTaskResolver(
 
   server.get("/tasks/:id/artifacts", async (request) => {
     const { id } = taskIdParamsSchema.parse(request.params);
-    return { artifacts: await taskService.listArtifacts(id) };
+    const { includeArchived } = listArtifactsQuerySchema.parse(request.query);
+    return {
+      artifacts: await taskService.listArtifacts(id, {
+        ...(includeArchived === undefined ? {} : { includeArchived })
+      })
+    };
   });
 
   server.get("/tasks/:id/artifacts/:artifactId", async (request) => {
@@ -191,6 +203,21 @@ export function registerTaskResolver(
       parseCreateArtifactInput(request.body)
     );
     return reply.code(201).send({ artifact });
+  });
+
+  server.post("/tasks/:id/artifacts/:artifactId/archive", async (request) => {
+    const { artifactId, id } = artifactIdParamsSchema.parse(request.params);
+    return { artifact: await taskService.archiveArtifact(id, artifactId) };
+  });
+
+  server.post("/tasks/:id/artifacts/:artifactId/restore", async (request) => {
+    const { artifactId, id } = artifactIdParamsSchema.parse(request.params);
+    return { artifact: await taskService.restoreArtifact(id, artifactId) };
+  });
+
+  server.delete("/tasks/:id/artifacts/:artifactId", async (request) => {
+    const { artifactId, id } = artifactIdParamsSchema.parse(request.params);
+    return { artifact: await taskService.deleteArtifact(id, artifactId) };
   });
 
   server.get("/tasks/:id/pull-requests", async (request) => {

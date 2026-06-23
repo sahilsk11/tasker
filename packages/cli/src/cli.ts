@@ -7,7 +7,13 @@ import {
 } from "./errors.js";
 import { createFailureResult, createSuccessResult, serializeResult } from "./output.js";
 import { parseArgs, type ParsedCommand } from "./parser.js";
-import type { ClaimSessionResponse, CreateSessionResponse, RuntimeInfo } from "./types.js";
+import type {
+  ClaimSessionResponse,
+  CreateArtifactResponse,
+  CreatePullRequestResponse,
+  CreateSessionResponse,
+  RuntimeInfo
+} from "./types.js";
 
 export type CliRunResult = {
   readonly exitCode: number;
@@ -34,6 +40,20 @@ export async function runCli(
     switch (command.kind) {
       case "runtime":
         return success(await apiClient.get<RuntimeInfo>("/runtime"));
+      case "artifacts_register":
+        return success(
+          await apiClient.post<CreateArtifactResponse>(
+            `/tasks/${encodeURIComponent(command.taskId)}/artifacts`,
+            createArtifactRequest(command)
+          )
+        );
+      case "pull_requests_register":
+        return success(
+          await apiClient.post<CreatePullRequestResponse>(
+            `/tasks/${encodeURIComponent(command.taskId)}/pull-requests`,
+            createPullRequestRequest(command)
+          )
+        );
       case "sessions_create":
         return success(
           await apiClient.post<CreateSessionResponse>(
@@ -52,6 +72,26 @@ export async function runCli(
   } catch (error) {
     return failure(error);
   }
+}
+
+function createArtifactRequest(
+  command: Extract<ParsedCommand, { readonly kind: "artifacts_register" }>
+): Record<string, unknown> {
+  return {
+    ...(command.createdBySessionId !== undefined
+      ? { createdBySessionId: command.createdBySessionId }
+      : {}),
+    label: command.label,
+    uri: command.uri
+  };
+}
+
+function createPullRequestRequest(
+  command: Extract<ParsedCommand, { readonly kind: "pull_requests_register" }>
+): Record<string, unknown> {
+  return {
+    url: command.url
+  };
 }
 
 function createSessionRequest(
@@ -145,11 +185,15 @@ function getHelpText(): string {
     "",
     "Commands:",
     "  runtime          Fetch Tasker API runtime details",
+    "  artifacts register      Register a task artifact",
+    "  pull-requests register  Register a task pull request",
     "  sessions create  Create a task session",
     "  sessions claim   Claim an existing task session",
     "  --help           Show this help",
     "",
     "Examples:",
+    "  tasker artifacts register --task-id <taskId> --label implement --uri /tmp/notes.md",
+    "  tasker pull-requests register --task-id <taskId> --url https://github.com/OWNER/REPO/pull/1",
     "  tasker sessions create --task-id <taskId> --provider codex --unclaimed",
     "  tasker sessions claim --session-id <sessionId> --provider codex --metadata reportedCwd=$PWD"
   ].join("\n");

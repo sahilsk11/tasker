@@ -6,6 +6,20 @@ export type ParsedCommand =
       readonly kind: "runtime";
     }
   | {
+      readonly apiBaseUrl?: string;
+      readonly createdBySessionId?: string | null;
+      readonly kind: "artifacts_register";
+      readonly label: "research" | "plan" | "implement" | "other";
+      readonly taskId: string;
+      readonly uri: string;
+    }
+  | {
+      readonly apiBaseUrl?: string;
+      readonly kind: "pull_requests_register";
+      readonly taskId: string;
+      readonly url: string;
+    }
+  | {
       readonly actionId?: string | null;
       readonly apiBaseUrl?: string;
       readonly claimed: boolean;
@@ -72,12 +86,20 @@ export function parseArgs(argv: readonly string[]): ParsedCommand {
     throw createParseError(`Unknown option: ${command}`);
   }
 
-  if (command !== "runtime") {
-    if (command !== "sessions") {
-      throw createParseError(`Unknown command: ${command}`);
-    }
+  if (command === "artifacts") {
+    return parseArtifactsCommand(remaining, apiBaseUrl);
+  }
 
+  if (command === "pull-requests") {
+    return parsePullRequestsCommand(remaining, apiBaseUrl);
+  }
+
+  if (command === "sessions") {
     return parseSessionsCommand(remaining, apiBaseUrl);
+  }
+
+  if (command !== "runtime") {
+    throw createParseError(`Unknown command: ${command}`);
   }
 
   if (remaining.length > 0) {
@@ -85,6 +107,170 @@ export function parseArgs(argv: readonly string[]): ParsedCommand {
   }
 
   return apiBaseUrl === undefined ? { kind: "runtime" } : { apiBaseUrl, kind: "runtime" };
+}
+
+function parseArtifactsCommand(
+  args: readonly string[],
+  apiBaseUrl: string | undefined
+): ParsedCommand {
+  const remaining = [...args];
+  const subcommand = remaining.shift();
+
+  if (subcommand === undefined) {
+    throw createParseError("artifacts requires a subcommand: register");
+  }
+
+  if (subcommand === "register") {
+    return parseArtifactsRegister(remaining, apiBaseUrl);
+  }
+
+  throw createParseError(`Unknown artifacts subcommand: ${subcommand}`);
+}
+
+function parseArtifactsRegister(
+  args: readonly string[],
+  apiBaseUrl: string | undefined
+): ParsedCommand {
+  let createdBySessionId: string | null | undefined;
+  let label: "research" | "plan" | "implement" | "other" | undefined;
+  let taskId: string | undefined;
+  let uri: string | undefined;
+
+  const remaining = [...args];
+  while (remaining.length > 0) {
+    const flag = remaining.shift();
+
+    if (flag === "--task-id") {
+      taskId = readFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--task-id=") === true) {
+      taskId = readInlineFlagValue(flag, "--task-id");
+      continue;
+    }
+
+    if (flag === "--label") {
+      label = parseArtifactLabel(readFlagValue(remaining, flag));
+      continue;
+    }
+
+    if (flag?.startsWith("--label=") === true) {
+      label = parseArtifactLabel(readInlineFlagValue(flag, "--label"));
+      continue;
+    }
+
+    if (flag === "--uri") {
+      uri = readFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--uri=") === true) {
+      uri = readInlineFlagValue(flag, "--uri");
+      continue;
+    }
+
+    if (flag === "--created-by-session-id") {
+      createdBySessionId = readNullableFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--created-by-session-id=") === true) {
+      createdBySessionId = readNullableInlineFlagValue(flag, "--created-by-session-id");
+      continue;
+    }
+
+    throw createParseError(`Unknown option for artifacts register: ${flag ?? ""}`);
+  }
+
+  if (taskId === undefined) {
+    throw createParseError("artifacts register requires --task-id");
+  }
+
+  if (label === undefined) {
+    throw createParseError("artifacts register requires --label");
+  }
+
+  if (uri === undefined) {
+    throw createParseError("artifacts register requires --uri");
+  }
+
+  return {
+    ...(apiBaseUrl === undefined ? {} : { apiBaseUrl }),
+    ...(createdBySessionId !== undefined ? { createdBySessionId } : {}),
+    kind: "artifacts_register",
+    label,
+    taskId,
+    uri
+  };
+}
+
+function parsePullRequestsCommand(
+  args: readonly string[],
+  apiBaseUrl: string | undefined
+): ParsedCommand {
+  const remaining = [...args];
+  const subcommand = remaining.shift();
+
+  if (subcommand === undefined) {
+    throw createParseError("pull-requests requires a subcommand: register");
+  }
+
+  if (subcommand === "register") {
+    return parsePullRequestsRegister(remaining, apiBaseUrl);
+  }
+
+  throw createParseError(`Unknown pull-requests subcommand: ${subcommand}`);
+}
+
+function parsePullRequestsRegister(
+  args: readonly string[],
+  apiBaseUrl: string | undefined
+): ParsedCommand {
+  let taskId: string | undefined;
+  let url: string | undefined;
+
+  const remaining = [...args];
+  while (remaining.length > 0) {
+    const flag = remaining.shift();
+
+    if (flag === "--task-id") {
+      taskId = readFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--task-id=") === true) {
+      taskId = readInlineFlagValue(flag, "--task-id");
+      continue;
+    }
+
+    if (flag === "--url") {
+      url = readFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--url=") === true) {
+      url = readInlineFlagValue(flag, "--url");
+      continue;
+    }
+
+    throw createParseError(`Unknown option for pull-requests register: ${flag ?? ""}`);
+  }
+
+  if (taskId === undefined) {
+    throw createParseError("pull-requests register requires --task-id");
+  }
+
+  if (url === undefined) {
+    throw createParseError("pull-requests register requires --url");
+  }
+
+  return {
+    ...(apiBaseUrl === undefined ? {} : { apiBaseUrl }),
+    kind: "pull_requests_register",
+    taskId,
+    url
+  };
 }
 
 function parseSessionsCommand(
@@ -354,6 +540,16 @@ function readNullableInlineFlagValue(arg: string, flag: string): string | null {
 
 function parseNullableValue(value: string): string | null {
   return value === "null" ? null : value;
+}
+
+function parseArtifactLabel(value: string): "research" | "plan" | "implement" | "other" {
+  if (value === "research" || value === "plan" || value === "implement" || value === "other") {
+    return value;
+  }
+
+  throw createParseError(
+    "--label must be one of: research, plan, implement, other"
+  );
 }
 
 function parseMetadataJson(value: string): Record<string, unknown> | null {

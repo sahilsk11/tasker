@@ -22,6 +22,114 @@ void test("runCli returns structured help output", async () => {
   assert.equal((JSON.parse(result.output) as { readonly ok: boolean }).ok, true);
 });
 
+void test("runCli registers a task artifact", async () => {
+  await withMockFetch(
+    (input, init) => {
+      assert.equal(String(input), "http://127.0.0.1:7501/tasks/task-1/artifacts");
+      assert.equal(init?.method, "POST");
+      assert.deepEqual(parseJsonBody(init), {
+        createdBySessionId: "session-1",
+        label: "implement",
+        uri: "/tmp/implement.md"
+      });
+
+      return Promise.resolve(jsonResponse(201, {
+        artifact: {
+          createdAt: "2026-06-22T00:00:00.000Z",
+          createdBySessionId: "session-1",
+          id: "artifact-1",
+          label: "implement",
+          taskId: "task-1",
+          uri: "/tmp/implement.md"
+        }
+      }));
+    },
+    async () => {
+      const result = await runCli(
+        [
+          "--api-base-url",
+          "http://127.0.0.1:7501",
+          "artifacts",
+          "register",
+          "--task-id",
+          "task-1",
+          "--label",
+          "implement",
+          "--uri",
+          "/tmp/implement.md",
+          "--created-by-session-id",
+          "session-1"
+        ],
+        {}
+      );
+
+      assert.equal(result.exitCode, 0);
+      assert.deepEqual(JSON.parse(result.output) as unknown, {
+        data: {
+          artifact: {
+            createdAt: "2026-06-22T00:00:00.000Z",
+            createdBySessionId: "session-1",
+            id: "artifact-1",
+            label: "implement",
+            taskId: "task-1",
+            uri: "/tmp/implement.md"
+          }
+        },
+        ok: true
+      });
+    }
+  );
+});
+
+void test("runCli registers a task pull request", async () => {
+  await withMockFetch(
+    (input, init) => {
+      assert.equal(String(input), "http://127.0.0.1:7501/tasks/task-1/pull-requests");
+      assert.equal(init?.method, "POST");
+      assert.deepEqual(parseJsonBody(init), {
+        url: "https://github.com/owner/repo/pull/12"
+      });
+
+      return Promise.resolve(jsonResponse(201, {
+        pullRequest: {
+          createdAt: "2026-06-22T00:00:00.000Z",
+          id: "pr-1",
+          taskId: "task-1",
+          url: "https://github.com/owner/repo/pull/12"
+        }
+      }));
+    },
+    async () => {
+      const result = await runCli(
+        [
+          "--api-base-url",
+          "http://127.0.0.1:7501",
+          "pull-requests",
+          "register",
+          "--task-id",
+          "task-1",
+          "--url",
+          "https://github.com/owner/repo/pull/12"
+        ],
+        {}
+      );
+
+      assert.equal(result.exitCode, 0);
+      assert.deepEqual(JSON.parse(result.output) as unknown, {
+        data: {
+          pullRequest: {
+            createdAt: "2026-06-22T00:00:00.000Z",
+            id: "pr-1",
+            taskId: "task-1",
+            url: "https://github.com/owner/repo/pull/12"
+          }
+        },
+        ok: true
+      });
+    }
+  );
+});
+
 void test("runCli creates a task session", async () => {
   await withMockFetch(
     (input, init) => {

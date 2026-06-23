@@ -14,6 +14,50 @@ void test("parseArgs parses help", () => {
   assert.deepEqual(parseArgs(["--help"]), { kind: "help" });
 });
 
+void test("parseArgs parses artifacts register", () => {
+  for (const label of ["research", "plan", "implement", "other"] as const) {
+    assert.deepEqual(
+      parseArgs([
+        "--api-base-url=http://127.0.0.1:7501",
+        "artifacts",
+        "register",
+        "--task-id",
+        "task-1",
+        "--label",
+        label,
+        "--uri",
+        `/tmp/${label}.md`,
+        "--created-by-session-id",
+        "session-1"
+      ]),
+      {
+        apiBaseUrl: "http://127.0.0.1:7501",
+        createdBySessionId: "session-1",
+        kind: "artifacts_register",
+        label,
+        taskId: "task-1",
+        uri: `/tmp/${label}.md`
+      }
+    );
+  }
+});
+
+void test("parseArgs parses pull-requests register", () => {
+  assert.deepEqual(
+    parseArgs([
+      "pull-requests",
+      "register",
+      "--task-id=task-1",
+      "--url=https://github.com/owner/repo/pull/12"
+    ]),
+    {
+      kind: "pull_requests_register",
+      taskId: "task-1",
+      url: "https://github.com/owner/repo/pull/12"
+    }
+  );
+});
+
 void test("parseArgs parses sessions create", () => {
   assert.deepEqual(
     parseArgs([
@@ -119,6 +163,70 @@ void test("parseArgs rejects missing API base URL values", () => {
       error instanceof CliError &&
       error.code === "parse_error" &&
       error.message === "--api-base-url requires a URL value"
+  );
+});
+
+void test("parseArgs rejects invalid artifact labels", () => {
+  assert.throws(
+    () =>
+      parseArgs([
+        "artifacts",
+        "register",
+        "--task-id",
+        "task-1",
+        "--label",
+        "summary",
+        "--uri",
+        "/tmp/summary.md"
+      ]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "--label must be one of: research, plan, implement, other"
+  );
+});
+
+void test("parseArgs rejects missing artifacts register required flags", () => {
+  assert.throws(
+    () => parseArgs(["artifacts", "register", "--label", "plan", "--uri", "/tmp/plan.md"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "artifacts register requires --task-id"
+  );
+
+  assert.throws(
+    () => parseArgs(["artifacts", "register", "--task-id", "task-1", "--uri", "/tmp/plan.md"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "artifacts register requires --label"
+  );
+
+  assert.throws(
+    () => parseArgs(["artifacts", "register", "--task-id", "task-1", "--label", "plan"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "artifacts register requires --uri"
+  );
+});
+
+void test("parseArgs rejects missing pull-requests register required flags", () => {
+  assert.throws(
+    () => parseArgs(["pull-requests", "register", "--url", "https://github.com/owner/repo/pull/12"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "pull-requests register requires --task-id"
+  );
+
+  assert.throws(
+    () => parseArgs(["pull-requests", "register", "--task-id", "task-1"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "pull-requests register requires --url"
   );
 });
 

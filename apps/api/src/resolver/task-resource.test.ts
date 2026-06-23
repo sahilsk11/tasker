@@ -789,7 +789,9 @@ async function claimSession(
   const response = await app.inject({
     method: "POST",
     payload: {
-      providerId: "claimed-provider-id"
+      metadata: {
+        source: "state-event-test"
+      }
     },
     url: `/sessions/${sessionId}/claim`
   });

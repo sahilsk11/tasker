@@ -1,3 +1,4 @@
+import { defaultAgentPromptProvider, type AgentPromptProvider } from "@tasker/core";
 import { stat, readFile } from "node:fs/promises";
 import { basename, extname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -169,7 +170,8 @@ export class TaskService {
   public async renderSessionPrompt(
     taskId: TaskId,
     sessionId: string,
-    options?: TaskActionPromptValues
+    options?: TaskActionPromptValues,
+    provider: AgentPromptProvider = defaultAgentPromptProvider
   ): Promise<string> {
     await this.requireTask(taskId);
     const session = await this.sessions.findById(sessionId);
@@ -194,6 +196,7 @@ export class TaskService {
         id: action.id,
         label: action.label
       },
+      agentProvider: provider,
       apiBaseUrl: this.publicApiBaseUrl,
       sessionId,
       taskDescription: task.description,

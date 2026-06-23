@@ -1,8 +1,23 @@
+export const agentPromptProviderValues = ["codex", "claude-code"] as const;
+
+export type AgentPromptProvider = (typeof agentPromptProviderValues)[number];
+
+export const defaultAgentPromptProvider: AgentPromptProvider = "codex";
+
+export const agentPromptProviders: ReadonlyArray<{
+  readonly label: string;
+  readonly value: AgentPromptProvider;
+}> = [
+  { label: "Codex", value: "codex" },
+  { label: "Claude Code", value: "claude-code" }
+];
+
 export type TaskActionPromptContext = {
   readonly action: {
     readonly id: string;
     readonly label: string;
   };
+  readonly agentProvider: AgentPromptProvider;
   readonly apiBaseUrl: string;
   readonly sessionId: string;
   readonly taskDescription: string | null;

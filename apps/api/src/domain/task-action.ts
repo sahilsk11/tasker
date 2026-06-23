@@ -1,3 +1,4 @@
+import type { AgentPromptProvider } from "@tasker/core";
 import type { TaskActionOptions } from "./task-action-options.js";
 import type { TaskState } from "./task.js";
 
@@ -41,6 +42,7 @@ export type UpdateTaskActionInput = {
 
 export type TaskActionPromptContext = {
   readonly action: Pick<TaskAction, "id" | "label">;
+  readonly agentProvider: AgentPromptProvider;
   readonly apiBaseUrl: string;
   readonly sessionId: string;
   readonly taskDescription: string | null;

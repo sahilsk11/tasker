@@ -143,6 +143,25 @@ void test("session prompt endpoint renders catalog templates", async () => {
     assert.match(promptBody.prompt, /## Working path/);
     assert.match(promptBody.prompt, /\/tmp\/tasker-project/);
 
+    const claudePromptResponse = await app.inject({
+      method: "POST",
+      payload: {
+        provider: "claude-code",
+        promptOptions: {
+          workingPath: "/tmp/tasker-project"
+        }
+      },
+      url: `/tasks/${task.id}/sessions/${created.session.id}/prompt`
+    });
+    assert.equal(claudePromptResponse.statusCode, 200);
+    const claudePromptBody = JSON.parse(claudePromptResponse.body) as {
+      readonly prompt: string;
+    };
+    assert.match(claudePromptBody.prompt, /"provider": "claude-code"/);
+    assert.match(claudePromptBody.prompt, /CLAUDE_CODE_SESSION_ID/);
+    assert.match(claudePromptBody.prompt, /claudeCodeSessionIdEnvPresent/);
+    assert.doesNotMatch(claudePromptBody.prompt, /CODEX_THREAD_ID/);
+
     const ignoreSkillsSessionResponse = await app.inject({
       method: "POST",
       payload: {

@@ -14,10 +14,17 @@ export type AgentProvider = z.infer<typeof agentProviderSchema>;
 export type RunEvent = z.infer<typeof runEventSchema>;
 
 export {
+  agentPromptProviders,
+  agentPromptProviderValues,
+  defaultAgentPromptProvider,
   findTemplatePlaceholders,
   findUnknownPlaceholders,
   knownPromptPlaceholders,
   renderTaskActionTemplate,
   UnknownPromptPlaceholderError
 } from "./task-actions/index.js";
-export type { KnownPromptPlaceholder, TaskActionPromptContext } from "./task-actions/index.js";
+export type {
+  AgentPromptProvider,
+  KnownPromptPlaceholder,
+  TaskActionPromptContext
+} from "./task-actions/index.js";

@@ -1,3 +1,4 @@
+import type { AgentPromptProvider } from "@tasker/core";
 import { apiClient } from "@/lib/api";
 
 export type ApiTask = {
@@ -82,6 +83,11 @@ export type TaskActionPromptValues = {
     }
   >;
   readonly workingPath?: string;
+};
+
+export type RenderTaskSessionPromptInput = {
+  readonly promptOptions?: TaskActionPromptValues;
+  readonly provider?: AgentPromptProvider;
 };
 
 export type CreateTaskSessionInput = {
@@ -424,11 +430,16 @@ export async function createTaskSession(
 export async function renderTaskSessionPrompt(
   taskId: string,
   sessionId: string,
-  promptOptions?: TaskActionPromptValues
+  input: RenderTaskSessionPromptInput = {}
 ): Promise<string> {
   const { prompt } = await apiClient.post<{ readonly prompt: string }>(
     `/tasks/${taskId}/sessions/${sessionId}/prompt`,
-    promptOptions == null ? {} : { promptOptions }
+    {
+      ...(input.promptOptions === undefined
+        ? {}
+        : { promptOptions: input.promptOptions }),
+      ...(input.provider === undefined ? {} : { provider: input.provider })
+    }
   );
   return prompt;
 }

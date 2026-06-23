@@ -1,3 +1,4 @@
+import { agentPromptProviderValues, defaultAgentPromptProvider } from "@tasker/core";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { taskActionOptionsSchema } from "../domain/task-action-options.js";
@@ -40,6 +41,7 @@ const taskSessionParamsSchema = taskIdParamsSchema.extend({
 });
 
 const renderSessionPromptSchema = z.object({
+  provider: z.enum(agentPromptProviderValues).default(defaultAgentPromptProvider),
   promptOptions: taskActionPromptValuesSchema.optional()
 });
 
@@ -251,7 +253,8 @@ export function registerTaskResolver(
     const prompt = await taskService.renderSessionPrompt(
       id,
       sessionId,
-      parsed.promptOptions
+      parsed.promptOptions,
+      parsed.provider
     );
     return { prompt };
   });

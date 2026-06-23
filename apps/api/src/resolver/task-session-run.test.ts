@@ -188,6 +188,63 @@ void test("launching a session through an unsupported provider is rejected", asy
   }
 });
 
+void test("action prompt run payload can request Claude Code provider", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-session-run-provider-"));
+  const databasePath = join(dir, "tasker.sqlite");
+  const taskActionsPath = await copyTaskActionCatalog(dir);
+  const launches: StartTaskSessionInput[] = [];
+  const provider: TaskSessionProvider = {
+    provider: "claude-code",
+    startSession(input): Promise<StartedTaskSession> {
+      launches.push(input);
+      return Promise.resolve({
+        launch: {
+          metadata: {
+            fakeSessionId: "claude-session-123"
+          },
+          provider: "claude-code"
+        }
+      });
+    }
+  };
+  const app = await createApp({
+    agentRunProvider: "kanna",
+    databasePath,
+    linearApiKey: null,
+    sessionProviders: [provider],
+    taskActionsPath
+  });
+
+  try {
+    const task = await createTask(app);
+    const session = await createUnclaimedSession(app, task.id);
+    const response = await app.inject({
+      method: "POST",
+      payload: {
+        prompt: "run this prompt",
+        provider: "claude-code",
+        workingPath: "/tmp/tasker"
+      },
+      url: `/tasks/${task.id}/sessions/${session.id}/run`
+    });
+
+    assert.equal(response.statusCode, 200);
+    const body = readJson(response.body) as {
+      readonly launch: {
+        readonly metadata: Record<string, unknown>;
+        readonly provider: string;
+      };
+    };
+    assert.equal(body.launch.provider, "claude-code");
+    assert.deepEqual(body.launch.metadata, { fakeSessionId: "claude-session-123" });
+    assert.equal(launches.length, 1);
+    assert.equal(launches[0]?.requestedProvider, "claude-code");
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 async function createTask(
   app: Awaited<ReturnType<typeof createApp>>
 ): Promise<{ readonly id: string }> {

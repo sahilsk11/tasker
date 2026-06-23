@@ -9,6 +9,7 @@ const baseContext: TaskActionPromptContext = {
     id: "plan",
     label: "Plan"
   },
+  agentProvider: "codex",
   apiBaseUrl: "http://127.0.0.1:3001",
   sessionId: "session-1",
   taskDescription: "Build the feature",
@@ -26,6 +27,22 @@ void test("renderTaskActionTemplate substitutes known placeholders", () => {
   assert.match(rendered, /Example task\n\nBuild the feature/);
   assert.match(rendered, /## Tasker session claim/);
   assert.match(rendered, /\/sessions\/session-1\/claim/);
+  assert.match(rendered, /"provider": "codex"/);
+  assert.match(rendered, /CODEX_THREAD_ID/);
+  assert.doesNotMatch(rendered, /CLAUDE_CODE_SESSION_ID/);
+});
+
+void test("renderTaskActionTemplate renders Claude Code claim instructions", () => {
+  const rendered = renderTaskActionTemplate("{{registerSession}}", {
+    ...baseContext,
+    agentProvider: "claude-code"
+  });
+
+  assert.match(rendered, /"provider": "claude-code"/);
+  assert.match(rendered, /\$\{CLAUDE_CODE_SESSION_ID:-\}/);
+  assert.match(rendered, /claudeCodeSessionIdEnvPresent/);
+  assert.match(rendered, /explicit metadata fallback/);
+  assert.doesNotMatch(rendered, /CODEX_THREAD_ID/);
 });
 
 void test("renderTaskActionTemplate leaves options empty when no option text exists", () => {

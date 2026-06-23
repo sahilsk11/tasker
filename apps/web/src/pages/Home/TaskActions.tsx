@@ -1,4 +1,9 @@
 import {
+  agentPromptProviders,
+  defaultAgentPromptProvider,
+  type AgentPromptProvider
+} from "@tasker/core";
+import {
   ArrowLeft,
   Check,
   Copy,
@@ -24,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 import {
   defaultPreviewOptionValue,
@@ -169,6 +175,9 @@ export function TaskActionPromptDialog({
   const [promptDraft, setPromptDraft] = useState("");
   const [promptError, setPromptError] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<AgentPromptProvider>(
+    defaultAgentPromptProvider
+  );
   const [isLoadingPrompt, setIsLoadingPrompt] = useState(false);
   const [workingPath, setWorkingPath] = useState("");
   const optionEntries = optionEntriesFor(action?.options ?? null);
@@ -176,7 +185,7 @@ export function TaskActionPromptDialog({
   useEffect(() => {
     setCopiedPrompt(false);
     setRunError(null);
-  }, [action, optionValues, promptDraft, session, workingPath]);
+  }, [action, optionValues, promptDraft, selectedProvider, session, workingPath]);
 
   useEffect(() => {
     if (action == null || session == null) {
@@ -190,6 +199,7 @@ export function TaskActionPromptDialog({
     );
     setPromptError(null);
     setRunError(null);
+    setSelectedProvider(defaultAgentPromptProvider);
     setWorkingPath(defaultWorkingPath);
   }, [action, defaultWorkingPath, session]);
 
@@ -214,7 +224,10 @@ export function TaskActionPromptDialog({
       action
     });
 
-    void renderTaskSessionPrompt(taskId, session.id, promptOptions)
+    void renderTaskSessionPrompt(taskId, session.id, {
+      promptOptions,
+      provider: selectedProvider
+    })
       .then((prompt) => {
         if (!cancelled) {
           setPromptDraft(prompt);
@@ -237,7 +250,7 @@ export function TaskActionPromptDialog({
     return () => {
       cancelled = true;
     };
-  }, [action, optionValues, session, taskId, workingPath]);
+  }, [action, optionValues, selectedProvider, session, taskId, workingPath]);
 
   async function copyPrompt(): Promise<void> {
     if (promptDraft.length === 0 || workingPath.trim().length === 0) {
@@ -258,6 +271,7 @@ export function TaskActionPromptDialog({
     setRunError(null);
     try {
       const result = await runTaskSessionPrompt(taskId, session.id, {
+        agentProvider: selectedProvider,
         prompt: promptDraft,
         workingPath: trimmedWorkingPath
       });
@@ -376,6 +390,25 @@ export function TaskActionPromptDialog({
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
               <span className="text-sm font-medium text-foreground">Prompt preview</span>
               <div className="flex items-center gap-2">
+                <Label className="sr-only" htmlFor="action-agent-provider">
+                  Agent provider
+                </Label>
+                <NativeSelect
+                  id="action-agent-provider"
+                  className="h-8 w-36 bg-background px-2.5 pr-8"
+                  value={selectedProvider}
+                  onChange={(event) =>
+                    setSelectedProvider(event.target.value as AgentPromptProvider)
+                  }
+                  disabled={isLoadingPrompt || isRunningAgent}
+                  aria-label="Agent provider"
+                >
+                  {agentPromptProviders.map((provider) => (
+                    <option key={provider.value} value={provider.value}>
+                      {provider.label}
+                    </option>
+                  ))}
+                </NativeSelect>
                 {markdownMode === "view" ? (
                   <Button
                     type="button"

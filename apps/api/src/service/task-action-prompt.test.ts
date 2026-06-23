@@ -16,6 +16,7 @@ void test("catalog plan template renders with only known placeholders", async ()
       id: plan.id,
       label: plan.label
     },
+    agentProvider: "codex",
     apiBaseUrl: "http://127.0.0.1:3001",
     sessionId: "session-1",
     taskDescription: "Example description",

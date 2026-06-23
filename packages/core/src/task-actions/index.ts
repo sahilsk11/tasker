@@ -15,4 +15,13 @@ export {
   UnknownPromptPlaceholderError
 } from "./validate-template.js";
 export { knownPromptPlaceholders } from "./types.js";
-export type { KnownPromptPlaceholder, TaskActionPromptContext } from "./types.js";
+export {
+  agentPromptProviders,
+  agentPromptProviderValues,
+  defaultAgentPromptProvider
+} from "./types.js";
+export type {
+  AgentPromptProvider,
+  KnownPromptPlaceholder,
+  TaskActionPromptContext
+} from "./types.js";

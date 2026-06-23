@@ -1,4 +1,4 @@
-import type { TaskActionPromptContext } from "./types.js";
+import type { AgentPromptProvider, TaskActionPromptContext } from "./types.js";
 
 export function buildOptionsSection(
   context: Pick<TaskActionPromptContext, "optionsText">
@@ -124,7 +124,11 @@ Do not use any skills for this task. Follow the instructions in this prompt dire
 }
 
 export function buildSessionClaimSection(context: TaskActionPromptContext): string {
-  const claimCommand = buildCodexClaimCommand(context.apiBaseUrl, context.sessionId);
+  const claimDetails = getClaimCommandDetails({
+    apiBaseUrl: context.apiBaseUrl,
+    provider: context.agentProvider,
+    sessionId: context.sessionId
+  });
 
   return `## Tasker session claim
 
@@ -133,10 +137,10 @@ Before doing the task, claim this Tasker session.
 Run this command from the agent if available:
 
 \`\`\`bash
-${claimCommand}
+${claimDetails.command}
 \`\`\`
 
-If CODEX_THREAD_ID is not set, still continue with the task and report that claim failed.
+${claimDetails.missingIdentifierGuidance}
 
 The claim response includes a \`taskOverview\` object with the current task,
 selected action, existing resources, child tasks, and \`latestTaskActivityAt\`.
@@ -203,6 +207,31 @@ ${pullRequestCommand}
 If PR registration fails, still finish the task and report the failure.`;
 }
 
+function getClaimCommandDetails({
+  apiBaseUrl,
+  provider,
+  sessionId
+}: {
+  readonly apiBaseUrl: string;
+  readonly provider: AgentPromptProvider;
+  readonly sessionId: string;
+}): { readonly command: string; readonly missingIdentifierGuidance: string } {
+  switch (provider) {
+    case "claude-code":
+      return {
+        command: buildClaudeCodeClaimCommand(apiBaseUrl, sessionId),
+        missingIdentifierGuidance:
+          "If CLAUDE_CODE_SESSION_ID is not set, still continue with the task and report that claim used the explicit metadata fallback."
+      };
+    case "codex":
+      return {
+        command: buildCodexClaimCommand(apiBaseUrl, sessionId),
+        missingIdentifierGuidance:
+          "If CODEX_THREAD_ID is not set, still continue with the task and report that claim failed."
+      };
+  }
+}
+
 function buildCodexClaimCommand(apiBaseUrl: string, sessionId: string): string {
   const claimUrl = `${apiBaseUrl}/sessions/${sessionId}/claim`;
   return `curl -sS -X POST "${claimUrl}" \\
@@ -214,6 +243,22 @@ function buildCodexClaimCommand(apiBaseUrl: string, sessionId: string): string {
   "metadata": {
     "reportedCwd": "$(pwd)",
     "codexThreadIdEnvPresent": $([ -n "\${CODEX_THREAD_ID:-}" ] && echo true || echo false)
+  }
+}
+EOF`;
+}
+
+function buildClaudeCodeClaimCommand(apiBaseUrl: string, sessionId: string): string {
+  const claimUrl = `${apiBaseUrl}/sessions/${sessionId}/claim`;
+  return `curl -sS -X POST "${claimUrl}" \\
+  -H "Content-Type: application/json" \\
+  --data-binary @- <<EOF
+{
+  "provider": "claude-code",
+  "providerId": "\${CLAUDE_CODE_SESSION_ID:-}",
+  "metadata": {
+    "reportedCwd": "$(pwd)",
+    "claudeCodeSessionIdEnvPresent": $([ -n "\${CLAUDE_CODE_SESSION_ID:-}" ] && echo true || echo false)
   }
 }
 EOF`;

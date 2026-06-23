@@ -875,6 +875,7 @@ function buildPreviewContext({
       id: actionId,
       label
     },
+    agentProvider: "codex",
     apiBaseUrl: "http://127.0.0.1:3000",
     sessionId: "preview-session",
     taskDescription: "Preview task description.",

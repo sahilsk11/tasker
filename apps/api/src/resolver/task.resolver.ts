@@ -1,3 +1,4 @@
+import { agentPromptProviderValues, defaultAgentPromptProvider } from "@tasker/core";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { taskActionOptionsSchema } from "../domain/task-action-options.js";
@@ -40,10 +41,12 @@ const taskSessionParamsSchema = taskIdParamsSchema.extend({
 });
 
 const renderSessionPromptSchema = z.object({
+  provider: z.enum(agentPromptProviderValues).default(defaultAgentPromptProvider),
   promptOptions: taskActionPromptValuesSchema.optional()
 });
 
 const runSessionPromptSchema = z.object({
+  agentProvider: z.enum(agentPromptProviderValues).nullable().optional(),
   prompt: z.string().min(1),
   provider: z.string().min(1).nullable().optional(),
   workingPath: z.string().min(1)
@@ -251,7 +254,8 @@ export function registerTaskResolver(
     const prompt = await taskService.renderSessionPrompt(
       id,
       sessionId,
-      parsed.promptOptions
+      parsed.promptOptions,
+      parsed.provider
     );
     return { prompt };
   });
@@ -260,6 +264,9 @@ export function registerTaskResolver(
     const { id, sessionId } = taskSessionParamsSchema.parse(request.params);
     const parsed = runSessionPromptSchema.parse(request.body);
     return taskService.runSessionPrompt(id, sessionId, {
+      ...(parsed.agentProvider !== undefined
+        ? { agentProvider: parsed.agentProvider }
+        : {}),
       prompt: parsed.prompt,
       ...(parsed.provider !== undefined ? { provider: parsed.provider } : {}),
       workingPath: parsed.workingPath

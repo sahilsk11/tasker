@@ -6,8 +6,8 @@ import {
   type CliErrorCode
 } from "./errors.js";
 import { createFailureResult, createSuccessResult, serializeResult } from "./output.js";
-import { parseArgs } from "./parser.js";
-import type { RuntimeInfo } from "./types.js";
+import { parseArgs, type ParsedCommand } from "./parser.js";
+import type { ClaimSessionResponse, CreateSessionResponse, RuntimeInfo } from "./types.js";
 
 export type CliRunResult = {
   readonly exitCode: number;
@@ -30,12 +30,56 @@ export async function runCli(
       env
     });
     const apiClient = createApiClient(apiBaseUrl);
-    const runtime = await apiClient.get<RuntimeInfo>("/runtime");
 
-    return success(runtime);
+    switch (command.kind) {
+      case "runtime":
+        return success(await apiClient.get<RuntimeInfo>("/runtime"));
+      case "sessions_create":
+        return success(
+          await apiClient.post<CreateSessionResponse>(
+            `/tasks/${encodeURIComponent(command.taskId)}/sessions`,
+            createSessionRequest(command)
+          )
+        );
+      case "sessions_claim":
+        return success(
+          await apiClient.post<ClaimSessionResponse>(
+            `/sessions/${encodeURIComponent(command.sessionId)}/claim`,
+            claimSessionRequest(command)
+          )
+        );
+    }
   } catch (error) {
     return failure(error);
   }
+}
+
+function createSessionRequest(
+  command: Extract<ParsedCommand, { readonly kind: "sessions_create" }>
+): Record<string, unknown> {
+  return {
+    ...(command.actionId !== undefined ? { actionId: command.actionId } : {}),
+    claimed: command.claimed,
+    ...(command.metadata !== undefined ? { metadata: command.metadata } : {}),
+    provider: command.provider,
+    ...(command.providerId !== undefined ? { providerId: command.providerId } : {}),
+    ...(command.transcriptPath !== undefined
+      ? { transcriptPath: command.transcriptPath }
+      : {})
+  };
+}
+
+function claimSessionRequest(
+  command: Extract<ParsedCommand, { readonly kind: "sessions_claim" }>
+): Record<string, unknown> {
+  return {
+    ...(command.metadata !== undefined ? { metadata: command.metadata } : {}),
+    ...(command.provider !== undefined ? { provider: command.provider } : {}),
+    ...(command.providerId !== undefined ? { providerId: command.providerId } : {}),
+    ...(command.transcriptPath !== undefined
+      ? { transcriptPath: command.transcriptPath }
+      : {})
+  };
 }
 
 function success(data: unknown): CliRunResult {
@@ -100,7 +144,13 @@ function getHelpText(): string {
     "Usage: tasker [--api-base-url <url>] <command>",
     "",
     "Commands:",
-    "  runtime    Fetch Tasker API runtime details",
-    "  --help     Show this help"
+    "  runtime          Fetch Tasker API runtime details",
+    "  sessions create  Create a task session",
+    "  sessions claim   Claim an existing task session",
+    "  --help           Show this help",
+    "",
+    "Examples:",
+    "  tasker sessions create --task-id <taskId> --provider codex --unclaimed",
+    "  tasker sessions claim --session-id <sessionId> --provider codex --metadata reportedCwd=$PWD"
   ].join("\n");
 }

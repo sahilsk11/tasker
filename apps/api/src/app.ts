@@ -30,6 +30,8 @@ import {
   TaskSessionProviderRegistry,
   type TaskSessionProvider
 } from "./service/session-provider.js";
+import { createTaskStateEventHandler } from "./service/task-state-events.js";
+import { TaskEventBus } from "./service/task-events.js";
 import { TaskService } from "./service/task.service.js";
 import { WorkingPathService } from "./service/working-path.service.js";
 import { getDefaultTaskActionsPath } from "./task-actions/catalog.js";
@@ -88,6 +90,11 @@ export async function createApp(options: CreateAppOptions) {
   const workingPathRepository = new SqliteWorkingPathRepository(db);
   const workingPathService = new WorkingPathService(workingPathRepository);
   const taskActionsPath = options.taskActionsPath ?? getDefaultTaskActionsPath();
+  const taskEvents = new TaskEventBus();
+  taskEvents.subscribe(
+    "artifact_registered",
+    createTaskStateEventHandler(taskRepository)
+  );
   const taskService = new TaskService(
     taskRepository,
     new SqliteTaskArtifactRepository(db),
@@ -96,6 +103,7 @@ export async function createApp(options: CreateAppOptions) {
     new SqliteTaskTicketRepository(db),
     new FileTaskActionRepository(taskActionsPath),
     publicApiBaseUrl,
+    taskEvents,
     sessionProviders,
     new ArtifactStorageService(options.artifactStorage)
   );

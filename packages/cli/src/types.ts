@@ -90,3 +90,11 @@ export type ClaimSessionResponse = {
   readonly session: ApiTaskSession;
   readonly taskOverview: ApiTaskOverview;
 };
+
+export type CreateArtifactResponse = {
+  readonly artifact: ApiTaskArtifact;
+};
+
+export type CreatePullRequestResponse = {
+  readonly pullRequest: ApiTaskPullRequest;
+};

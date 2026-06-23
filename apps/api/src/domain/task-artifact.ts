@@ -5,6 +5,7 @@ export type TaskArtifactId = string;
 export type TaskArtifactLabel = "research" | "plan" | "implement" | "other";
 
 export type TaskArtifact = {
+  readonly archivedAt: Date | null;
   readonly createdAt: Date;
   readonly createdBySessionId: string | null;
   readonly id: TaskArtifactId;

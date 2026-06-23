@@ -15,6 +15,8 @@ import { registerLinearResolver } from "./resolver/linear.resolver.js";
 import { registerTaskBreakdownResolver } from "./resolver/task-breakdown.resolver.js";
 import { registerTaskResolver } from "./resolver/task.resolver.js";
 import { registerWorkingPathResolver } from "./resolver/working-path.resolver.js";
+import { ArtifactStorageService } from "./service/artifact-storage.service.js";
+import type { ArtifactStorageOptions } from "./service/artifact-storage.service.js";
 import { CodexSessionProvider } from "./service/codex-session-provider.js";
 import { BadRequestError, ConflictError, NotFoundError } from "./service/errors.js";
 import { GitHubService, type GitHubServiceOptions } from "./service/github.service.js";
@@ -36,6 +38,7 @@ import { getDefaultTaskActionsPath } from "./task-actions/catalog.js";
 
 export type CreateAppOptions = {
   readonly agentRunProvider?: string | null;
+  readonly artifactStorage?: ArtifactStorageOptions;
   readonly codexSessionIndexPath?: string;
   readonly codexSessionsRoot?: string;
   readonly codexStatePath?: string;
@@ -101,7 +104,8 @@ export async function createApp(options: CreateAppOptions) {
     new FileTaskActionRepository(taskActionsPath),
     publicApiBaseUrl,
     taskEvents,
-    sessionProviders
+    sessionProviders,
+    new ArtifactStorageService(options.artifactStorage)
   );
   const taskBreakdownService = new TaskBreakdownService(
     taskRepository,

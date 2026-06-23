@@ -1,6 +1,8 @@
 import { resolve } from "node:path";
 
 export type DaemonEnv = {
+  readonly artifactArchiveRoot: string | undefined;
+  readonly artifactRoot: string | undefined;
   readonly codexSessionsRoot: string | undefined;
   readonly databasePath: string;
   readonly host: string;
@@ -12,6 +14,9 @@ export type DaemonEnv = {
 
 export function loadDaemonEnv(): DaemonEnv {
   return {
+    artifactArchiveRoot:
+      normalizeOptionalEnv(process.env["TASKER_ARTIFACT_ARCHIVE_ROOT"]) ?? undefined,
+    artifactRoot: normalizeOptionalEnv(process.env["TASKER_ARTIFACT_ROOT"]) ?? undefined,
     codexSessionsRoot: normalizeOptionalEnv(process.env["CODEX_SESSIONS_ROOT"]) ?? undefined,
     databasePath: process.env["DATABASE_PATH"] ?? "./tasker.sqlite",
     host: process.env["HOST"] ?? "127.0.0.1",

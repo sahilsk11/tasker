@@ -7,8 +7,8 @@ import { KannaSessionProvider, PROVIDER_DEFAULT_MODELS, resolveModelForProvider 
 
 void test("resolveModelForProvider returns provider-specific model for known providers", () => {
   assert.equal(resolveModelForProvider("codex", "fallback"), "gpt-5.5");
-  assert.equal(resolveModelForProvider("claude", "fallback"), "claude-sonnet-4-5");
-  assert.equal(resolveModelForProvider("cursor", "fallback"), "cursor-small");
+  assert.equal(resolveModelForProvider("claude", "fallback"), "claude-opus-4-8");
+  assert.equal(resolveModelForProvider("cursor", "fallback"), "composer-2.5");
 });
 
 void test("resolveModelForProvider falls back to fallbackModel for unknown providers", () => {

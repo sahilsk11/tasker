@@ -13,6 +13,10 @@ const app = await createApp({
   ...(env.codexSessionsRoot === undefined
     ? {}
     : { codexSessionsRoot: env.codexSessionsRoot }),
+  cursor: {
+    model: env.cursorModel,
+    ...(env.cursorBinPath === undefined ? {} : { binPath: env.cursorBinPath })
+  },
   databasePath: env.databasePath,
   kanna: {
     agentModel: env.kannaAgentModel,

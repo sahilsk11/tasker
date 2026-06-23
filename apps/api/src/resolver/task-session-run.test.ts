@@ -250,23 +250,36 @@ void test("action prompt run payload can request Claude Code through Kanna", asy
   }
 });
 
-void test("action prompt run payload can request Cursor through Kanna", async () => {
+void test("action prompt run payload launches Cursor through its native provider", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-session-run-cursor-"));
   const databasePath = join(dir, "tasker.sqlite");
   const taskActionsPath = await copyTaskActionCatalog(dir);
-  const launches: StartTaskSessionInput[] = [];
-  const provider: TaskSessionProvider = {
-    provider: "kanna",
+  const cursorLaunches: StartTaskSessionInput[] = [];
+  const kannaLaunches: StartTaskSessionInput[] = [];
+  // Register a fake Cursor launch provider (overrides the real one in tests) plus a
+  // fake Kanna provider, to prove Cursor routes to its own launcher and not Kanna.
+  const cursorProvider: TaskSessionProvider = {
+    provider: "cursor",
     startSession(input): Promise<StartedTaskSession> {
-      launches.push(input);
+      cursorLaunches.push(input);
       return Promise.resolve({
         launch: {
           metadata: {
             agentProvider: input.requestedAgentProvider,
-            fakeChatId: "chat-456"
+            cursorSessionId: "cursor-session-456"
           },
-          provider: "kanna"
+          openUrl: null,
+          provider: "cursor"
         }
+      });
+    }
+  };
+  const kannaProvider: TaskSessionProvider = {
+    provider: "kanna",
+    startSession(input): Promise<StartedTaskSession> {
+      kannaLaunches.push(input);
+      return Promise.resolve({
+        launch: { provider: "kanna" }
       });
     }
   };
@@ -274,7 +287,7 @@ void test("action prompt run payload can request Cursor through Kanna", async ()
     agentRunProvider: "kanna",
     databasePath,
     linearApiKey: null,
-    sessionProviders: [provider],
+    sessionProviders: [kannaProvider, cursorProvider],
     taskActionsPath
   });
 
@@ -298,13 +311,14 @@ void test("action prompt run payload can request Cursor through Kanna", async ()
         readonly provider: string;
       };
     };
-    assert.equal(body.launch.provider, "kanna");
+    assert.equal(body.launch.provider, "cursor");
     assert.deepEqual(body.launch.metadata, {
       agentProvider: "cursor",
-      fakeChatId: "chat-456"
+      cursorSessionId: "cursor-session-456"
     });
-    assert.equal(launches.length, 1);
-    assert.equal(launches[0]?.requestedAgentProvider, "cursor");
+    assert.equal(cursorLaunches.length, 1);
+    assert.equal(cursorLaunches[0]?.requestedAgentProvider, "cursor");
+    assert.equal(kannaLaunches.length, 0);
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });

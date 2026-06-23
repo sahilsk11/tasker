@@ -15,9 +15,9 @@ import type {
  * Each provider gets a sensible default so the model field is always provider-appropriate.
  */
 export const PROVIDER_DEFAULT_MODELS: Readonly<Record<string, string>> = {
-  claude: "claude-sonnet-4-5",
+  claude: "claude-opus-4-8",
   codex: "gpt-5.5",
-  cursor: "cursor-small"
+  cursor: "composer-2.5"
 };
 
 /**

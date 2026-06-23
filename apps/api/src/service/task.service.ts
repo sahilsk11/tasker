@@ -41,6 +41,7 @@ import {
 } from "../repository/task-action.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 import { BadRequestError, ConflictError, NotFoundError } from "./errors.js";
+import { ArtifactStorageService } from "./artifact-storage.service.js";
 import {
   TaskSessionProviderRegistry,
   type StartedTaskSession
@@ -107,7 +108,8 @@ export class TaskService {
     private readonly tickets: TaskTicketRepository,
     private readonly actions: TaskActionRepository,
     private readonly publicApiBaseUrl: string,
-    private readonly sessionProviders = new TaskSessionProviderRegistry()
+    private readonly sessionProviders = new TaskSessionProviderRegistry(),
+    private readonly artifactStorage = new ArtifactStorageService()
   ) {}
 
   public async addArtifact(
@@ -362,6 +364,56 @@ export class TaskService {
     };
   }
 
+  public async archiveArtifact(
+    taskId: TaskId,
+    artifactId: string
+  ): Promise<TaskArtifact> {
+    const artifact = await this.getArtifact(taskId, artifactId);
+    if (artifact.archivedAt != null) {
+      throw new BadRequestError(`Task artifact ${artifactId} is already archived`);
+    }
+
+    const uri = await this.artifactStorage.archive(artifact);
+    const archived = await this.artifacts.archive(taskId, artifactId, { uri });
+    if (archived == null) {
+      throw new NotFoundError(`Task artifact ${artifactId} not found`);
+    }
+
+    return archived;
+  }
+
+  public async restoreArtifact(
+    taskId: TaskId,
+    artifactId: string
+  ): Promise<TaskArtifact> {
+    const artifact = await this.getArtifact(taskId, artifactId);
+    if (artifact.archivedAt == null) {
+      throw new BadRequestError(`Task artifact ${artifactId} is not archived`);
+    }
+
+    const uri = await this.artifactStorage.restore(artifact);
+    const restored = await this.artifacts.restore(taskId, artifactId, { uri });
+    if (restored == null) {
+      throw new NotFoundError(`Task artifact ${artifactId} not found`);
+    }
+
+    return restored;
+  }
+
+  public async deleteArtifact(
+    taskId: TaskId,
+    artifactId: string
+  ): Promise<TaskArtifact> {
+    const artifact = await this.getArtifact(taskId, artifactId);
+    await this.artifactStorage.delete(artifact);
+    const deleted = await this.artifacts.deleteByTaskIdAndId(taskId, artifactId);
+    if (deleted == null) {
+      throw new NotFoundError(`Task artifact ${artifactId} not found`);
+    }
+
+    return deleted;
+  }
+
   public async listActions(taskId: TaskId): Promise<readonly TaskAction[]> {
     const task = await this.requireTask(taskId);
     const records = await this.actions.listEnabled();
@@ -382,9 +434,12 @@ export class TaskService {
     return this.addDependencyState(await this.requireTask(taskId));
   }
 
-  public async listArtifacts(taskId: TaskId): Promise<readonly TaskArtifact[]> {
+  public async listArtifacts(
+    taskId: TaskId,
+    options: { readonly includeArchived?: boolean } = {}
+  ): Promise<readonly TaskArtifact[]> {
     await this.requireTask(taskId);
-    return this.artifacts.listByTaskId(taskId);
+    return this.artifacts.listByTaskId(taskId, options);
   }
 
   public async listPullRequests(taskId: TaskId): Promise<readonly TaskPullRequest[]> {

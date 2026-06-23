@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -461,6 +461,184 @@ void test("task resources aggregate and dedupe explicit resource types", async (
   }
 });
 
+void test("artifact lifecycle archives, restores, deletes, and filters active resources", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-artifact-lifecycle-"));
+  const activeRoot = join(dir, "artifacts");
+  const archiveRoot = join(dir, "archive", "artifacts");
+  const app = await createApp({
+    artifactStorage: { activeRoot, archiveRoot },
+    databasePath: join(dir, "tasker.sqlite"),
+    linearApiKey: null
+  });
+
+  try {
+    await mkdir(activeRoot, { recursive: true });
+    const task = await createTask(app, "Artifact lifecycle");
+    const sourcePath = join(activeRoot, task.id, "notes.md");
+    await mkdir(join(activeRoot, task.id), { recursive: true });
+    await writeFile(sourcePath, "# Lifecycle\n\nArchive me.\n");
+
+    const artifact = await createArtifact(app, task.id, {
+      label: "plan",
+      uri: sourcePath
+    });
+    assert.equal(artifact.archivedAt, null);
+    assert.equal(await getTaskState(app, task.id), "planning");
+
+    const archiveResponse = await app.inject({
+      method: "POST",
+      url: `/tasks/${task.id}/artifacts/${artifact.id}/archive`
+    });
+    assert.equal(archiveResponse.statusCode, 200);
+    const archived = readArtifact(archiveResponse.body);
+    assert.ok(archived.archivedAt);
+    assert.equal(archived.uri, join(archiveRoot, task.id, artifact.id, "notes.md"));
+    await assertMissing(sourcePath);
+    await assertExists(archived.uri);
+    assert.equal(await getTaskState(app, task.id), "planning");
+
+    const activeListResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/artifacts`
+    });
+    assert.equal(activeListResponse.statusCode, 200);
+    assert.deepEqual(readArtifacts(activeListResponse.body), []);
+
+    const resourcesResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/resources`
+    });
+    assert.equal(resourcesResponse.statusCode, 200);
+    assert.deepEqual(readResourceArtifactIds(resourcesResponse.body), []);
+
+    const allListResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/artifacts?includeArchived=true`
+    });
+    assert.equal(allListResponse.statusCode, 200);
+    assert.deepEqual(readArtifacts(allListResponse.body).map((item) => item.id), [
+      artifact.id
+    ]);
+
+    const directMetadataResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/artifacts/${artifact.id}`
+    });
+    assert.equal(directMetadataResponse.statusCode, 200);
+    assert.equal(readArtifact(directMetadataResponse.body).uri, archived.uri);
+
+    const contentResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/artifacts/${artifact.id}/content`
+    });
+    assert.equal(contentResponse.statusCode, 200);
+    assert.equal(readContent(contentResponse.body).content, "# Lifecycle\n\nArchive me.\n");
+
+    const duplicate = await createArtifact(app, task.id, {
+      label: "plan",
+      uri: sourcePath
+    });
+    assert.equal(duplicate.id, artifact.id);
+    assert.equal(duplicate.uri, archived.uri);
+
+    const restoreResponse = await app.inject({
+      method: "POST",
+      url: `/tasks/${task.id}/artifacts/${artifact.id}/restore`
+    });
+    assert.equal(restoreResponse.statusCode, 200);
+    const restored = readArtifact(restoreResponse.body);
+    assert.equal(restored.archivedAt, null);
+    assert.equal(restored.uri, join(activeRoot, task.id, artifact.id, "notes.md"));
+    await assertMissing(archived.uri);
+    await assertExists(restored.uri);
+
+    const restoredListResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/artifacts`
+    });
+    assert.equal(restoredListResponse.statusCode, 200);
+    assert.deepEqual(
+      readArtifacts(restoredListResponse.body).map((item) => item.id),
+      [artifact.id]
+    );
+
+    const deleteResponse = await app.inject({
+      method: "DELETE",
+      url: `/tasks/${task.id}/artifacts/${artifact.id}`
+    });
+    assert.equal(deleteResponse.statusCode, 200);
+    await assertMissing(restored.uri);
+    assert.equal(await getTaskState(app, task.id), "planning");
+
+    const deletedMetadataResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/artifacts/${artifact.id}`
+    });
+    assert.equal(deletedMetadataResponse.statusCode, 404);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+void test("artifact lifecycle refuses unmanaged paths without deleting rows or files", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-artifact-unmanaged-"));
+  const activeRoot = join(dir, "managed", "artifacts");
+  const archiveRoot = join(dir, "managed", "archive", "artifacts");
+  const app = await createApp({
+    artifactStorage: { activeRoot, archiveRoot },
+    databasePath: join(dir, "tasker.sqlite"),
+    linearApiKey: null
+  });
+
+  try {
+    const task = await createTask(app, "Unmanaged lifecycle");
+    const unmanagedPath = join(dir, "unmanaged.md");
+    const unmanagedFileUrlPath = join(dir, "unmanaged-url.md");
+    await writeFile(unmanagedPath, "outside managed roots\n");
+    await writeFile(unmanagedFileUrlPath, "outside managed roots via file URL\n");
+
+    const absoluteArtifact = await createArtifact(app, task.id, {
+      label: "other",
+      uri: unmanagedPath
+    });
+    const fileUrlArtifact = await createArtifact(app, task.id, {
+      label: "other",
+      uri: pathToFileURL(unmanagedFileUrlPath).href
+    });
+
+    const archiveResponse = await app.inject({
+      method: "POST",
+      url: `/tasks/${task.id}/artifacts/${absoluteArtifact.id}/archive`
+    });
+    assert.equal(archiveResponse.statusCode, 400);
+
+    const deleteResponse = await app.inject({
+      method: "DELETE",
+      url: `/tasks/${task.id}/artifacts/${fileUrlArtifact.id}`
+    });
+    assert.equal(deleteResponse.statusCode, 400);
+
+    await assertExists(unmanagedPath);
+    await assertExists(unmanagedFileUrlPath);
+
+    const absoluteMetadataResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/artifacts/${absoluteArtifact.id}`
+    });
+    assert.equal(absoluteMetadataResponse.statusCode, 200);
+
+    const fileUrlMetadataResponse = await app.inject({
+      method: "GET",
+      url: `/tasks/${task.id}/artifacts/${fileUrlArtifact.id}`
+    });
+    assert.equal(fileUrlMetadataResponse.statusCode, 200);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 function readJson(body: string): unknown {
   return JSON.parse(body) as unknown;
 }
@@ -510,10 +688,12 @@ async function createArtifact(
     readonly uri: string;
   }
 ): Promise<{
+  readonly archivedAt: string | null;
   readonly createdBySessionId: string | null;
   readonly id: string;
   readonly label: string;
   readonly taskId: string;
+  readonly uri: string;
 }> {
   const response = await app.inject({
     method: "POST",
@@ -523,10 +703,12 @@ async function createArtifact(
   assert.equal(response.statusCode, 201);
   return (readJson(response.body) as {
     readonly artifact: {
+      readonly archivedAt: string | null;
       readonly createdBySessionId: string | null;
       readonly id: string;
       readonly label: string;
       readonly taskId: string;
+      readonly uri: string;
     };
   }).artifact;
 }
@@ -581,4 +763,42 @@ function readContent(body: string): {
       readonly kind: string;
     };
   }).content;
+}
+
+function readArtifact(body: string): {
+  readonly archivedAt: string | null;
+  readonly id: string;
+  readonly uri: string;
+} {
+  return (readJson(body) as {
+    readonly artifact: {
+      readonly archivedAt: string | null;
+      readonly id: string;
+      readonly uri: string;
+    };
+  }).artifact;
+}
+
+function readArtifacts(
+  body: string
+): ReadonlyArray<{ readonly id: string; readonly uri: string }> {
+  return (readJson(body) as {
+    readonly artifacts: ReadonlyArray<{ readonly id: string; readonly uri: string }>;
+  }).artifacts;
+}
+
+function readResourceArtifactIds(body: string): readonly string[] {
+  return (readJson(body) as {
+    readonly resources: {
+      readonly artifacts: ReadonlyArray<{ readonly id: string }>;
+    };
+  }).resources.artifacts.map((artifact) => artifact.id);
+}
+
+async function assertExists(path: string): Promise<void> {
+  await access(path);
+}
+
+async function assertMissing(path: string): Promise<void> {
+  await assert.rejects(access(path), /ENOENT/u);
 }

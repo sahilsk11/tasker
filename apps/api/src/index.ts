@@ -4,6 +4,12 @@ import { createApp } from "./app.js";
 const env = loadEnv();
 const app = await createApp({
   agentRunProvider: env.agentRunProvider,
+  artifactStorage: {
+    ...(env.artifactArchiveRoot === undefined
+      ? {}
+      : { archiveRoot: env.artifactArchiveRoot }),
+    ...(env.artifactRoot === undefined ? {} : { activeRoot: env.artifactRoot })
+  },
   ...(env.codexSessionsRoot === undefined
     ? {}
     : { codexSessionsRoot: env.codexSessionsRoot }),

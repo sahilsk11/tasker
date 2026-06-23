@@ -1,5 +1,7 @@
 export type Env = {
   readonly agentRunProvider: string;
+  readonly artifactArchiveRoot: string | undefined;
+  readonly artifactRoot: string | undefined;
   readonly codexSessionsRoot: string | undefined;
   readonly databasePath: string;
   readonly host: string;
@@ -22,6 +24,9 @@ export function loadEnv(): Env {
   return {
     agentRunProvider:
       normalizeOptionalEnv(process.env["TASKER_AGENT_RUN_PROVIDER"]) ?? "kanna",
+    artifactArchiveRoot:
+      normalizeOptionalEnv(process.env["TASKER_ARTIFACT_ARCHIVE_ROOT"]) ?? undefined,
+    artifactRoot: normalizeOptionalEnv(process.env["TASKER_ARTIFACT_ROOT"]) ?? undefined,
     codexSessionsRoot: normalizeOptionalEnv(process.env["CODEX_SESSIONS_ROOT"]) ?? undefined,
     databasePath: process.env["DATABASE_PATH"] ?? "./tasker.sqlite",
     host,

@@ -1,27 +1,33 @@
-import type { ArtifactRegisteredTaskEvent } from "../domain/task-event.js";
+import type { TaskEvent } from "../domain/task-event.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 
-type ArtifactRegisteredTaskEventHandler = (
-  event: ArtifactRegisteredTaskEvent
-) => Promise<void>;
+type TaskStateEventHandler = (event: TaskEvent) => Promise<void>;
 
 export function createTaskStateEventHandler(
   tasks: TaskRepository
-): ArtifactRegisteredTaskEventHandler {
+): TaskStateEventHandler {
   return async (event) => {
-    if (event.label === "other") {
-      return;
-    }
-
-    switch (event.label) {
-      case "implement":
+    switch (event.type) {
+      case "artifact_registered":
+        switch (event.label) {
+          case "implement":
+            await tasks.updateStateAtLeast(event.taskId, "implementation");
+            return;
+          case "other":
+            return;
+          case "plan":
+            await tasks.updateStateAtLeast(event.taskId, "planning");
+            return;
+          case "research":
+            await tasks.updateStateAtLeast(event.taskId, "scoping");
+            return;
+        }
+        return;
+      case "pull_request_registered":
         await tasks.updateStateAtLeast(event.taskId, "implementation");
         return;
-      case "plan":
-        await tasks.updateStateAtLeast(event.taskId, "planning");
-        return;
-      case "research":
-        await tasks.updateStateAtLeast(event.taskId, "scoping");
+      case "session_claimed":
+      case "session_created":
         return;
     }
   };

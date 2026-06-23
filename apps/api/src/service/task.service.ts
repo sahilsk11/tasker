@@ -26,7 +26,6 @@ import type {
   CreateTaskInput,
   Task,
   TaskId,
-  TaskState,
   TaskWithDependencyState,
   UpdateTaskInput
 } from "../domain/task.js";
@@ -46,6 +45,7 @@ import {
   type StartedTaskSession
 } from "./session-provider.js";
 import { renderActionPrompt } from "./task-action-prompt.js";
+import type { TaskEventBus } from "./task-events.js";
 import { normalizeOptionalDirectoryPath } from "./working-directory.js";
 
 export type TaskResources = {
@@ -107,6 +107,7 @@ export class TaskService {
     private readonly tickets: TaskTicketRepository,
     private readonly actions: TaskActionRepository,
     private readonly publicApiBaseUrl: string,
+    private readonly events: TaskEventBus,
     private readonly sessionProviders = new TaskSessionProviderRegistry()
   ) {}
 
@@ -117,7 +118,14 @@ export class TaskService {
     await this.requireTask(taskId);
     await this.requireSessionForTask(taskId, input.createdBySessionId);
     const artifact = await this.artifacts.createForTask(taskId, input);
-    await this.inferTaskStateFromArtifact(taskId, artifact);
+    await this.events.publish({
+      type: "artifact_registered",
+      artifactId: artifact.id,
+      createdBySessionId: artifact.createdBySessionId,
+      label: artifact.label,
+      taskId,
+      uri: artifact.uri
+    });
     return artifact;
   }
 
@@ -539,16 +547,6 @@ export class TaskService {
     );
   }
 
-  private async inferTaskStateFromArtifact(
-    taskId: TaskId,
-    artifact: TaskArtifact
-  ): Promise<void> {
-    if (artifact.label === "other") {
-      return;
-    }
-
-    await this.tasks.updateStateAtLeast(taskId, getTaskStateForArtifact(artifact));
-  }
 }
 
 function withWaitingDependencies(
@@ -559,19 +557,6 @@ function withWaitingDependencies(
     ...task,
     waitingDependencies
   };
-}
-
-function getTaskStateForArtifact(artifact: TaskArtifact): TaskState {
-  switch (artifact.label) {
-    case "implement":
-      return "implementation";
-    case "plan":
-      return "planning";
-    case "research":
-      return "scoping";
-    case "other":
-      return "ready";
-  }
 }
 
 function getLocalArtifactPath(uri: string): string {

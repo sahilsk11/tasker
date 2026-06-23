@@ -271,8 +271,8 @@ export function TaskActionPromptDialog({
     setRunError(null);
     try {
       const result = await runTaskSessionPrompt(taskId, session.id, {
+        agentProvider: selectedProvider,
         prompt: promptDraft,
-        provider: selectedProvider,
         workingPath: trimmedWorkingPath
       });
       onRunComplete(result.session);

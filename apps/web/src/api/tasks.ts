@@ -97,6 +97,7 @@ export type CreateTaskSessionInput = {
 };
 
 export type RunTaskSessionPromptInput = {
+  readonly agentProvider?: AgentPromptProvider;
   readonly prompt: string;
   readonly provider?: string | null;
   readonly workingPath: string;

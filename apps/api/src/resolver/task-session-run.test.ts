@@ -188,21 +188,22 @@ void test("launching a session through an unsupported provider is rejected", asy
   }
 });
 
-void test("action prompt run payload can request Claude Code provider", async () => {
+void test("action prompt run payload can request Claude Code through Kanna", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-session-run-provider-"));
   const databasePath = join(dir, "tasker.sqlite");
   const taskActionsPath = await copyTaskActionCatalog(dir);
   const launches: StartTaskSessionInput[] = [];
   const provider: TaskSessionProvider = {
-    provider: "claude-code",
+    provider: "kanna",
     startSession(input): Promise<StartedTaskSession> {
       launches.push(input);
       return Promise.resolve({
         launch: {
           metadata: {
-            fakeSessionId: "claude-session-123"
+            agentProvider: input.requestedAgentProvider,
+            fakeChatId: "chat-123"
           },
-          provider: "claude-code"
+          provider: "kanna"
         }
       });
     }
@@ -221,8 +222,8 @@ void test("action prompt run payload can request Claude Code provider", async ()
     const response = await app.inject({
       method: "POST",
       payload: {
+        agentProvider: "claude-code",
         prompt: "run this prompt",
-        provider: "claude-code",
         workingPath: "/tmp/tasker"
       },
       url: `/tasks/${task.id}/sessions/${session.id}/run`
@@ -235,10 +236,14 @@ void test("action prompt run payload can request Claude Code provider", async ()
         readonly provider: string;
       };
     };
-    assert.equal(body.launch.provider, "claude-code");
-    assert.deepEqual(body.launch.metadata, { fakeSessionId: "claude-session-123" });
+    assert.equal(body.launch.provider, "kanna");
+    assert.deepEqual(body.launch.metadata, {
+      agentProvider: "claude-code",
+      fakeChatId: "chat-123"
+    });
     assert.equal(launches.length, 1);
-    assert.equal(launches[0]?.requestedProvider, "claude-code");
+    assert.equal(launches[0]?.requestedProvider, undefined);
+    assert.equal(launches[0]?.requestedAgentProvider, "claude-code");
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });

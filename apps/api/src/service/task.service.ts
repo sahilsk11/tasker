@@ -75,6 +75,7 @@ export type ClaimTaskSessionResult = {
 };
 
 export type RunTaskSessionPromptInput = {
+  readonly agentProvider?: string | null;
   readonly prompt: string;
   readonly provider?: string | null;
   readonly workingPath: string;
@@ -235,6 +236,9 @@ export class TaskService {
 
     const started = await this.sessionProviders.startSession({
       prompt,
+      ...(input.agentProvider !== undefined
+        ? { requestedAgentProvider: input.agentProvider }
+        : {}),
       ...(input.provider !== undefined ? { requestedProvider: input.provider } : {}),
       session,
       task,

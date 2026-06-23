@@ -8,6 +8,7 @@ import { BadRequestError } from "./errors.js";
 
 export type StartTaskSessionInput = {
   readonly prompt: string;
+  readonly requestedAgentProvider?: SessionProvider | null;
   readonly requestedProvider?: SessionProvider | null;
   readonly session: TaskSession;
   readonly task: Task;

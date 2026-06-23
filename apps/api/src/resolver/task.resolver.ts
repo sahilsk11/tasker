@@ -46,6 +46,7 @@ const renderSessionPromptSchema = z.object({
 });
 
 const runSessionPromptSchema = z.object({
+  agentProvider: z.enum(agentPromptProviderValues).nullable().optional(),
   prompt: z.string().min(1),
   provider: z.string().min(1).nullable().optional(),
   workingPath: z.string().min(1)
@@ -263,6 +264,9 @@ export function registerTaskResolver(
     const { id, sessionId } = taskSessionParamsSchema.parse(request.params);
     const parsed = runSessionPromptSchema.parse(request.body);
     return taskService.runSessionPrompt(id, sessionId, {
+      ...(parsed.agentProvider !== undefined
+        ? { agentProvider: parsed.agentProvider }
+        : {}),
       prompt: parsed.prompt,
       ...(parsed.provider !== undefined ? { provider: parsed.provider } : {}),
       workingPath: parsed.workingPath

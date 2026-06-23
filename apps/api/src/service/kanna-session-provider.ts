@@ -56,6 +56,8 @@ export class KannaSessionProvider implements TaskSessionProvider {
     input: StartTaskSessionInput
   ): Promise<StartedTaskSession> {
     await this.requireHealthyBackend();
+    const requestedAgentProvider = input.requestedAgentProvider ?? this.agentProvider;
+    const agentProvider = toKannaAgentProvider(requestedAgentProvider);
 
     const socket = await openKannaSocket(this.baseUrl, this.timeoutMs);
     try {
@@ -78,7 +80,7 @@ export class KannaSessionProvider implements TaskSessionProvider {
           model: this.agentModel,
           modelOptions,
           projectId: project.projectId,
-          provider: this.agentProvider
+          provider: agentProvider
         },
         this.timeoutMs
       );
@@ -89,12 +91,13 @@ export class KannaSessionProvider implements TaskSessionProvider {
 
       const metadata = {
         agentModel: this.agentModel,
-        agentProvider: this.agentProvider,
+        agentProvider,
         backendUrl: this.baseUrl,
         kannaChatId: launched.chatId,
         kannaProjectId: project.projectId,
         modelOptions,
         projectPath: input.workingPath,
+        requestedAgentProvider,
         taskerSessionId: input.session.id
       };
 
@@ -253,6 +256,10 @@ function toWebSocketUrl(baseUrl: string): string {
 function getStringMetadata(session: TaskSession, key: string): string | null {
   const value = session.metadata?.[key];
   return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function toKannaAgentProvider(provider: string): string {
+  return provider === "claude-code" ? "claude" : provider;
 }
 
 function defaultKannaChatsLogPath(): string {

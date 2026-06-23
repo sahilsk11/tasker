@@ -91,10 +91,11 @@ export async function createApp(options: CreateAppOptions) {
   const workingPathService = new WorkingPathService(workingPathRepository);
   const taskActionsPath = options.taskActionsPath ?? getDefaultTaskActionsPath();
   const taskEvents = new TaskEventBus();
-  taskEvents.subscribe(
-    "artifact_registered",
-    createTaskStateEventHandler(taskRepository)
-  );
+  const taskStateEventHandler = createTaskStateEventHandler(taskRepository);
+  taskEvents.subscribe("artifact_registered", taskStateEventHandler);
+  taskEvents.subscribe("pull_request_registered", taskStateEventHandler);
+  taskEvents.subscribe("session_claimed", taskStateEventHandler);
+  taskEvents.subscribe("session_created", taskStateEventHandler);
   const taskService = new TaskService(
     taskRepository,
     new SqliteTaskArtifactRepository(db),

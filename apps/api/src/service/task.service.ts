@@ -137,7 +137,12 @@ export class TaskService {
   ): Promise<TaskPullRequest> {
     await this.requireTask(taskId);
     const pullRequest = await this.pullRequests.createForTask(taskId, input);
-    await this.tasks.updateStateAtLeast(taskId, "implementation");
+    await this.events.publish({
+      type: "pull_request_registered",
+      pullRequestId: pullRequest.id,
+      taskId,
+      url: pullRequest.url
+    });
     return pullRequest;
   }
 
@@ -149,9 +154,16 @@ export class TaskService {
     if (input.actionId != null) {
       await this.requireEnabledAction(input.actionId);
     }
-    return this.sessionProviders.enrichSession(
+    const session = await this.sessionProviders.enrichSession(
       await this.sessions.createForTask(taskId, input)
     );
+    await this.events.publish({
+      type: "session_created",
+      actionId: session.actionId,
+      sessionId: session.id,
+      taskId
+    });
+    return session;
   }
 
   public async renderSessionPrompt(
@@ -250,6 +262,13 @@ export class TaskService {
 
       throw new NotFoundError(`Task session ${sessionId} not found`);
     }
+
+    await this.events.publish({
+      type: "session_claimed",
+      actionId: session.actionId,
+      sessionId: session.id,
+      taskId: session.taskId
+    });
 
     return {
       taskOverview: await this.getTaskOverview(session),

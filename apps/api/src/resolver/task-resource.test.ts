@@ -42,6 +42,15 @@ void test("artifact and pull request endpoints infer task state", async () => {
     const task = await createTask(app, "State inference");
     assert.equal(task.state, "ready");
 
+    const session = await createSession(app, task.id, {
+      actionId: "implement",
+      claimed: false
+    });
+    assert.equal(await getTaskState(app, task.id), "ready");
+
+    await claimSession(app, session.id);
+    assert.equal(await getTaskState(app, task.id), "ready");
+
     const research = await createArtifact(app, task.id, {
       label: "research",
       uri: "/tmp/research.md"
@@ -80,6 +89,25 @@ void test("artifact and pull request endpoints infer task state", async () => {
       uri: "/tmp/late-plan.md"
     });
     assert.equal(await getTaskState(app, task.id), "implementation");
+
+    const doneResponse = await app.inject({
+      method: "PATCH",
+      payload: { state: "done" },
+      url: `/tasks/${task.id}`
+    });
+    assert.equal(doneResponse.statusCode, 200);
+    assert.equal(await getTaskState(app, task.id), "done");
+
+    await createPullRequest(app, task.id, {
+      url: "https://github.com/sahilsk11/tasker/pull/22"
+    });
+    assert.equal(await getTaskState(app, task.id), "done");
+
+    await createArtifact(app, task.id, {
+      label: "research",
+      uri: "/tmp/research-after-done.md"
+    });
+    assert.equal(await getTaskState(app, task.id), "done");
   } finally {
     await app.close();
     await rm(dir, { force: true, recursive: true });
@@ -735,11 +763,16 @@ async function createPullRequest(
 
 async function createSession(
   app: Awaited<ReturnType<typeof createApp>>,
-  taskId: string
+  taskId: string,
+  payload: {
+    readonly actionId?: string;
+    readonly claimed?: boolean;
+  } = {}
 ): Promise<{ readonly id: string }> {
   const response = await app.inject({
     method: "POST",
     payload: {
+      ...payload,
       provider: "codex"
     },
     url: `/tasks/${taskId}/sessions`
@@ -747,6 +780,22 @@ async function createSession(
   assert.equal(response.statusCode, 201);
   return (readJson(response.body) as { readonly session: { readonly id: string } })
     .session;
+}
+
+async function claimSession(
+  app: Awaited<ReturnType<typeof createApp>>,
+  sessionId: string
+): Promise<void> {
+  const response = await app.inject({
+    method: "POST",
+    payload: {
+      metadata: {
+        source: "state-event-test"
+      }
+    },
+    url: `/sessions/${sessionId}/claim`
+  });
+  assert.equal(response.statusCode, 200);
 }
 
 function readContent(body: string): {

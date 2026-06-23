@@ -1,9 +1,13 @@
+import { useMemo, useState } from "react";
 import {
+  Archive,
+  ArchiveRestore,
   FileText,
   FolderGit2,
   GitPullRequest,
   MessageSquareText,
   MoreHorizontal,
+  Trash2,
   Ticket,
   Workflow
 } from "lucide-react";
@@ -17,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Table,
   TableBody,
@@ -196,23 +201,69 @@ function ResourceColumn({
 }
 
 export function ResourceTableDialog({
+  error,
   group,
+  isLoadingArtifacts,
+  onArtifactArchive,
+  onArtifactDelete,
+  onArtifactRestore,
   onOpenResource,
   onOpenChange,
+  pendingArtifactAction,
   pullRequestStatuses,
   taskTitle
 }: {
+  readonly error: string | null;
   readonly group: ResourceGroupView | null;
+  readonly isLoadingArtifacts: boolean;
+  readonly onArtifactArchive: (resource: Resource) => void;
+  readonly onArtifactDelete: (resource: Resource) => void;
+  readonly onArtifactRestore: (resource: Resource) => void;
   readonly onOpenResource: (resource: Resource) => void;
   readonly onOpenChange: (isOpen: boolean) => void;
+  readonly pendingArtifactAction: ArtifactLifecyclePendingAction | null;
   readonly pullRequestStatuses: PullRequestStatusMap;
   readonly taskTitle: string;
 }): React.JSX.Element {
   const kind = group?.kind ?? "ticket";
   const Icon = resourceIcons[kind];
+  const [artifactView, setArtifactView] = useState<ArtifactView>("active");
+  const [pendingDelete, setPendingDelete] = useState<Resource | null>(null);
+  const isArtifactGroup = kind === "artifact";
+  const artifactRows = useMemo(() => {
+    if (group?.kind !== "artifact") {
+      return group;
+    }
+
+    return {
+      ...group,
+      items: group.items.filter((resource) =>
+        artifactView === "archived"
+          ? resource.archivedAt != null
+          : resource.archivedAt == null
+      )
+    };
+  }, [artifactView, group]);
+  const activeArtifactCount =
+    group?.kind === "artifact"
+      ? group.items.filter((resource) => resource.archivedAt == null).length
+      : 0;
+  const archivedArtifactCount =
+    group?.kind === "artifact"
+      ? group.items.filter((resource) => resource.archivedAt != null).length
+      : 0;
 
   return (
-    <Dialog open={group != null} onOpenChange={onOpenChange}>
+    <Dialog
+      open={group != null}
+      onOpenChange={(isOpen) => {
+        onOpenChange(isOpen);
+        if (!isOpen) {
+          setArtifactView("active");
+          setPendingDelete(null);
+        }
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <div className="flex items-center gap-2 text-muted-foreground">
@@ -223,36 +274,115 @@ export function ResourceTableDialog({
           </div>
           <DialogTitle>{resourceLabels[kind]}</DialogTitle>
           <DialogDescription>
-            Resources attached to {taskTitle}. This is mocked for now and can be
-            replaced by the task resource endpoint later.
+            Resources attached to {taskTitle}.
           </DialogDescription>
         </DialogHeader>
 
+        {isArtifactGroup ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3">
+            <div className="flex rounded-lg border border-border bg-secondary/20 p-1">
+              <Button
+                type="button"
+                variant={artifactView === "active" ? "default" : "ghost"}
+                size="sm"
+                className={
+                  artifactView === "active"
+                    ? "bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                    : ""
+                }
+                onClick={() => setArtifactView("active")}
+              >
+                Active {activeArtifactCount}
+              </Button>
+              <Button
+                type="button"
+                variant={artifactView === "archived" ? "default" : "ghost"}
+                size="sm"
+                className={
+                  artifactView === "archived"
+                    ? "bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                    : ""
+                }
+                onClick={() => setArtifactView("archived")}
+              >
+                Archived {archivedArtifactCount}
+              </Button>
+            </div>
+            {isLoadingArtifacts ? (
+              <span className="text-sm text-muted-foreground">Loading artifacts...</span>
+            ) : null}
+          </div>
+        ) : null}
+        {error == null ? null : (
+          <div className="mx-5 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </div>
+        )}
         <div className="border-t border-border">
           <ResourceTable
-            group={group}
+            artifactView={artifactView}
+            group={artifactRows}
+            isLoadingArtifacts={isLoadingArtifacts}
+            onArtifactArchive={onArtifactArchive}
+            onArtifactDelete={setPendingDelete}
+            onArtifactRestore={onArtifactRestore}
             onOpenResource={onOpenResource}
+            pendingArtifactAction={pendingArtifactAction}
             pullRequestStatuses={pullRequestStatuses}
           />
         </div>
+        <DeleteArtifactDialog
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={(resource) => {
+            onArtifactDelete(resource);
+            setPendingDelete(null);
+          }}
+          pendingAction={pendingArtifactAction}
+          resource={pendingDelete}
+        />
       </DialogContent>
     </Dialog>
   );
 }
 
+type ArtifactView = "active" | "archived";
+
+type ArtifactLifecyclePendingAction = {
+  readonly action: "archive" | "delete" | "restore";
+  readonly artifactId: string;
+  readonly taskId: string;
+};
+
 function ResourceTable({
+  artifactView,
   group,
+  isLoadingArtifacts,
+  onArtifactArchive,
+  onArtifactDelete,
+  onArtifactRestore,
   onOpenResource,
+  pendingArtifactAction,
   pullRequestStatuses
 }: {
+  readonly artifactView: ArtifactView;
   readonly group: ResourceGroupView | null;
+  readonly isLoadingArtifacts: boolean;
+  readonly onArtifactArchive: (resource: Resource) => void;
+  readonly onArtifactDelete: (resource: Resource) => void;
+  readonly onArtifactRestore: (resource: Resource) => void;
   readonly onOpenResource: (resource: Resource) => void;
+  readonly pendingArtifactAction: ArtifactLifecyclePendingAction | null;
   readonly pullRequestStatuses: PullRequestStatusMap;
 }): React.JSX.Element {
   if (group == null || group.items.length === 0) {
+    const emptyLabel =
+      group?.kind === "artifact" && artifactView === "archived"
+        ? "No archived artifacts."
+        : `No ${resourceLabels[group?.kind ?? "ticket"]} attached yet.`;
+
     return (
       <div className="flex min-h-48 items-center justify-center px-6 py-10 text-sm text-muted-foreground">
-        No {resourceLabels[group?.kind ?? "ticket"]} attached yet.
+        {isLoadingArtifacts ? "Loading artifacts..." : emptyLabel}
       </div>
     );
   }
@@ -298,19 +428,161 @@ function ResourceTable({
                 >
                   Open
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`More actions for ${resource.label}`}
-                >
-                  <MoreHorizontal className="size-4" />
-                </Button>
+                <ResourceActions
+                  onArchive={onArtifactArchive}
+                  onDelete={onArtifactDelete}
+                  onRestore={onArtifactRestore}
+                  pendingAction={pendingArtifactAction}
+                  resource={resource}
+                />
               </div>
             </TableCell>
           </TableRow>
         ))}
       </TableBody>
     </Table>
+  );
+}
+
+function ResourceActions({
+  onArchive,
+  onDelete,
+  onRestore,
+  pendingAction,
+  resource
+}: {
+  readonly onArchive: (resource: Resource) => void;
+  readonly onDelete: (resource: Resource) => void;
+  readonly onRestore: (resource: Resource) => void;
+  readonly pendingAction: ArtifactLifecyclePendingAction | null;
+  readonly resource: Resource;
+}): React.JSX.Element {
+  if (resource.kind !== "artifact") {
+    return (
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={`More actions for ${resource.label}`}
+        disabled
+      >
+        <MoreHorizontal className="size-4" />
+      </Button>
+    );
+  }
+
+  const isPending =
+    pendingAction?.artifactId === resource.id && pendingAction.taskId === resource.taskId;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`More actions for ${resource.label}`}
+          disabled={isPending}
+        >
+          <MoreHorizontal className="size-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-48 border-[#1f2025] bg-[#111216] p-1.5">
+        <div className="grid gap-1">
+          {resource.archivedAt == null ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-8 justify-start gap-2 rounded-[7px] px-2 text-sm"
+              onClick={() => onArchive(resource)}
+            >
+              <Archive className="size-4" />
+              Archive
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-8 justify-start gap-2 rounded-[7px] px-2 text-sm"
+              onClick={() => onRestore(resource)}
+            >
+              <ArchiveRestore className="size-4" />
+              Restore
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-8 justify-start gap-2 rounded-[7px] px-2 text-sm text-destructive hover:text-destructive"
+            onClick={() => onDelete(resource)}
+          >
+            <Trash2 className="size-4" />
+            Delete
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function DeleteArtifactDialog({
+  onCancel,
+  onConfirm,
+  pendingAction,
+  resource
+}: {
+  readonly onCancel: () => void;
+  readonly onConfirm: (resource: Resource) => void;
+  readonly pendingAction: ArtifactLifecyclePendingAction | null;
+  readonly resource: Resource | null;
+}): React.JSX.Element {
+  const isDeleting =
+    resource != null &&
+    pendingAction?.action === "delete" &&
+    pendingAction.artifactId === resource.id &&
+    pendingAction.taskId === resource.taskId;
+
+  return (
+    <Dialog
+      open={resource != null}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          onCancel();
+        }
+      }}
+    >
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <div className="flex items-center gap-2 text-destructive">
+            <Trash2 className="size-4" />
+            <span className="text-xs font-medium uppercase tracking-[0.12em]">
+              Permanent delete
+            </span>
+          </div>
+          <DialogTitle>Delete {resource?.label ?? "artifact"}?</DialogTitle>
+          <DialogDescription>
+            This permanently removes the artifact record and its managed file from
+            storage. Use archive if you only want to hide it from active resources.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2 border-t border-border p-5 pt-4">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="default"
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={resource == null || isDeleting}
+            onClick={() => {
+              if (resource != null) {
+                onConfirm(resource);
+              }
+            }}
+          >
+            Delete permanently
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

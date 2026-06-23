@@ -33,6 +33,7 @@ export type TaskState =
   | "done";
 
 export type ApiArtifact = {
+  readonly archivedAt: string | null;
   readonly createdAt: string;
   readonly createdBySessionId: string | null;
   readonly id: string;
@@ -460,6 +461,47 @@ export async function getTaskArtifact(
   artifactId: string
 ): Promise<ApiArtifact> {
   const { artifact } = await apiClient.get<{ readonly artifact: ApiArtifact }>(
+    `/tasks/${taskId}/artifacts/${artifactId}`
+  );
+  return artifact;
+}
+
+export async function listTaskArtifacts(
+  taskId: string,
+  options: { readonly includeArchived?: boolean } = {}
+): Promise<readonly ApiArtifact[]> {
+  const query = options.includeArchived === true ? "?includeArchived=true" : "";
+  const { artifacts } = await apiClient.get<{
+    readonly artifacts: readonly ApiArtifact[];
+  }>(`/tasks/${taskId}/artifacts${query}`);
+  return artifacts;
+}
+
+export async function archiveTaskArtifact(
+  taskId: string,
+  artifactId: string
+): Promise<ApiArtifact> {
+  const { artifact } = await apiClient.post<{ readonly artifact: ApiArtifact }>(
+    `/tasks/${taskId}/artifacts/${artifactId}/archive`
+  );
+  return artifact;
+}
+
+export async function restoreTaskArtifact(
+  taskId: string,
+  artifactId: string
+): Promise<ApiArtifact> {
+  const { artifact } = await apiClient.post<{ readonly artifact: ApiArtifact }>(
+    `/tasks/${taskId}/artifacts/${artifactId}/restore`
+  );
+  return artifact;
+}
+
+export async function deleteTaskArtifact(
+  taskId: string,
+  artifactId: string
+): Promise<ApiArtifact> {
+  const { artifact } = await apiClient.delete<{ readonly artifact: ApiArtifact }>(
     `/tasks/${taskId}/artifacts/${artifactId}`
   );
   return artifact;

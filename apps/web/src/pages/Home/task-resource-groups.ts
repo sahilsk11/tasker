@@ -9,6 +9,7 @@ export type ResourceKind =
   | "subtask";
 
 export type Resource = {
+  readonly archivedAt: string | null;
   readonly detail: string;
   readonly href: string | null;
   readonly id: string;
@@ -42,6 +43,15 @@ export function getResourceGroupsForBundle(
   bundle: TaskBundle
 ): readonly ResourceGroupView[] {
   return groupResources(getResourcesForBundle(bundle));
+}
+
+export function getResourceGroupForArtifacts(
+  artifacts: readonly ApiArtifact[]
+): ResourceGroupView {
+  return {
+    items: artifacts.map(resourceFromArtifact),
+    kind: "artifact"
+  };
 }
 
 export function getTimelineResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
@@ -155,10 +165,11 @@ function resourceFromArtifact(artifact: ApiArtifact): Resource {
     "artifact",
     getFileName(artifact.uri),
     createdAt,
-    "Ready",
+    artifact.archivedAt == null ? "Ready" : "Archived",
     createdAt,
-    artifact.createdAt,
+    artifact.archivedAt ?? artifact.createdAt,
     {
+      archivedAt: artifact.archivedAt,
       href: null,
       id: artifact.id,
       metaLabel: artifact.label,
@@ -192,6 +203,7 @@ function resource(
   updatedAt: string,
   sortAt: string,
   options: {
+    readonly archivedAt?: string | null;
     readonly href: string | null;
     readonly id: string;
     readonly metaLabel?: string | null;
@@ -203,6 +215,7 @@ function resource(
     : null;
 
   return {
+    archivedAt: options.archivedAt ?? null,
     detail,
     href: options.href,
     id: options.id,

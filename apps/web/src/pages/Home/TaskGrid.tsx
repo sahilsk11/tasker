@@ -6,9 +6,16 @@ import {
   GitPullRequest,
   MessageSquareText
 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { createTaskSession, updateTask } from "@/api/tasks";
+import {
+  archiveTaskArtifact,
+  createTaskSession,
+  deleteTaskArtifact,
+  listTaskArtifacts,
+  restoreTaskArtifact,
+  updateTask
+} from "@/api/tasks";
 import type {
   ApiSession,
   ApiTaskAction,
@@ -38,6 +45,7 @@ import {
 } from "./TaskActions";
 import { ResourceTableDialog } from "./TaskResources";
 import {
+  getResourceGroupForArtifacts,
   getResourceGroupsForBundle,
   getTimelineResourcesForBundle,
   type Resource,
@@ -91,6 +99,14 @@ type PendingDuplicateAction = {
   readonly action: ApiTaskAction;
   readonly closeActionsWhenReady: boolean;
   readonly sessions: readonly ApiSession[];
+};
+
+type ArtifactLifecycleAction = "archive" | "delete" | "restore";
+
+type ArtifactLifecycleVariables = {
+  readonly action: ArtifactLifecycleAction;
+  readonly artifactId: string;
+  readonly taskId: string;
 };
 
 const taskStateMetaByState: Record<TaskState, TaskStateMeta> = {
@@ -170,6 +186,15 @@ function TaskCard({
   const [showAllActions, setShowAllActions] = useState(false);
   const selectedGroup =
     groupedResources.find((group) => group.kind === selectedKind) ?? null;
+  const artifactsQuery = useQuery({
+    enabled: selectedKind === "artifact",
+    queryFn: () => listTaskArtifacts(bundle.task.id, { includeArchived: true }),
+    queryKey: ["task-artifacts", bundle.task.id, true]
+  });
+  const artifactDialogGroup =
+    selectedKind === "artifact" && artifactsQuery.data != null
+      ? getResourceGroupForArtifacts(artifactsQuery.data)
+      : selectedGroup;
   const stateMutation = useMutation({
     mutationFn: (state: TaskState) => updateTask(bundle.task.id, { state }),
     onError: (error, _state, previousBundles) => {
@@ -204,6 +229,39 @@ function TaskCard({
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
     }
   });
+  const artifactLifecycleMutation = useMutation({
+    mutationFn: ({ action, artifactId, taskId }: ArtifactLifecycleVariables) => {
+      switch (action) {
+        case "archive":
+          return archiveTaskArtifact(taskId, artifactId);
+        case "restore":
+          return restoreTaskArtifact(taskId, artifactId);
+        case "delete":
+          return deleteTaskArtifact(taskId, artifactId);
+      }
+    },
+    onError: (error) => {
+      setResourceActionError(
+        error instanceof Error ? error.message : "Failed to update artifact."
+      );
+    },
+    onMutate: () => {
+      setResourceActionError(null);
+    },
+    onSettled: (_artifact, _error, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["task-artifacts", variables.taskId, true]
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["task-artifact", variables.taskId, variables.artifactId]
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["task-artifact-content", variables.taskId, variables.artifactId]
+      });
+    }
+  });
+  const [resourceActionError, setResourceActionError] = useState<string | null>(null);
 
   async function openActionPrompt(
     action: ApiTaskAction,
@@ -415,13 +473,45 @@ function TaskCard({
         taskStateDefinitions={taskStateDefinitions}
       />
       <ResourceTableDialog
-        group={selectedGroup}
+        error={
+          resourceActionError ??
+          (artifactsQuery.error instanceof Error ? artifactsQuery.error.message : null)
+        }
+        group={artifactDialogGroup}
+        isLoadingArtifacts={selectedKind === "artifact" && artifactsQuery.isLoading}
+        onArtifactArchive={(resource) =>
+          artifactLifecycleMutation.mutate({
+            action: "archive",
+            artifactId: resource.id,
+            taskId: resource.taskId
+          })
+        }
+        onArtifactDelete={(resource) =>
+          artifactLifecycleMutation.mutate({
+            action: "delete",
+            artifactId: resource.id,
+            taskId: resource.taskId
+          })
+        }
+        onArtifactRestore={(resource) =>
+          artifactLifecycleMutation.mutate({
+            action: "restore",
+            artifactId: resource.id,
+            taskId: resource.taskId
+          })
+        }
         onOpenResource={openResource}
         pullRequestStatuses={pullRequestStatuses}
+        pendingArtifactAction={
+          artifactLifecycleMutation.isPending
+            ? artifactLifecycleMutation.variables
+            : null
+        }
         taskTitle={bundle.task.title}
         onOpenChange={(isOpen) => {
           if (!isOpen) {
             setSelectedKind(null);
+            setResourceActionError(null);
           }
         }}
       />

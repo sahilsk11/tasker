@@ -71,7 +71,10 @@ export class TaskSessionProviderRegistry {
   public async startSession(
     input: StartTaskSessionInput
   ): Promise<StartedTaskSession> {
-    const providerName = input.requestedProvider ?? this.defaultLaunchProvider;
+    const providerName =
+      input.requestedProvider ??
+      this.resolveAgentLaunchProvider(input.requestedAgentProvider) ??
+      this.defaultLaunchProvider;
     if (providerName == null) {
       throw new BadRequestError("No agent session provider is configured");
     }
@@ -84,5 +87,22 @@ export class TaskSessionProviderRegistry {
     }
 
     return provider.startSession(input);
+  }
+
+  /**
+   * If the requested agent provider is itself a registered launch provider
+   * (it has its own `startSession`), prefer launching through it directly.
+   * This lets providers like Cursor launch natively while Codex and Claude Code
+   * continue to route through the default launch provider (Kanna).
+   */
+  private resolveAgentLaunchProvider(
+    requestedAgentProvider: SessionProvider | null | undefined
+  ): SessionProvider | null {
+    if (requestedAgentProvider == null) {
+      return null;
+    }
+
+    const provider = this.providers.get(requestedAgentProvider);
+    return provider?.startSession == null ? null : requestedAgentProvider;
   }
 }

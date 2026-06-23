@@ -250,6 +250,81 @@ void test("action prompt run payload can request Claude Code through Kanna", asy
   }
 });
 
+void test("action prompt run payload launches Cursor through its native provider", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-session-run-cursor-"));
+  const databasePath = join(dir, "tasker.sqlite");
+  const taskActionsPath = await copyTaskActionCatalog(dir);
+  const cursorLaunches: StartTaskSessionInput[] = [];
+  const kannaLaunches: StartTaskSessionInput[] = [];
+  // Register a fake Cursor launch provider (overrides the real one in tests) plus a
+  // fake Kanna provider, to prove Cursor routes to its own launcher and not Kanna.
+  const cursorProvider: TaskSessionProvider = {
+    provider: "cursor",
+    startSession(input): Promise<StartedTaskSession> {
+      cursorLaunches.push(input);
+      return Promise.resolve({
+        launch: {
+          metadata: {
+            agentProvider: input.requestedAgentProvider,
+            cursorSessionId: "cursor-session-456"
+          },
+          openUrl: null,
+          provider: "cursor"
+        }
+      });
+    }
+  };
+  const kannaProvider: TaskSessionProvider = {
+    provider: "kanna",
+    startSession(input): Promise<StartedTaskSession> {
+      kannaLaunches.push(input);
+      return Promise.resolve({
+        launch: { provider: "kanna" }
+      });
+    }
+  };
+  const app = await createApp({
+    agentRunProvider: "kanna",
+    databasePath,
+    linearApiKey: null,
+    sessionProviders: [kannaProvider, cursorProvider],
+    taskActionsPath
+  });
+
+  try {
+    const task = await createTask(app);
+    const session = await createUnclaimedSession(app, task.id);
+    const response = await app.inject({
+      method: "POST",
+      payload: {
+        agentProvider: "cursor",
+        prompt: "run this prompt",
+        workingPath: "/tmp/tasker"
+      },
+      url: `/tasks/${task.id}/sessions/${session.id}/run`
+    });
+
+    assert.equal(response.statusCode, 200);
+    const body = readJson(response.body) as {
+      readonly launch: {
+        readonly metadata: Record<string, unknown>;
+        readonly provider: string;
+      };
+    };
+    assert.equal(body.launch.provider, "cursor");
+    assert.deepEqual(body.launch.metadata, {
+      agentProvider: "cursor",
+      cursorSessionId: "cursor-session-456"
+    });
+    assert.equal(cursorLaunches.length, 1);
+    assert.equal(cursorLaunches[0]?.requestedAgentProvider, "cursor");
+    assert.equal(kannaLaunches.length, 0);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 async function createTask(
   app: Awaited<ReturnType<typeof createApp>>
 ): Promise<{ readonly id: string }> {

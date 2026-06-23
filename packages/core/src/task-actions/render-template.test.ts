@@ -45,6 +45,20 @@ void test("renderTaskActionTemplate renders Claude Code claim instructions", () 
   assert.doesNotMatch(rendered, /CODEX_THREAD_ID/);
 });
 
+void test("renderTaskActionTemplate renders Cursor claim instructions", () => {
+  const rendered = renderTaskActionTemplate("{{registerSession}}", {
+    ...baseContext,
+    agentProvider: "cursor"
+  });
+
+  assert.match(rendered, /"provider": "cursor"/);
+  assert.match(rendered, /\$\{CURSOR_BACKGROUND_AGENT_ID:-\}/);
+  assert.match(rendered, /cursorBackgroundAgentIdEnvPresent/);
+  assert.match(rendered, /explicit metadata fallback/);
+  assert.doesNotMatch(rendered, /CODEX_THREAD_ID/);
+  assert.doesNotMatch(rendered, /CLAUDE_CODE_SESSION_ID/);
+});
+
 void test("renderTaskActionTemplate leaves options empty when no option text exists", () => {
   const rendered = renderTaskActionTemplate("Before\n{{options}}\nAfter", baseContext);
 

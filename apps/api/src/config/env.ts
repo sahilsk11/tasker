@@ -3,6 +3,8 @@ export type Env = {
   readonly artifactArchiveRoot: string | undefined;
   readonly artifactRoot: string | undefined;
   readonly codexSessionsRoot: string | undefined;
+  readonly cursorBinPath: string | undefined;
+  readonly cursorModel: string;
   readonly databasePath: string;
   readonly host: string;
   readonly kannaAgentModel: string;
@@ -28,6 +30,8 @@ export function loadEnv(): Env {
       normalizeOptionalEnv(process.env["TASKER_ARTIFACT_ARCHIVE_ROOT"]) ?? undefined,
     artifactRoot: normalizeOptionalEnv(process.env["TASKER_ARTIFACT_ROOT"]) ?? undefined,
     codexSessionsRoot: normalizeOptionalEnv(process.env["CODEX_SESSIONS_ROOT"]) ?? undefined,
+    cursorBinPath: normalizeOptionalEnv(process.env["CURSOR_AGENT_BIN_PATH"]) ?? undefined,
+    cursorModel: normalizeOptionalEnv(process.env["CURSOR_AGENT_MODEL"]) ?? "composer-2.5",
     databasePath: process.env["DATABASE_PATH"] ?? "./tasker.sqlite",
     host,
     kannaAgentModel: normalizeOptionalEnv(process.env["KANNA_AGENT_MODEL"]) ?? "gpt-5.5",

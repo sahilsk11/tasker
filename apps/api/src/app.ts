@@ -18,6 +18,10 @@ import { registerWorkingPathResolver } from "./resolver/working-path.resolver.js
 import { ArtifactStorageService } from "./service/artifact-storage.service.js";
 import type { ArtifactStorageOptions } from "./service/artifact-storage.service.js";
 import { CodexSessionProvider } from "./service/codex-session-provider.js";
+import {
+  CursorSessionProvider,
+  type CursorSessionProviderOptions
+} from "./service/cursor-session-provider.js";
 import { BadRequestError, ConflictError, NotFoundError } from "./service/errors.js";
 import { GitHubService, type GitHubServiceOptions } from "./service/github.service.js";
 import {
@@ -42,6 +46,7 @@ export type CreateAppOptions = {
   readonly codexSessionIndexPath?: string;
   readonly codexSessionsRoot?: string;
   readonly codexStatePath?: string;
+  readonly cursor?: CursorSessionProviderOptions;
   readonly databasePath: string;
   readonly github?: GitHubServiceOptions;
   readonly kanna?: KannaSessionProviderOptions;
@@ -80,6 +85,7 @@ export async function createApp(options: CreateAppOptions) {
         : { titleDiscovery: codexTitleDiscovery })
     }),
     new KannaSessionProvider(options.kanna),
+    new CursorSessionProvider(options.cursor),
     ...(options.sessionProviders ?? [])
   ];
   const taskRepository = new SqliteTaskRepository(db);

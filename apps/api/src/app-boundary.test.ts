@@ -29,10 +29,13 @@ void test("createApp keeps HTTP concerns and resolver wiring in app.ts", async (
   assert.match(source, /api\.get\("\/runtime", \(\) => runtime\.metadata\)/u);
   assert.match(source, /\{ prefix: options\.routePrefix \?\? "" \}/u);
   assert.match(source, /registerTaskResolver\(api, runtime\.services\.task\)/u);
+  assert.match(source, /registerTaskActionResolver\(api, runtime\.services\.task\)/u);
   assert.match(
     source,
     /registerTaskBreakdownResolver\(api, runtime\.services\.taskBreakdown\)/u
   );
+  assert.match(source, /registerTaskResourceResolver\(api, runtime\.services\.task\)/u);
+  assert.match(source, /registerTaskSessionResolver\(api, runtime\.services\.task\)/u);
   assert.match(source, /registerWorkingPathResolver\(api, runtime\.services\.workingPath\)/u);
   assert.match(
     source,

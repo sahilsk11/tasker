@@ -15,7 +15,8 @@ import type {
 import type {
   ClaimTaskSessionInput,
   CreateTaskSessionInput,
-  TaskSession
+  TaskSession,
+  TaskSessionMetadata
 } from "../domain/task-session.js";
 import type { TaskActionPromptValues } from "../domain/task-action-prompt-values.js";
 import {
@@ -73,6 +74,9 @@ export type ClaimTaskSessionResult = {
   readonly taskOverview: TaskOverview;
   readonly session: TaskSession;
 };
+
+export type ClaimTaskSessionRequestInput = ClaimTaskSessionInput &
+  Record<string, unknown>;
 
 export type RunTaskSessionPromptInput = {
   readonly agentProvider?: string | null;
@@ -253,9 +257,11 @@ export class TaskService {
 
   public async claimSession(
     sessionId: string,
-    input: ClaimTaskSessionInput
+    input: ClaimTaskSessionRequestInput
   ): Promise<ClaimTaskSessionResult> {
-    const claimInput = await this.sessionProviders.prepareClaimInput(input);
+    const claimInput = await this.sessionProviders.prepareClaimInput(
+      normalizeClaimSessionInput(input)
+    );
     const claimedSession = await this.sessions.claim(sessionId, claimInput);
     const session =
       claimedSession == null
@@ -689,6 +695,44 @@ function getArtifactContentType(fileName: string): string {
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error;
+}
+
+function normalizeClaimSessionInput(
+  input: ClaimTaskSessionRequestInput
+): ClaimTaskSessionInput {
+  const metadata = mergeClaimMetadata(input);
+
+  return {
+    ...(metadata !== undefined ? { metadata } : {}),
+    ...(input.provider !== undefined ? { provider: input.provider } : {}),
+    ...(input.providerId !== undefined ? { providerId: input.providerId } : {}),
+    ...(input.transcriptPath !== undefined
+      ? { transcriptPath: input.transcriptPath }
+      : {})
+  };
+}
+
+function mergeClaimMetadata(
+  input: ClaimTaskSessionRequestInput
+): TaskSessionMetadata | null | undefined {
+  const extraMetadata = getExtraClaimMetadata(input);
+  if (input.metadata === undefined) {
+    return Object.keys(extraMetadata).length === 0 ? undefined : extraMetadata;
+  }
+
+  return {
+    ...(input.metadata ?? {}),
+    ...extraMetadata
+  };
+}
+
+function getExtraClaimMetadata(
+  input: ClaimTaskSessionRequestInput
+): TaskSessionMetadata {
+  const reservedKeys = new Set(["metadata", "provider", "providerId", "transcriptPath"]);
+  return Object.fromEntries(
+    Object.entries(input).filter(([key]) => !reservedKeys.has(key))
+  );
 }
 
 function latestDate(values: readonly Date[]): Date {

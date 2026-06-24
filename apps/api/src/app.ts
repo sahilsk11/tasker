@@ -46,6 +46,7 @@ export async function createApp(options: CreateAppOptions) {
 
   await server.register(
     (api, _options, done) => {
+      api.get("/health", () => ({ ok: true }));
       api.get("/runtime", () => runtime.metadata);
 
       registerTaskResolver(api, runtime.services.task);

@@ -18,6 +18,7 @@ import {
   KannaSessionProvider,
   type KannaSessionProviderOptions
 } from "./service/kanna-session-provider.js";
+import { LinearTaskService } from "./service/linear-task.service.js";
 import { LinearService, type LinearServiceOptions } from "./service/linear.service.js";
 import { TaskBreakdownService } from "./service/task-breakdown.service.js";
 import {
@@ -71,6 +72,7 @@ export type TaskerRuntimeRepositories = {
 export type TaskerRuntimeServices = {
   readonly github: GitHubService;
   readonly linear: LinearService;
+  readonly linearTask: LinearTaskService;
   readonly task: TaskService;
   readonly taskBreakdown: TaskBreakdownService;
   readonly workingPath: WorkingPathService;
@@ -138,21 +140,26 @@ export function createTaskerRuntime(
   taskEvents.subscribe("session_claimed", taskStateEventHandler);
   taskEvents.subscribe("session_created", taskStateEventHandler);
 
+  const githubService = new GitHubService(options.github);
+  const linearService = new LinearService(options.linearApiKey, options.linear);
+  const taskService = new TaskService(
+    repositories.task,
+    repositories.artifact,
+    repositories.pullRequest,
+    repositories.session,
+    repositories.ticket,
+    repositories.taskAction,
+    publicApiBaseUrl,
+    taskEvents,
+    sessionProviders,
+    new ArtifactStorageService(options.artifactStorage)
+  );
+
   const services: TaskerRuntimeServices = {
-    github: new GitHubService(options.github),
-    linear: new LinearService(options.linearApiKey, options.linear),
-    task: new TaskService(
-      repositories.task,
-      repositories.artifact,
-      repositories.pullRequest,
-      repositories.session,
-      repositories.ticket,
-      repositories.taskAction,
-      publicApiBaseUrl,
-      taskEvents,
-      sessionProviders,
-      new ArtifactStorageService(options.artifactStorage)
-    ),
+    github: githubService,
+    linear: linearService,
+    linearTask: new LinearTaskService(linearService, taskService),
+    task: taskService,
     taskBreakdown: new TaskBreakdownService(repositories.task, publicApiBaseUrl),
     workingPath: new WorkingPathService(repositories.workingPath)
   };

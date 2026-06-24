@@ -52,7 +52,7 @@ export async function createApp(options: CreateAppOptions) {
       registerTaskResolver(api, runtime.services.task);
       registerTaskBreakdownResolver(api, runtime.services.taskBreakdown);
       registerWorkingPathResolver(api, runtime.services.workingPath);
-      registerLinearResolver(api, runtime.services.task, runtime.services.linear);
+      registerLinearResolver(api, runtime.services.linearTask, runtime.services.linear);
       registerGitHubResolver(api, runtime.services.github);
       done();
     },

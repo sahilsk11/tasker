@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import type { LinearTaskService } from "../service/linear-task.service.js";
 import type { LinearService } from "../service/linear.service.js";
-import type { TaskService } from "../service/task.service.js";
 
 const taskIdParamsSchema = z.object({
   id: z.string().min(1)
@@ -25,7 +25,7 @@ const createTaskFromLinearIssueSchema = z.object({
 
 export function registerLinearResolver(
   server: FastifyInstance,
-  taskService: TaskService,
+  linearTaskService: LinearTaskService,
   linearService: LinearService
 ): void {
   server.get("/linear/options", async () => ({
@@ -48,16 +48,8 @@ export function registerLinearResolver(
 
   server.post("/linear/tasks", async (request, reply) => {
     const { identifier } = createTaskFromLinearIssueSchema.parse(request.body);
-    const issue = await linearService.getIssue(identifier);
-    const task = await taskService.createTask({
-      description: issue.description,
-      parentTaskId: null,
-      title: issue.title
-    });
-    const ticket = await taskService.addTicket(task.id, {
-      externalId: issue.identifier,
-      url: issue.url
-    });
+    const { issue, task, ticket } =
+      await linearTaskService.createTaskFromLinearIssue({ identifier });
 
     return reply.code(201).send({ issue, task, ticket });
   });
@@ -65,11 +57,7 @@ export function registerLinearResolver(
   server.post("/tasks/:id/linear-ticket", async (request, reply) => {
     const { id } = taskIdParamsSchema.parse(request.params);
     const input = createLinearIssueSchema.parse(request.body);
-    const issue = await linearService.createIssue(input);
-    const ticket = await taskService.addTicket(id, {
-      externalId: issue.identifier,
-      url: issue.url
-    });
+    const { issue, ticket } = await linearTaskService.createLinearIssueForTask(id, input);
 
     return reply.code(201).send({ issue, ticket });
   });

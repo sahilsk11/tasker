@@ -36,7 +36,7 @@ void test("createApp keeps HTTP concerns and resolver wiring in app.ts", async (
   assert.match(source, /registerWorkingPathResolver\(api, runtime\.services\.workingPath\)/u);
   assert.match(
     source,
-    /registerLinearResolver\(api, runtime\.services\.task, runtime\.services\.linear\)/u
+    /registerLinearResolver\(api, runtime\.services\.linearTask, runtime\.services\.linear\)/u
   );
   assert.match(source, /registerGitHubResolver\(api, runtime\.services\.github\)/u);
   assert.match(source, /await runtime\.close\(\);/u);

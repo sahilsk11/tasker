@@ -200,6 +200,105 @@ void test("task can be created from an existing Linear ticket", async () => {
   }
 });
 
+void test("Linear ticket can be created from an existing task", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-linear-ticket-"));
+  const requests: Request[] = [];
+  const app = await createApp({
+    databasePath: join(dir, "tasker.sqlite"),
+    linear: {
+      fetchImpl: (input, init) => {
+        requests.push(new Request(input, init));
+        return Promise.resolve(Response.json({
+          data: {
+            issueCreate: {
+              issue: {
+                id: "issue-2",
+                identifier: "SAS-43",
+                url: "https://linear.app/example/issue/SAS-43"
+              },
+              success: true
+            }
+          }
+        }));
+      }
+    },
+    linearApiKey: "lin_api_key"
+  });
+
+  try {
+    const taskResponse = await app.inject({
+      method: "POST",
+      payload: {
+        description: "Create a linked Linear issue.",
+        title: "Linked task"
+      },
+      url: "/tasks"
+    });
+    assert.equal(taskResponse.statusCode, 201);
+    const taskBody = readJson(taskResponse.body) as {
+      readonly task: {
+        readonly id: string;
+      };
+    };
+
+    const response = await app.inject({
+      method: "POST",
+      payload: {
+        description: "Create a linked Linear issue.",
+        projectId: "project-1",
+        stateId: "state-1",
+        teamId: "team-1",
+        title: "Linked task"
+      },
+      url: `/tasks/${taskBody.task.id}/linear-ticket`
+    });
+    assert.equal(response.statusCode, 201);
+    assert.equal(requests.length, 1);
+
+    const body = readJson(response.body) as {
+      readonly issue: {
+        readonly identifier: string;
+        readonly url: string;
+      };
+      readonly ticket: {
+        readonly externalId: string;
+        readonly taskId: string;
+        readonly url: string;
+      };
+    };
+    assert.equal(body.issue.identifier, "SAS-43");
+    assert.equal(body.issue.url, "https://linear.app/example/issue/SAS-43");
+    assert.equal(body.ticket.externalId, "SAS-43");
+    assert.equal(body.ticket.taskId, taskBody.task.id);
+    assert.equal(body.ticket.url, "https://linear.app/example/issue/SAS-43");
+
+    const request = requests[0];
+    assert.ok(request);
+    assert.equal(request.headers.get("authorization"), "lin_api_key");
+    const requestBody = (await request.json()) as {
+      readonly variables: {
+        readonly input: {
+          readonly description: string;
+          readonly projectId: string;
+          readonly stateId: string;
+          readonly teamId: string;
+          readonly title: string;
+        };
+      };
+    };
+    assert.deepEqual(requestBody.variables.input, {
+      description: "Create a linked Linear issue.",
+      projectId: "project-1",
+      stateId: "state-1",
+      teamId: "team-1",
+      title: "Linked task"
+    });
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 function readJson(value: string): unknown {
   return JSON.parse(value) as unknown;
 }

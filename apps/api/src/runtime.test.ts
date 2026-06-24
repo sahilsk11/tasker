@@ -9,7 +9,7 @@ import { getDefaultTaskActionsPath } from "./task-actions/catalog.js";
 void test("runtime creates services against a temporary database", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-runtime-services-"));
   const databasePath = join(dir, "tasker.sqlite");
-  const runtime = await createTaskerRuntime({
+  const runtime = createTaskerRuntime({
     databasePath,
     linearApiKey: null,
     publicApiBaseUrl: "http://127.0.0.1:4999"
@@ -39,7 +39,7 @@ void test("runtime creates services against a temporary database", async () => {
 void test("runtime exposes resolved metadata", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-runtime-metadata-"));
   const databasePath = join(dir, "tasker.sqlite");
-  const runtime = await createTaskerRuntime({
+  const runtime = createTaskerRuntime({
     databasePath,
     linearApiKey: null,
     publicApiBaseUrl: "http://127.0.0.1:5111"
@@ -77,7 +77,7 @@ void test("runtime exposes resolved metadata", async () => {
 void test("runtime closes the database connection", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-runtime-close-"));
   const databasePath = join(dir, "tasker.sqlite");
-  const runtime = await createTaskerRuntime({
+  const runtime = createTaskerRuntime({
     databasePath,
     linearApiKey: null
   });

@@ -49,3 +49,40 @@ void test("runtime endpoint reports the active Tasker API identity", async () =>
     await rm(dir, { force: true, recursive: true });
   }
 });
+
+void test("runtime and health endpoints honor the configured route prefix", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-runtime-prefix-"));
+  const app = await createApp({
+    databasePath: join(dir, "tasker.sqlite"),
+    linearApiKey: null,
+    routePrefix: "/api"
+  });
+
+  try {
+    const healthResponse = await app.inject({
+      method: "GET",
+      url: "/api/health"
+    });
+    assert.equal(healthResponse.statusCode, 200);
+    assert.deepEqual(JSON.parse(healthResponse.body), { ok: true });
+
+    const runtimeResponse = await app.inject({
+      method: "GET",
+      url: "/api/runtime"
+    });
+    assert.equal(runtimeResponse.statusCode, 200);
+    assert.equal(
+      (JSON.parse(runtimeResponse.body) as { readonly service: string }).service,
+      "tasker-api"
+    );
+
+    const unprefixedHealthResponse = await app.inject({
+      method: "GET",
+      url: "/health"
+    });
+    assert.equal(unprefixedHealthResponse.statusCode, 404);
+  } finally {
+    await app.close();
+    await rm(dir, { force: true, recursive: true });
+  }
+});

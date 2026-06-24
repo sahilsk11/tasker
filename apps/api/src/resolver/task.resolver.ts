@@ -122,8 +122,6 @@ export function registerTaskResolver(
   server: FastifyInstance,
   taskService: TaskService
 ): void {
-  server.get("/health", () => ({ ok: true }));
-
   server.get("/tasks", async (request) => {
     const { parentTaskId } = listTasksQuerySchema.parse(request.query);
     return {

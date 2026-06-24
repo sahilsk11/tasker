@@ -39,6 +39,7 @@ export type CreateSubtaskInput = {
 export type CreateSubtasksInput = {
   readonly parentTaskId: TaskId;
   readonly subtasks: readonly CreateSubtaskInput[];
+  readonly workingDirectory?: string | null;
 };
 
 export class SqliteTaskRepository implements TaskRepository {
@@ -82,7 +83,7 @@ export class SqliteTaskRepository implements TaskRepository {
               parent_task_id: input.parentTaskId,
               title: subtask.title,
               updated_at: now,
-              working_directory: null
+              working_directory: input.workingDirectory ?? null
             })
             .returningAll()
             .executeTakeFirstOrThrow()

@@ -16,9 +16,11 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
 
   try {
     const databasePath = join(dir, "tasker.sqlite");
+    const workingDirectory = await mkdtemp(join(dir, "task-workdir-"));
     const parent = await createTask(app, {
       description: "Large task body",
-      title: "Large task"
+      title: "Large task",
+      workingDirectory
     });
     await createTask(app, {
       parentTaskId: parent.id,
@@ -81,6 +83,7 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
         readonly id: string;
         readonly parentTaskId: string;
         readonly title: string;
+        readonly workingDirectory: string | null;
       }>;
     };
     assert.deepEqual(
@@ -90,6 +93,10 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
     assert.deepEqual(
       accepted.createdSubtasks.map((task) => task.parentTaskId),
       [parent.id, parent.id]
+    );
+    assert.deepEqual(
+      accepted.createdSubtasks.map((task) => task.workingDirectory),
+      [workingDirectory, workingDirectory]
     );
 
     const childrenResponse = await app.inject({
@@ -101,6 +108,7 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
       readonly tasks: ReadonlyArray<{
         readonly title: string;
         readonly waitingDependencies: ReadonlyArray<{ readonly title: string }>;
+        readonly workingDirectory: string | null;
       }>;
     }).tasks;
     assert.deepEqual(
@@ -112,6 +120,10 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
         child.waitingDependencies.map((dependency) => dependency.title)
       ),
       [[], [], ["Add breakdown API"]]
+    );
+    assert.deepEqual(
+      children.map((child) => child.workingDirectory),
+      [null, workingDirectory, workingDirectory]
     );
 
     const [apiContract] = accepted.createdSubtasks;
@@ -150,6 +162,7 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
           .prepare(
             `
               SELECT dependent.title AS task_title,
+                     dependent.working_directory AS task_working_directory,
                      dependency.title AS depends_on_title
               FROM task_dependencies
               JOIN tasks dependent ON dependent.id = task_dependencies.task_id
@@ -161,7 +174,8 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
         [
           {
             depends_on_title: "Add breakdown API",
-            task_title: "Teach agents the workflow"
+            task_title: "Teach agents the workflow",
+            task_working_directory: workingDirectory
           }
         ]
       );
@@ -223,6 +237,7 @@ async function createTask(
     readonly description?: string;
     readonly parentTaskId?: string;
     readonly title: string;
+    readonly workingDirectory?: string;
   }
 ): Promise<{ readonly id: string }> {
   const response = await app.inject({

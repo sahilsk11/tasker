@@ -69,6 +69,11 @@ export class TaskBreakdownService {
       throw new BadRequestError("Breakdown is invalid");
     }
 
+    const parentTask = await this.tasks.findById(validation.breakdown.taskId);
+    if (parentTask == null) {
+      throw new NotFoundError(`Task ${validation.breakdown.taskId} not found.`);
+    }
+
     const createdSubtasks = await this.tasks.createSubtasks({
       parentTaskId: validation.breakdown.taskId,
       subtasks: validation.breakdown.items.map((item) => ({
@@ -76,7 +81,8 @@ export class TaskBreakdownService {
         description: item.description,
         id: item.id,
         title: item.title
-      }))
+      })),
+      workingDirectory: parentTask.workingDirectory
     });
 
     return {

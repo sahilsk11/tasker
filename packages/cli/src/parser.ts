@@ -2,11 +2,9 @@ import { createParseError } from "./errors.js";
 
 export type ParsedCommand =
   | {
-      readonly apiBaseUrl?: string;
       readonly kind: "runtime";
     }
   | {
-      readonly apiBaseUrl?: string;
       readonly createdBySessionId?: string | null;
       readonly kind: "artifacts_register";
       readonly label: "research" | "plan" | "implement" | "other";
@@ -14,14 +12,12 @@ export type ParsedCommand =
       readonly uri: string;
     }
   | {
-      readonly apiBaseUrl?: string;
       readonly kind: "pull_requests_register";
       readonly taskId: string;
       readonly url: string;
     }
   | {
       readonly actionId?: string | null;
-      readonly apiBaseUrl?: string;
       readonly claimed: boolean;
       readonly kind: "sessions_create";
       readonly metadata?: Record<string, unknown> | null;
@@ -31,7 +27,6 @@ export type ParsedCommand =
       readonly transcriptPath?: string | null;
     }
   | {
-      readonly apiBaseUrl?: string;
       readonly kind: "sessions_claim";
       readonly metadata?: Record<string, unknown> | null;
       readonly provider?: string | null;
@@ -45,33 +40,12 @@ export type ParsedCommand =
 
 export function parseArgs(argv: readonly string[]): ParsedCommand {
   const remaining = [...argv];
-  let apiBaseUrl: string | undefined;
 
   while (remaining.length > 0) {
     const arg = remaining[0];
 
     if (arg === "--help" || arg === "-h") {
       return { kind: "help" };
-    }
-
-    if (arg === "--api-base-url") {
-      remaining.shift();
-      const value = remaining.shift();
-      if (value === undefined || value.startsWith("-")) {
-        throw createParseError("--api-base-url requires a URL value");
-      }
-      apiBaseUrl = value;
-      continue;
-    }
-
-    if (arg?.startsWith("--api-base-url=") === true) {
-      const value = arg.slice("--api-base-url=".length);
-      if (value.length === 0) {
-        throw createParseError("--api-base-url requires a URL value");
-      }
-      apiBaseUrl = value;
-      remaining.shift();
-      continue;
     }
 
     break;
@@ -87,15 +61,15 @@ export function parseArgs(argv: readonly string[]): ParsedCommand {
   }
 
   if (command === "artifacts") {
-    return parseArtifactsCommand(remaining, apiBaseUrl);
+    return parseArtifactsCommand(remaining);
   }
 
   if (command === "pull-requests") {
-    return parsePullRequestsCommand(remaining, apiBaseUrl);
+    return parsePullRequestsCommand(remaining);
   }
 
   if (command === "sessions") {
-    return parseSessionsCommand(remaining, apiBaseUrl);
+    return parseSessionsCommand(remaining);
   }
 
   if (command !== "runtime") {
@@ -106,13 +80,10 @@ export function parseArgs(argv: readonly string[]): ParsedCommand {
     throw createParseError(`Unexpected argument for runtime: ${remaining[0] ?? ""}`);
   }
 
-  return apiBaseUrl === undefined ? { kind: "runtime" } : { apiBaseUrl, kind: "runtime" };
+  return { kind: "runtime" };
 }
 
-function parseArtifactsCommand(
-  args: readonly string[],
-  apiBaseUrl: string | undefined
-): ParsedCommand {
+function parseArtifactsCommand(args: readonly string[]): ParsedCommand {
   const remaining = [...args];
   const subcommand = remaining.shift();
 
@@ -121,16 +92,13 @@ function parseArtifactsCommand(
   }
 
   if (subcommand === "register") {
-    return parseArtifactsRegister(remaining, apiBaseUrl);
+    return parseArtifactsRegister(remaining);
   }
 
   throw createParseError(`Unknown artifacts subcommand: ${subcommand}`);
 }
 
-function parseArtifactsRegister(
-  args: readonly string[],
-  apiBaseUrl: string | undefined
-): ParsedCommand {
+function parseArtifactsRegister(args: readonly string[]): ParsedCommand {
   let createdBySessionId: string | null | undefined;
   let label: "research" | "plan" | "implement" | "other" | undefined;
   let taskId: string | undefined;
@@ -196,7 +164,6 @@ function parseArtifactsRegister(
   }
 
   return {
-    ...(apiBaseUrl === undefined ? {} : { apiBaseUrl }),
     ...(createdBySessionId !== undefined ? { createdBySessionId } : {}),
     kind: "artifacts_register",
     label,
@@ -205,10 +172,7 @@ function parseArtifactsRegister(
   };
 }
 
-function parsePullRequestsCommand(
-  args: readonly string[],
-  apiBaseUrl: string | undefined
-): ParsedCommand {
+function parsePullRequestsCommand(args: readonly string[]): ParsedCommand {
   const remaining = [...args];
   const subcommand = remaining.shift();
 
@@ -217,16 +181,13 @@ function parsePullRequestsCommand(
   }
 
   if (subcommand === "register") {
-    return parsePullRequestsRegister(remaining, apiBaseUrl);
+    return parsePullRequestsRegister(remaining);
   }
 
   throw createParseError(`Unknown pull-requests subcommand: ${subcommand}`);
 }
 
-function parsePullRequestsRegister(
-  args: readonly string[],
-  apiBaseUrl: string | undefined
-): ParsedCommand {
+function parsePullRequestsRegister(args: readonly string[]): ParsedCommand {
   let taskId: string | undefined;
   let url: string | undefined;
 
@@ -266,17 +227,13 @@ function parsePullRequestsRegister(
   }
 
   return {
-    ...(apiBaseUrl === undefined ? {} : { apiBaseUrl }),
     kind: "pull_requests_register",
     taskId,
     url
   };
 }
 
-function parseSessionsCommand(
-  args: readonly string[],
-  apiBaseUrl: string | undefined
-): ParsedCommand {
+function parseSessionsCommand(args: readonly string[]): ParsedCommand {
   const remaining = [...args];
   const subcommand = remaining.shift();
 
@@ -285,20 +242,17 @@ function parseSessionsCommand(
   }
 
   if (subcommand === "create") {
-    return parseSessionsCreate(remaining, apiBaseUrl);
+    return parseSessionsCreate(remaining);
   }
 
   if (subcommand === "claim") {
-    return parseSessionsClaim(remaining, apiBaseUrl);
+    return parseSessionsClaim(remaining);
   }
 
   throw createParseError(`Unknown sessions subcommand: ${subcommand}`);
 }
 
-function parseSessionsCreate(
-  args: readonly string[],
-  apiBaseUrl: string | undefined
-): ParsedCommand {
+function parseSessionsCreate(args: readonly string[]): ParsedCommand {
   let actionId: string | null | undefined;
   let claimed = true;
   let metadata: Record<string, unknown> | null | undefined;
@@ -405,7 +359,6 @@ function parseSessionsCreate(
 
   return {
     ...(actionId !== undefined ? { actionId } : {}),
-    ...(apiBaseUrl === undefined ? {} : { apiBaseUrl }),
     claimed,
     kind: "sessions_create",
     ...(metadata !== undefined ? { metadata } : {}),
@@ -416,10 +369,7 @@ function parseSessionsCreate(
   };
 }
 
-function parseSessionsClaim(
-  args: readonly string[],
-  apiBaseUrl: string | undefined
-): ParsedCommand {
+function parseSessionsClaim(args: readonly string[]): ParsedCommand {
   let metadata: Record<string, unknown> | null | undefined;
   let provider: string | null | undefined;
   let providerId: string | null | undefined;
@@ -504,7 +454,6 @@ function parseSessionsClaim(
   }
 
   return {
-    ...(apiBaseUrl === undefined ? {} : { apiBaseUrl }),
     kind: "sessions_claim",
     ...(metadata !== undefined ? { metadata } : {}),
     ...(provider !== undefined ? { provider } : {}),

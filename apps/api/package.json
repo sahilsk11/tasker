@@ -15,6 +15,14 @@
     "./runtime": {
       "types": "./src/runtime.ts",
       "default": "./src/runtime.ts"
+    },
+    "./task-commands": {
+      "types": "./src/command/task-commands.ts",
+      "default": "./src/command/task-commands.ts"
+    },
+    "./service-errors": {
+      "types": "./src/service/errors.ts",
+      "default": "./src/service/errors.ts"
     }
   },
   "scripts": {

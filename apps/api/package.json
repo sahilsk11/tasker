@@ -11,6 +11,10 @@
     "./app": {
       "types": "./src/app.ts",
       "default": "./src/app.ts"
+    },
+    "./runtime": {
+      "types": "./src/runtime.ts",
+      "default": "./src/runtime.ts"
     }
   },
   "scripts": {

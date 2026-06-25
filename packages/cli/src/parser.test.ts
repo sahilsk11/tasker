@@ -3,9 +3,8 @@ import test from "node:test";
 import { CliError } from "./errors.js";
 import { parseArgs } from "./parser.js";
 
-void test("parseArgs parses runtime with an explicit API base URL", () => {
-  assert.deepEqual(parseArgs(["--api-base-url", "http://127.0.0.1:3000", "runtime"]), {
-    apiBaseUrl: "http://127.0.0.1:3000",
+void test("parseArgs parses runtime", () => {
+  assert.deepEqual(parseArgs(["runtime"]), {
     kind: "runtime"
   });
 });
@@ -18,7 +17,6 @@ void test("parseArgs parses artifacts register", () => {
   for (const label of ["research", "plan", "implement", "other"] as const) {
     assert.deepEqual(
       parseArgs([
-        "--api-base-url=http://127.0.0.1:7501",
         "artifacts",
         "register",
         "--task-id",
@@ -31,7 +29,6 @@ void test("parseArgs parses artifacts register", () => {
         "session-1"
       ]),
       {
-        apiBaseUrl: "http://127.0.0.1:7501",
         createdBySessionId: "session-1",
         kind: "artifacts_register",
         label,
@@ -61,7 +58,6 @@ void test("parseArgs parses pull-requests register", () => {
 void test("parseArgs parses sessions create", () => {
   assert.deepEqual(
     parseArgs([
-      "--api-base-url=http://127.0.0.1:7501",
       "sessions",
       "create",
       "--task-id",
@@ -82,7 +78,6 @@ void test("parseArgs parses sessions create", () => {
     ]),
     {
       actionId: "scope",
-      apiBaseUrl: "http://127.0.0.1:7501",
       claimed: false,
       kind: "sessions_create",
       metadata: {
@@ -156,13 +151,13 @@ void test("parseArgs rejects unknown commands with a parse error", () => {
   );
 });
 
-void test("parseArgs rejects missing API base URL values", () => {
+void test("parseArgs rejects API base URL as an unknown option", () => {
   assert.throws(
-    () => parseArgs(["--api-base-url"]),
+    () => parseArgs(["--api-base-url", "http://127.0.0.1:3000", "runtime"]),
     (error: unknown) =>
       error instanceof CliError &&
       error.code === "parse_error" &&
-      error.message === "--api-base-url requires a URL value"
+      error.message === "Unknown option: --api-base-url"
   );
 });
 

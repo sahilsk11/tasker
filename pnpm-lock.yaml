@@ -222,6 +222,13 @@ importers:
         version: 5.9.3
 
   packages/cli:
+    dependencies:
+      '@tasker/api':
+        specifier: workspace:*
+        version: link:../../apps/api
+      better-sqlite3:
+        specifier: ^12.10.0
+        version: 12.10.0
     devDependencies:
       tsup:
         specifier: ^8.5.0

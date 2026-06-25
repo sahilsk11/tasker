@@ -102,6 +102,24 @@ void test("returns null when Codex state is unreadable", async () => {
   }
 });
 
+void test("returns null when Codex state parent directory is missing", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-codex-title-"));
+  try {
+    const sessionIndexPath = join(dir, "missing-session-index.jsonl");
+    const statePath = join(dir, "missing", "state.sqlite");
+
+    assert.equal(
+      await resolveCodexSessionDisplayTitle("thread-1", {
+        sessionIndexPath,
+        statePath
+      }),
+      null
+    );
+  } finally {
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
 function createCodexState(
   statePath: string,
   row: {

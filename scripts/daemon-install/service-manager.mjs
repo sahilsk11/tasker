@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { run } from "./exec.mjs";
+import { run } from "../install-utils/exec.mjs";
 import { createProxyService, writeUserService } from "./service-files.mjs";
 
 export async function installServices(paths, choices, options) {

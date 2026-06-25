@@ -1,3 +1,5 @@
+import { readValue } from "../install-utils/args.mjs";
+
 export function parseArgs(argv) {
   const options = {
     access: null,
@@ -11,7 +13,9 @@ export function parseArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === "--yes" || arg === "-y") {
+    if (arg === "--") {
+      continue;
+    } else if (arg === "--yes" || arg === "-y") {
       options.yes = true;
     } else if (arg === "--dry-run") {
       options.dryRun = true;
@@ -49,13 +53,4 @@ Options:
   --no-open              Do not open the browser after install
   -h, --help             Show this help
 `);
-}
-
-function readValue(argv, index, flag) {
-  const value = argv[index];
-  if (value == null || value.startsWith("-")) {
-    throw new Error(`Missing value for ${flag}`);
-  }
-
-  return value;
 }

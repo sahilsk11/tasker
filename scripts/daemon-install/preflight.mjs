@@ -1,6 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { createServer } from "node:net";
-import { read } from "./exec.mjs";
+import { read } from "../install-utils/exec.mjs";
 
 export async function runPreflight(platform, choices, options) {
   const [nodeVersion] = process.versions.node.split(".");

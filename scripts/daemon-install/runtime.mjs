@@ -1,34 +1,31 @@
-import { cp, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { run } from "./exec.mjs";
+import { run } from "../install-utils/exec.mjs";
+import { installRuntimeSnapshot } from "../install-utils/runtime-snapshot.mjs";
 
 export async function buildSource() {
   await run("pnpm", ["build"]);
 }
 
 export async function installRuntime(paths, choices, options) {
-  const stagingDir = `${paths.appDir}.tmp`;
+  await installRuntimeSnapshot({
+    appDir: paths.appDir,
+    dryRun: options.dryRun,
+    dryRunMessages: [
+      `dry-run: install runtime at ${paths.appDir}`,
+      `dry-run: write config ${paths.configPath}`
+    ],
+    packageJson: createRuntimePackage(),
+    async prepare(stagingDir) {
+      await mkdir(paths.logsDir, { recursive: true });
+      await cp("apps/daemon/dist", join(stagingDir, "dist"), { recursive: true });
+      await cp("apps/web/dist", join(stagingDir, "web"), { recursive: true });
+      await cp("apps/api/migrations", join(stagingDir, "migrations"), { recursive: true });
+    }
+  });
   if (options.dryRun) {
-    console.info(`dry-run: install runtime at ${paths.appDir}`);
-    console.info(`dry-run: write config ${paths.configPath}`);
     return;
   }
-
-  await rm(stagingDir, { force: true, recursive: true });
-  await mkdir(stagingDir, { recursive: true });
-  await mkdir(paths.logsDir, { recursive: true });
-
-  await cp("apps/daemon/dist", join(stagingDir, "dist"), { recursive: true });
-  await cp("apps/web/dist", join(stagingDir, "web"), { recursive: true });
-  await cp("apps/api/migrations", join(stagingDir, "migrations"), { recursive: true });
-  await writeFile(
-    join(stagingDir, "package.json"),
-    `${JSON.stringify(createRuntimePackage(), null, 2)}\n`
-  );
-
-  await run("pnpm", ["install", "--prod"], { cwd: stagingDir });
-  await rm(paths.appDir, { force: true, recursive: true });
-  await rename(stagingDir, paths.appDir);
 
   await writeFile(
     paths.configPath,

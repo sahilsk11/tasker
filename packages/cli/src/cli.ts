@@ -11,7 +11,6 @@ import {
   type CliErrorCode
 } from "./errors.js";
 import { createLocalRuntime } from "./local-runtime.js";
-import { createFailureResult, createSuccessResult, serializeResult } from "./output.js";
 import { parseArgs, type ParsedCommand } from "./parser.js";
 
 export type CliRunResult = {
@@ -27,7 +26,10 @@ export async function runCli(
     const command = parseArgs(argv);
 
     if (command.kind === "help") {
-      return success({ help: getHelpText() });
+      return {
+        exitCode: 0,
+        output: getHelpText()
+      };
     }
 
     const runtime = createLocalRuntime(env);
@@ -36,33 +38,42 @@ export async function runCli(
 
       switch (command.kind) {
         case "runtime":
-          return success(runtime.metadata);
+          return success(formatRuntime(runtime.metadata));
         case "artifacts_register":
-          return success({
-            artifact: await taskService.addArtifact(
-              command.taskId,
-              parseCreateArtifactInput(createArtifactRequest(command))
+          return success(
+            formatArtifact(
+              await taskService.addArtifact(
+                command.taskId,
+                parseCreateArtifactInput(createArtifactRequest(command))
+              )
             )
-          });
+          );
         case "pull_requests_register":
-          return success({
-            pullRequest: await taskService.addPullRequest(
-              command.taskId,
-              parseCreatePullRequestInput(createPullRequestRequest(command))
+          return success(
+            formatPullRequest(
+              await taskService.addPullRequest(
+                command.taskId,
+                parseCreatePullRequestInput(createPullRequestRequest(command))
+              )
             )
-          });
+          );
         case "sessions_create":
-          return success({
-            session: await taskService.addSession(
-              command.taskId,
-              parseCreateSessionInput(createSessionRequest(command))
+          return success(
+            formatSession(
+              "Task session created",
+              await taskService.addSession(
+                command.taskId,
+                parseCreateSessionInput(createSessionRequest(command))
+              )
             )
-          });
+          );
         case "sessions_claim":
           return success(
-            await taskService.claimSession(
-              command.sessionId,
-              parseClaimSessionInput(claimSessionRequest(command))
+            formatClaimResult(
+              await taskService.claimSession(
+                command.sessionId,
+                parseClaimSessionInput(claimSessionRequest(command))
+              )
             )
           );
       }
@@ -122,10 +133,10 @@ function claimSessionRequest(
   };
 }
 
-function success(data: unknown): CliRunResult {
+function success(output: string): CliRunResult {
   return {
     exitCode: 0,
-    output: serializeResult(createSuccessResult(data))
+    output
   };
 }
 
@@ -133,38 +144,24 @@ function failure(error: unknown): CliRunResult {
   if (isCliError(error)) {
     return {
       exitCode: error.exitCode,
-      output: serializeResult(
-        createFailureResult({ code: error.code, message: error.message })
-      )
+      output: formatError(error.message)
     };
   }
 
   if (error instanceof BadRequestError) {
-    return failureForCode("api_error", error.message, {
-      body: { error: error.message },
-      status: 400
-    });
+    return failureForCode("api_error", error.message);
   }
 
   if (error instanceof NotFoundError) {
-    return failureForCode("api_error", error.message, {
-      body: { error: error.message },
-      status: 404
-    });
+    return failureForCode("api_error", error.message);
   }
 
   if (error instanceof ConflictError) {
-    return failureForCode("api_error", error.message, {
-      body: { error: error.message },
-      status: 409
-    });
+    return failureForCode("api_error", error.message);
   }
 
   if (isZodError(error)) {
-    return failureForCode("api_error", "Validation failed", {
-      body: { error: error.flatten() },
-      status: 400
-    });
+    return failureForCode("api_error", "Validation failed");
   }
 
   return failureForCode("unexpected_error", getErrorMessage(error));
@@ -172,19 +169,11 @@ function failure(error: unknown): CliRunResult {
 
 function failureForCode(
   code: CliErrorCode,
-  message: string,
-  details: { readonly body?: unknown; readonly status?: number } = {}
+  message: string
 ): CliRunResult {
   return {
     exitCode: cliErrorCodeToExitCode(code),
-    output: serializeResult(
-      createFailureResult({
-        ...(details.body === undefined ? {} : { body: details.body }),
-        code,
-        message,
-        ...(details.status === undefined ? {} : { status: details.status })
-      })
-    )
+    output: formatError(message)
   };
 }
 
@@ -201,6 +190,89 @@ function isZodError(error: unknown): error is { readonly flatten: () => unknown 
     "flatten" in error &&
     typeof error.flatten === "function"
   );
+}
+
+function formatRuntime(metadata: Record<string, unknown>): string {
+  return [
+    "Tasker runtime OK",
+    `Service: ${formatValue(metadata["service"])}`,
+    `Database: ${formatValue(metadata["databasePath"])}`,
+    `Task actions: ${formatValue(metadata["taskActionsPath"])}`,
+    `Public API base URL: ${formatValue(metadata["publicApiBaseUrl"])}`
+  ].join("\n");
+}
+
+function formatArtifact(value: unknown): string {
+  const artifact = asRecord(value);
+
+  return [
+    "Task artifact registered",
+    `Artifact ID: ${formatValue(artifact["id"])}`,
+    `Task ID: ${formatValue(artifact["taskId"])}`,
+    `Label: ${formatValue(artifact["label"])}`,
+    `URI: ${formatValue(artifact["uri"])}`
+  ].join("\n");
+}
+
+function formatPullRequest(value: unknown): string {
+  const pullRequest = asRecord(value);
+
+  return [
+    "Task pull request registered",
+    `Pull request ID: ${formatValue(pullRequest["id"])}`,
+    `Task ID: ${formatValue(pullRequest["taskId"])}`,
+    `URL: ${formatValue(pullRequest["url"])}`
+  ].join("\n");
+}
+
+function formatSession(title: string, value: unknown): string {
+  const session = asRecord(value);
+
+  return [
+    title,
+    `Session ID: ${formatValue(session["id"])}`,
+    `Task ID: ${formatValue(session["taskId"])}`,
+    `Provider: ${formatValue(session["provider"])}`,
+    `Provider ID: ${formatNullableValue(session["providerId"])}`,
+    `Claimed: ${session["claimedAt"] == null ? "no" : "yes"}`
+  ].join("\n");
+}
+
+function formatClaimResult(result: Record<string, unknown>): string {
+  const session = asRecord(result["session"]);
+  const taskOverview = asRecord(result["taskOverview"]);
+  const task = asRecord(taskOverview["task"]);
+
+  return [
+    formatSession("Task session claimed", session),
+    `Task: ${formatValue(task["title"])} (${formatValue(task["id"])})`
+  ].join("\n");
+}
+
+function formatError(message: string): string {
+  return `Error: ${message}`;
+}
+
+function formatNullableValue(value: unknown): string {
+  return value == null || value === "" ? "-" : formatValue(value);
+}
+
+function formatValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return "-";
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value != null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function getHelpText(): string {

@@ -1,3 +1,5 @@
+import { readValue } from "../install-utils/args.mjs";
+
 export function parseArgs(argv) {
   const options = {
     access: null,
@@ -51,13 +53,4 @@ Options:
   --no-open              Do not open the browser after install
   -h, --help             Show this help
 `);
-}
-
-function readValue(argv, index, flag) {
-  const value = argv[index];
-  if (value == null || value.startsWith("-")) {
-    throw new Error(`Missing value for ${flag}`);
-  }
-
-  return value;
 }

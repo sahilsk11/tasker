@@ -1,9 +1,11 @@
 #!/usr/bin/env node
-import { chmod, cp, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, writeFile } from "node:fs/promises";
 import { delimiter } from "node:path";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { run } from "./daemon-install/exec.mjs";
+import { readValue } from "./install-utils/args.mjs";
+import { run } from "./install-utils/exec.mjs";
+import { installRuntimeSnapshot } from "./install-utils/runtime-snapshot.mjs";
 
 try {
   const options = parseArgs(process.argv.slice(2));
@@ -67,15 +69,6 @@ Options:
 `);
 }
 
-function readValue(argv, index, flag) {
-  const value = argv[index];
-  if (value == null || value.startsWith("-")) {
-    throw new Error(`Missing value for ${flag}`);
-  }
-
-  return value;
-}
-
 async function runPreflight() {
   const [nodeVersion] = process.versions.node.split(".");
   if (Number.parseInt(nodeVersion ?? "0", 10) !== 24) {
@@ -124,29 +117,26 @@ function getDefaultBinDir() {
 }
 
 async function installCliRuntime(paths, options) {
-  const stagingDir = `${paths.appDir}.tmp`;
+  await installRuntimeSnapshot({
+    appDir: paths.appDir,
+    dryRun: options.dryRun,
+    dryRunMessages: [
+      `dry-run: install CLI runtime at ${paths.appDir}`,
+      `dry-run: write shim ${paths.shimPath}`,
+      `dry-run: write config ${paths.configPath}`
+    ],
+    packageJson: createRuntimePackage(),
+    async prepare(stagingDir) {
+      await mkdir(paths.binDir, { recursive: true });
+      await cp("packages/cli/dist", join(stagingDir, "dist"), { recursive: true });
+      await cp("apps/api/migrations", join(stagingDir, "migrations"), { recursive: true });
+      await cp("apps/api/task-actions.json", join(stagingDir, "task-actions.json"));
+    }
+  });
   if (options.dryRun) {
-    console.info(`dry-run: install CLI runtime at ${paths.appDir}`);
-    console.info(`dry-run: write shim ${paths.shimPath}`);
-    console.info(`dry-run: write config ${paths.configPath}`);
     return;
   }
 
-  await rm(stagingDir, { force: true, recursive: true });
-  await mkdir(stagingDir, { recursive: true });
-  await mkdir(paths.binDir, { recursive: true });
-
-  await cp("packages/cli/dist", join(stagingDir, "dist"), { recursive: true });
-  await cp("apps/api/migrations", join(stagingDir, "migrations"), { recursive: true });
-  await cp("apps/api/task-actions.json", join(stagingDir, "task-actions.json"));
-  await writeFile(
-    join(stagingDir, "package.json"),
-    `${JSON.stringify(createRuntimePackage(), null, 2)}\n`
-  );
-
-  await run("pnpm", ["install", "--prod"], { cwd: stagingDir });
-  await rm(paths.appDir, { force: true, recursive: true });
-  await rename(stagingDir, paths.appDir);
   await writeFile(paths.configPath, `${JSON.stringify(createConfig(paths), null, 2)}\n`);
   await writeFile(paths.shimPath, createShim(paths));
   await chmod(paths.shimPath, 0o755);

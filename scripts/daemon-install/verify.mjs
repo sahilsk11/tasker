@@ -1,5 +1,5 @@
 import { request } from "node:http";
-import { run } from "./exec.mjs";
+import { run } from "../install-utils/exec.mjs";
 
 export async function verifyInstall(choices, options) {
   const internalUrl = `http://127.0.0.1:${String(choices.port)}/health`;

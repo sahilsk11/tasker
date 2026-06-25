@@ -20,10 +20,37 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm install-cli
 pnpm install-daemon
 pnpm dev:web
 pnpm dev:api
 pnpm dev:worker
+```
+
+## CLI install
+
+Install the `tasker` CLI on the current machine:
+
+```sh
+./setup/install-cli.sh
+```
+
+The installer builds the CLI, copies a runtime snapshot into a user-owned
+Tasker CLI directory, installs native runtime dependencies, writes a `tasker`
+shim into a user bin directory, and verifies `tasker runtime` without an API
+server.
+
+Default install locations:
+
+```text
+macOS: ~/Library/Application Support/Tasker CLI
+Linux: ~/.local/share/tasker-cli
+```
+
+Use a custom install root or bin directory when needed:
+
+```sh
+./setup/install-cli.sh --install-root /tmp/tasker-cli --bin-dir "$HOME/.local/bin"
 ```
 
 ## Daemon install
@@ -34,7 +61,7 @@ Tasker directory, installs a user service, verifies `/health`, and opens the app
 Default install:
 
 ```sh
-pnpm install-daemon --yes
+./setup/install-daemon.sh --yes
 ```
 
 Default URL:

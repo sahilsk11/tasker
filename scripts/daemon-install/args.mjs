@@ -11,7 +11,9 @@ export function parseArgs(argv) {
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === "--yes" || arg === "-y") {
+    if (arg === "--") {
+      continue;
+    } else if (arg === "--yes" || arg === "-y") {
       options.yes = true;
     } else if (arg === "--dry-run") {
       options.dryRun = true;

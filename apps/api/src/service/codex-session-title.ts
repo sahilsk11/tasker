@@ -140,6 +140,7 @@ function isCodexLookupUnavailableError(error: unknown): boolean {
 
   if (error instanceof Error) {
     return (
+      error.message.includes("Cannot open database because the directory does not exist") ||
       error.message.includes("no such table: threads") ||
       error.message.includes("file is not a database") ||
       error.message.includes("database is locked") ||

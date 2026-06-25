@@ -6,45 +6,23 @@ import test from "node:test";
 import { createTaskerRuntime, type TaskerRuntime } from "@tasker/api/runtime";
 import { runCli } from "./cli.js";
 
-void test("runCli returns structured parse errors", async () => {
+void test("runCli returns plain parse errors", async () => {
   const result = await runCli(["unknown"], {});
 
   assert.equal(result.exitCode, 2);
-  assert.deepEqual(JSON.parse(result.output) as unknown, {
-    error: {
-      code: "parse_error",
-      message: "Unknown command: unknown"
-    },
-    ok: false
-  });
+  assert.equal(result.output, "Error: Unknown command: unknown");
+  assertNotJson(result.output);
 });
 
-void test("runCli returns structured help output without opening the runtime", async () => {
+void test("runCli returns plain help output without opening the runtime", async () => {
   const result = await runCli(["--help"], {});
 
   assert.equal(result.exitCode, 0);
-  assert.deepEqual(JSON.parse(result.output) as unknown, {
-    data: {
-      help: [
-        "Usage: tasker <command>",
-        "",
-        "Commands:",
-        "  runtime          Fetch Tasker API runtime details",
-        "  artifacts register      Register a task artifact",
-        "  pull-requests register  Register a task pull request",
-        "  sessions create  Create a task session",
-        "  sessions claim   Claim an existing task session",
-        "  --help           Show this help",
-        "",
-        "Examples:",
-        "  tasker artifacts register --task-id <taskId> --label implement --uri /tmp/notes.md",
-        "  tasker pull-requests register --task-id <taskId> --url https://github.com/OWNER/REPO/pull/1",
-        "  tasker sessions create --task-id <taskId> --provider codex --unclaimed",
-        "  tasker sessions claim --session-id <sessionId> --provider codex --metadata reportedCwd=$PWD"
-      ].join("\n")
-    },
-    ok: true
-  });
+  assert.equal(result.output, getExpectedHelpText());
+  assert.throws(() => JSON.parse(result.output));
+
+  const defaultResult = await runCli([], {});
+  assert.deepEqual(defaultResult, result);
 });
 
 void test("runCli dispatches default commands locally without fetch", async () => {
@@ -52,114 +30,92 @@ void test("runCli dispatches default commands locally without fetch", async () =
     const task = await seedTask(databasePath);
 
     await withThrowingFetch(async () => {
-      const runtime = parseSuccess(await runCli(["runtime"], env)) as {
-        readonly databasePath: string;
-        readonly ok: true;
-        readonly service: "tasker-api";
-      };
-      assert.equal(runtime.service, "tasker-api");
-      assert.equal(runtime.ok, true);
-      assert.equal(runtime.databasePath, databasePath);
+      const runtime = await runCli(["runtime"], env);
+      assert.equal(runtime.exitCode, 0);
+      assert.match(runtime.output, /Tasker runtime OK/);
+      assert.match(runtime.output, /Service: tasker-api/);
+      assert.match(runtime.output, new RegExp(escapeRegExp(`Database: ${databasePath}`)));
+      assertNotJson(runtime.output);
 
-      const artifact = parseSuccess(
-        await runCli(
-          [
-            "artifacts",
-            "register",
-            "--task-id",
-            task.id,
-            "--label",
-            "implement",
-            "--uri",
-            "/tmp/implement.md"
-          ],
-          env
-        )
-      ) as {
-        readonly artifact: { readonly label: string; readonly taskId: string };
-      };
-      assert.equal(artifact.artifact.taskId, task.id);
-      assert.equal(artifact.artifact.label, "implement");
-
-      const pullRequest = parseSuccess(
-        await runCli(
-          [
-            "pull-requests",
-            "register",
-            "--task-id",
-            task.id,
-            "--url",
-            "https://github.com/owner/repo/pull/12"
-          ],
-          env
-        )
-      ) as {
-        readonly pullRequest: { readonly taskId: string; readonly url: string };
-      };
-      assert.equal(pullRequest.pullRequest.taskId, task.id);
-      assert.equal(pullRequest.pullRequest.url, "https://github.com/owner/repo/pull/12");
-
-      const created = parseSuccess(
-        await runCli(
-          [
-            "sessions",
-            "create",
-            "--task-id",
-            task.id,
-            "--provider",
-            "codex",
-            "--unclaimed",
-            "--metadata",
-            "reportedCwd=/repo"
-          ],
-          env
-        )
-      ) as {
-        readonly session: { readonly claimedAt: string | null; readonly id: string };
-      };
-      assert.equal(created.session.claimedAt, null);
-
-      const claimed = parseSuccess(
-        await runCli(
-          [
-            "sessions",
-            "claim",
-            "--session-id",
-            created.session.id,
-            "--provider",
-            "codex",
-            "--provider-id",
-            "thread-1",
-            "--metadata-json",
-            "{\"codexThreadIdEnvPresent\":true}"
-          ],
-          env
-        )
-      ) as {
-        readonly session: {
-          readonly claimedAt: string | null;
-          readonly metadata: Record<string, unknown> | null;
-          readonly providerId: string | null;
-        };
-        readonly taskOverview: {
-          readonly resources: {
-            readonly artifacts: readonly unknown[];
-            readonly pullRequests: readonly unknown[];
-            readonly sessions: ReadonlyArray<{ readonly id: string }>;
-          };
-          readonly task: { readonly id: string };
-        };
-      };
-      assert.notEqual(claimed.session.claimedAt, null);
-      assert.equal(claimed.session.providerId, "thread-1");
-      assert.deepEqual(claimed.session.metadata, { codexThreadIdEnvPresent: true });
-      assert.equal(claimed.taskOverview.task.id, task.id);
-      assert.equal(claimed.taskOverview.resources.artifacts.length, 1);
-      assert.equal(claimed.taskOverview.resources.pullRequests.length, 1);
-      assert.deepEqual(
-        claimed.taskOverview.resources.sessions.map((session) => session.id),
-        [created.session.id]
+      const artifact = await runCli(
+        [
+          "artifacts",
+          "register",
+          "--task-id",
+          task.id,
+          "--label",
+          "implement",
+          "--uri",
+          "/tmp/implement.md"
+        ],
+        env
       );
+      assert.equal(artifact.exitCode, 0);
+      assert.match(artifact.output, /Task artifact registered/);
+      assert.match(artifact.output, new RegExp(escapeRegExp(`Task ID: ${task.id}`)));
+      assert.match(artifact.output, /Label: implement/);
+      assertNotJson(artifact.output);
+
+      const pullRequest = await runCli(
+        [
+          "pull-requests",
+          "register",
+          "--task-id",
+          task.id,
+          "--url",
+          "https://github.com/owner/repo/pull/12"
+        ],
+        env
+      );
+      assert.equal(pullRequest.exitCode, 0);
+      assert.match(pullRequest.output, /Task pull request registered/);
+      assert.match(pullRequest.output, new RegExp(escapeRegExp(`Task ID: ${task.id}`)));
+      assert.match(pullRequest.output, /URL: https:\/\/github.com\/owner\/repo\/pull\/12/);
+      assertNotJson(pullRequest.output);
+
+      const created = await runCli(
+        [
+          "sessions",
+          "create",
+          "--task-id",
+          task.id,
+          "--provider",
+          "codex",
+          "--unclaimed",
+          "--metadata",
+          "reportedCwd=/repo"
+        ],
+        env
+      );
+      assert.equal(created.exitCode, 0);
+      assert.match(created.output, /Task session created/);
+      assert.match(created.output, new RegExp(escapeRegExp(`Task ID: ${task.id}`)));
+      assert.match(created.output, /Provider: codex/);
+      assert.match(created.output, /Claimed: no/);
+      assertNotJson(created.output);
+      const createdSessionId = readOutputValue(created.output, "Session ID");
+
+      const claimed = await runCli(
+        [
+          "sessions",
+          "claim",
+          "--session-id",
+          createdSessionId,
+          "--provider",
+          "codex",
+          "--provider-id",
+          "thread-1",
+          "--metadata-json",
+          "{\"codexThreadIdEnvPresent\":true}"
+        ],
+        env
+      );
+      assert.equal(claimed.exitCode, 0);
+      assert.match(claimed.output, /Task session claimed/);
+      assert.match(claimed.output, new RegExp(escapeRegExp(`Session ID: ${createdSessionId}`)));
+      assert.match(claimed.output, /Provider ID: thread-1/);
+      assert.match(claimed.output, /Claimed: yes/);
+      assertNotJson(claimed.output);
     });
 
     await withRuntime(databasePath, async (runtime) => {
@@ -171,7 +127,7 @@ void test("runCli dispatches default commands locally without fetch", async () =
   });
 });
 
-void test("runCli returns structured API errors for already-claimed sessions", async () => {
+void test("runCli returns plain API errors for already-claimed sessions", async () => {
   await withTemporaryDatabase(async ({ databasePath, env }) => {
     const { session } = await withRuntime(databasePath, async (runtime) => {
       const task = await runtime.services.task.createTask({
@@ -199,17 +155,8 @@ void test("runCli returns structured API errors for already-claimed sessions", a
     );
 
     assert.equal(result.exitCode, 1);
-    assert.deepEqual(JSON.parse(result.output) as unknown, {
-      error: {
-        body: {
-          error: `Task session ${session.id} has already been claimed`
-        },
-        code: "api_error",
-        message: `Task session ${session.id} has already been claimed`,
-        status: 409
-      },
-      ok: false
-    });
+    assert.equal(result.output, `Error: Task session ${session.id} has already been claimed`);
+    assertNotJson(result.output);
   });
 });
 
@@ -273,12 +220,38 @@ async function withThrowingFetch(callback: () => Promise<void>): Promise<void> {
   }
 }
 
-function parseSuccess(result: {
-  readonly exitCode: number;
-  readonly output: string;
-}): unknown {
-  assert.equal(result.exitCode, 0, result.output);
-  const parsed = JSON.parse(result.output) as { readonly data: unknown; readonly ok: boolean };
-  assert.equal(parsed.ok, true);
-  return parsed.data;
+function getExpectedHelpText(): string {
+  return [
+    "Usage: tasker <command>",
+    "",
+    "Commands:",
+    "  runtime          Fetch Tasker API runtime details",
+    "  artifacts register      Register a task artifact",
+    "  pull-requests register  Register a task pull request",
+    "  sessions create  Create a task session",
+    "  sessions claim   Claim an existing task session",
+    "  --help           Show this help",
+    "",
+    "Examples:",
+    "  tasker artifacts register --task-id <taskId> --label implement --uri /tmp/notes.md",
+    "  tasker pull-requests register --task-id <taskId> --url https://github.com/OWNER/REPO/pull/1",
+    "  tasker sessions create --task-id <taskId> --provider codex --unclaimed",
+    "  tasker sessions claim --session-id <sessionId> --provider codex --metadata reportedCwd=$PWD"
+  ].join("\n");
+}
+
+function assertNotJson(value: string): void {
+  assert.throws(() => JSON.parse(value));
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function readOutputValue(output: string, label: string): string {
+  const line = output
+    .split("\n")
+    .find((candidate) => candidate.startsWith(`${label}: `));
+  assert.ok(line, `Missing ${label} in output:\n${output}`);
+  return line.slice(label.length + 2);
 }

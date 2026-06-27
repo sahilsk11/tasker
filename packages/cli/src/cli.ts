@@ -2,6 +2,7 @@ import { BadRequestError, ConflictError, NotFoundError } from "@tasker/api/servi
 import {
   parseClaimSessionInput,
   parseCreateArtifactInput,
+  parseCreateTaskInput,
   parseCreatePullRequestInput,
   parseCreateSessionInput
 } from "@tasker/api/task-commands";
@@ -57,6 +58,14 @@ export async function runCli(
               )
             )
           );
+        case "tasks_create":
+          return success(
+            formatTaskJson(
+              await taskService.createTask(
+                parseCreateTaskInput(createTaskRequest(command))
+              )
+            )
+          );
         case "sessions_create":
           return success(
             formatSession(
@@ -102,6 +111,19 @@ function createPullRequestRequest(
 ): Record<string, unknown> {
   return {
     url: command.url
+  };
+}
+
+function createTaskRequest(
+  command: Extract<ParsedCommand, { readonly kind: "tasks_create" }>
+): Record<string, unknown> {
+  return {
+    ...(command.description !== undefined ? { description: command.description } : {}),
+    ...(command.parentTaskId !== undefined ? { parentTaskId: command.parentTaskId } : {}),
+    title: command.title,
+    ...(command.workingDirectory !== undefined
+      ? { workingDirectory: command.workingDirectory }
+      : {})
   };
 }
 
@@ -225,6 +247,10 @@ function formatPullRequest(value: unknown): string {
   ].join("\n");
 }
 
+function formatTaskJson(value: unknown): string {
+  return JSON.stringify({ task: value });
+}
+
 function formatSession(title: string, value: unknown): string {
   const session = asRecord(value);
 
@@ -283,6 +309,7 @@ function getHelpText(): string {
     "  runtime          Fetch Tasker API runtime details",
     "  artifacts register      Register a task artifact",
     "  pull-requests register  Register a task pull request",
+    "  tasks create     Create a task",
     "  sessions create  Create a task session",
     "  sessions claim   Claim an existing task session",
     "  --help           Show this help",
@@ -290,6 +317,7 @@ function getHelpText(): string {
     "Examples:",
     "  tasker artifacts register --task-id <taskId> --label implement --uri /tmp/notes.md",
     "  tasker pull-requests register --task-id <taskId> --url https://github.com/OWNER/REPO/pull/1",
+    "  tasker tasks create --title \"Build importer\" --working-directory $PWD",
     "  tasker sessions create --task-id <taskId> --provider codex --unclaimed",
     "  tasker sessions claim --session-id <sessionId> --provider codex --metadata reportedCwd=$PWD"
   ].join("\n");

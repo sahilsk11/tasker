@@ -55,6 +55,50 @@ void test("parseArgs parses pull-requests register", () => {
   );
 });
 
+void test("parseArgs parses tasks create", () => {
+  assert.deepEqual(
+    parseArgs([
+      "tasks",
+      "create",
+      "--title",
+      "Root task",
+      "--description",
+      "Task description",
+      "--parent-task-id",
+      "parent-1",
+      "--working-directory",
+      "/repo"
+    ]),
+    {
+      description: "Task description",
+      kind: "tasks_create",
+      parentTaskId: "parent-1",
+      title: "Root task",
+      workingDirectory: "/repo"
+    }
+  );
+});
+
+void test("parseArgs parses tasks create inline nullable flags", () => {
+  assert.deepEqual(
+    parseArgs([
+      "tasks",
+      "create",
+      "--title=Root task",
+      "--description=null",
+      "--parent-task-id=null",
+      "--working-directory=null"
+    ]),
+    {
+      description: null,
+      kind: "tasks_create",
+      parentTaskId: null,
+      title: "Root task",
+      workingDirectory: null
+    }
+  );
+});
+
 void test("parseArgs parses sessions create", () => {
   assert.deepEqual(
     parseArgs([
@@ -147,7 +191,7 @@ void test("parseArgs rejects unknown commands with a parse error", () => {
       error instanceof CliError &&
       error.code === "parse_error" &&
       error.exitCode === 2 &&
-      error.message === "Unknown command: tasks"
+      error.message === "tasks requires a subcommand: create"
   );
 });
 
@@ -222,6 +266,26 @@ void test("parseArgs rejects missing pull-requests register required flags", () 
       error instanceof CliError &&
       error.code === "parse_error" &&
       error.message === "pull-requests register requires --url"
+  );
+});
+
+void test("parseArgs rejects missing tasks create title", () => {
+  assert.throws(
+    () => parseArgs(["tasks", "create", "--description", "Task description"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "tasks create requires --title"
+  );
+});
+
+void test("parseArgs rejects unknown tasks create options", () => {
+  assert.throws(
+    () => parseArgs(["tasks", "create", "--title", "Task title", "--state", "ready"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "Unknown option for tasks create: --state"
   );
 });
 

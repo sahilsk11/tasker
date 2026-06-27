@@ -17,6 +17,13 @@ export type ParsedCommand =
       readonly url: string;
     }
   | {
+      readonly description?: string | null;
+      readonly kind: "tasks_create";
+      readonly parentTaskId?: string | null;
+      readonly title: string;
+      readonly workingDirectory?: string | null;
+    }
+  | {
       readonly actionId?: string | null;
       readonly claimed: boolean;
       readonly kind: "sessions_create";
@@ -66,6 +73,10 @@ export function parseArgs(argv: readonly string[]): ParsedCommand {
 
   if (command === "pull-requests") {
     return parsePullRequestsCommand(remaining);
+  }
+
+  if (command === "tasks") {
+    return parseTasksCommand(remaining);
   }
 
   if (command === "sessions") {
@@ -230,6 +241,87 @@ function parsePullRequestsRegister(args: readonly string[]): ParsedCommand {
     kind: "pull_requests_register",
     taskId,
     url
+  };
+}
+
+function parseTasksCommand(args: readonly string[]): ParsedCommand {
+  const remaining = [...args];
+  const subcommand = remaining.shift();
+
+  if (subcommand === undefined) {
+    throw createParseError("tasks requires a subcommand: create");
+  }
+
+  if (subcommand === "create") {
+    return parseTasksCreate(remaining);
+  }
+
+  throw createParseError(`Unknown tasks subcommand: ${subcommand}`);
+}
+
+function parseTasksCreate(args: readonly string[]): ParsedCommand {
+  let description: string | null | undefined;
+  let parentTaskId: string | null | undefined;
+  let title: string | undefined;
+  let workingDirectory: string | null | undefined;
+
+  const remaining = [...args];
+  while (remaining.length > 0) {
+    const flag = remaining.shift();
+
+    if (flag === "--title") {
+      title = readFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--title=") === true) {
+      title = readInlineFlagValue(flag, "--title");
+      continue;
+    }
+
+    if (flag === "--description") {
+      description = readNullableFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--description=") === true) {
+      description = readNullableInlineFlagValue(flag, "--description");
+      continue;
+    }
+
+    if (flag === "--parent-task-id") {
+      parentTaskId = readNullableFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--parent-task-id=") === true) {
+      parentTaskId = readNullableInlineFlagValue(flag, "--parent-task-id");
+      continue;
+    }
+
+    if (flag === "--working-directory") {
+      workingDirectory = readNullableFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--working-directory=") === true) {
+      workingDirectory = readNullableInlineFlagValue(flag, "--working-directory");
+      continue;
+    }
+
+    throw createParseError(`Unknown option for tasks create: ${flag ?? ""}`);
+  }
+
+  if (title === undefined) {
+    throw createParseError("tasks create requires --title");
+  }
+
+  return {
+    ...(description !== undefined ? { description } : {}),
+    kind: "tasks_create",
+    ...(parentTaskId !== undefined ? { parentTaskId } : {}),
+    title,
+    ...(workingDirectory !== undefined ? { workingDirectory } : {})
   };
 }
 

@@ -1,3 +1,4 @@
+export { parseCreateTaskInput } from "./task.command.js";
 export {
   parseCreateArtifactInput,
   parseCreatePullRequestInput,

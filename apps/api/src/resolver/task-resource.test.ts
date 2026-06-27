@@ -46,10 +46,10 @@ void test("artifact and pull request endpoints infer task state", async () => {
       actionId: "implement",
       claimed: false
     });
-    assert.equal(await getTaskState(app, task.id), "ready");
+    assert.equal(await getTaskState(app, task.id), "implementation");
 
     await claimSession(app, session.id);
-    assert.equal(await getTaskState(app, task.id), "ready");
+    assert.equal(await getTaskState(app, task.id), "implementation");
 
     const research = await createArtifact(app, task.id, {
       label: "research",
@@ -57,13 +57,13 @@ void test("artifact and pull request endpoints infer task state", async () => {
     });
     assert.equal(research.label, "research");
     assert.equal(research.taskId, task.id);
-    assert.equal(await getTaskState(app, task.id), "scoping");
+    assert.equal(await getTaskState(app, task.id), "implementation");
 
     await createArtifact(app, task.id, {
       label: "plan",
       uri: "/tmp/plan.md"
     });
-    assert.equal(await getTaskState(app, task.id), "planning");
+    assert.equal(await getTaskState(app, task.id), "implementation");
 
     const pullRequest = await createPullRequest(app, task.id, {
       url: "https://github.com/sahilsk11/tasker/pull/21"

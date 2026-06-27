@@ -1,9 +1,13 @@
 import type { TaskEvent } from "../domain/task-event.js";
-import type { TaskWorkflowRule } from "../domain/task-workflow-rule.js";
+import type {
+  TaskWorkflowEffect,
+  TaskWorkflowRule
+} from "../domain/task-workflow-rule.js";
 import {
   requireValidTaskWorkflowRules,
   ruleMatchesTaskEvent
 } from "../domain/task-workflow-rule.js";
+import type { TaskActionRepository } from "../repository/task-action.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 
 type TaskStateEventHandler = (event: TaskEvent) => Promise<void>;
@@ -36,12 +40,16 @@ export const defaultTaskStateRules = [
 
 export function createTaskStateEventHandler(
   tasks: TaskRepository,
-  rules: readonly TaskWorkflowRule[] = defaultTaskStateRules
+  rules: readonly TaskWorkflowRule[] = defaultTaskStateRules,
+  actions?: Pick<TaskActionRepository, "listAll">
 ): TaskStateEventHandler {
   requireValidTaskWorkflowRules(rules);
 
   return async (event) => {
-    for (const rule of rules) {
+    const eventRules =
+      actions == null ? rules : [...rules, ...(await listActionEffectRules(actions))];
+
+    for (const rule of eventRules) {
       if (!ruleMatchesTaskEvent(rule, event)) {
         continue;
       }
@@ -51,4 +59,31 @@ export function createTaskStateEventHandler(
       }
     }
   };
+}
+
+async function listActionEffectRules(
+  actions: Pick<TaskActionRepository, "listAll">
+): Promise<readonly TaskWorkflowRule[]> {
+  const records = await actions.listAll();
+  return records.flatMap((action) =>
+    action.effects.map((effect, index) => ({
+      conditions: { actionId: action.id },
+      effect: toWorkflowEffect(effect),
+      id: `action-${action.id}-effect-${String(index)}`,
+      trigger: effect.trigger
+    }))
+  );
+}
+
+function toWorkflowEffect(
+  effect: TaskWorkflowEffect & { readonly trigger: string }
+): TaskWorkflowEffect {
+  switch (effect.type) {
+    case "advance_state":
+      return { state: effect.state, type: effect.type };
+    case "enqueue_next_step":
+      return { stepId: effect.stepId, type: effect.type };
+    case "register_recommendation_signal":
+      return { signal: effect.signal, type: effect.type };
+  }
 }

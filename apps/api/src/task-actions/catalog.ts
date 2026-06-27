@@ -2,11 +2,31 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { taskActionEffectTriggers } from "../domain/task-action.js";
 import { taskActionOptionsSchema } from "../domain/task-action-options.js";
 import { taskStates } from "../domain/task.js";
 
+const taskActionEffectSchema = z.discriminatedUnion("type", [
+  z.object({
+    state: z.enum(taskStates),
+    trigger: z.enum(taskActionEffectTriggers),
+    type: z.literal("advance_state")
+  }),
+  z.object({
+    signal: z.string().min(1),
+    trigger: z.enum(taskActionEffectTriggers),
+    type: z.literal("register_recommendation_signal")
+  }),
+  z.object({
+    stepId: z.string().min(1),
+    trigger: z.enum(taskActionEffectTriggers),
+    type: z.literal("enqueue_next_step")
+  })
+]);
+
 const taskActionCatalogEntrySchema = z.object({
   description: z.string().min(1),
+  effects: z.array(taskActionEffectSchema).default([]),
   enabled: z.boolean().default(true),
   iconName: z.string().min(1).nullable().optional(),
   id: z.string().min(1),

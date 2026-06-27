@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type {
+  ApiTaskActionEffect,
   ApiWorkingPathSettings,
   ApiTaskActionDetails,
   ApiTaskActionOptions,
@@ -77,6 +78,7 @@ import type { LucideIcon } from "lucide-react";
 
 type ActionDraft = {
   readonly description: string;
+  readonly effects: readonly ApiTaskActionEffect[];
   readonly enabled: boolean;
   readonly iconName: string;
   readonly label: string;
@@ -191,6 +193,7 @@ export function SettingsDialog(): React.JSX.Element {
       actionId: selectedAction.id,
       input: {
         description: draft.description,
+        effects: draft.effects,
         enabled: draft.enabled,
         iconName: draft.iconName,
         label: draft.label,
@@ -645,6 +648,11 @@ function ActionEditor({
               stateDefinitions={taskStateDefinitions}
               onDraftChange={onDraftChange}
             />
+            <SessionStateEffectEditor
+              draft={draft}
+              stateDefinitions={taskStateDefinitions}
+              onDraftChange={onDraftChange}
+            />
             <ActionOptionsEditor draft={draft} onDraftChange={onDraftChange} />
             <Field label="Prompt template" id="action-prompt-template">
               <Textarea
@@ -781,6 +789,56 @@ function RecommendationStateEditor({
   );
 }
 
+function SessionStateEffectEditor({
+  draft,
+  onDraftChange,
+  stateDefinitions
+}: {
+  readonly draft: ActionDraft;
+  readonly onDraftChange: (draft: ActionDraft) => void;
+  readonly stateDefinitions: readonly TaskStateDefinition[];
+}): React.JSX.Element {
+  const selectedState = getSessionCreatedAdvanceState(draft.effects);
+
+  function selectState(state: string): void {
+    const effects = draft.effects.filter(
+      (effect) =>
+        !(effect.trigger === "session_created" && effect.type === "advance_state")
+    );
+    onDraftChange({
+      ...draft,
+      effects:
+        state.length === 0
+          ? effects
+          : [
+              ...effects,
+              {
+                state: state as TaskState,
+                trigger: "session_created",
+                type: "advance_state"
+              }
+            ]
+    });
+  }
+
+  return (
+    <Field label="When session starts" id="action-session-created-effect">
+      <NativeSelect
+        id="action-session-created-effect"
+        value={selectedState ?? ""}
+        onChange={(event) => selectState(event.target.value)}
+      >
+        <option value="">No state change</option>
+        {stateDefinitions.map((state) => (
+          <option key={state.value} value={state.value}>
+            Move to {state.label}
+          </option>
+        ))}
+      </NativeSelect>
+    </Field>
+  );
+}
+
 function ActionSettingsCard({
   action,
   onSelect
@@ -834,6 +892,7 @@ function Field({
 function toDraft(action: ApiTaskActionDetails): ActionDraft {
   return {
     description: action.description,
+    effects: action.effects,
     enabled: action.enabled,
     iconName: action.iconName ?? getDefaultIconName(action.id),
     label: action.label,
@@ -842,6 +901,18 @@ function toDraft(action: ApiTaskActionDetails): ActionDraft {
     recommendationStates: action.recommendationStates,
     sortOrder: String(action.sortOrder)
   };
+}
+
+function getSessionCreatedAdvanceState(
+  effects: readonly ApiTaskActionEffect[]
+): TaskState | null {
+  for (const effect of effects) {
+    if (effect.trigger === "session_created" && effect.type === "advance_state") {
+      return effect.state;
+    }
+  }
+
+  return null;
 }
 
 function getDefaultIconName(actionId: string): string {

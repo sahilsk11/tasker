@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { TaskState } from "../domain/task.js";
 import type { TaskEvent } from "../domain/task-event.js";
+import type { TaskWorkflowRule } from "../domain/task-workflow-rule.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 import { createTaskStateEventHandler } from "./task-state-events.js";
 
@@ -46,6 +47,52 @@ void test("task state event handler leaves other artifacts and session events as
   });
 
   assert.deepEqual(updates, []);
+});
+
+void test("task state event handler applies configured session action rules", async () => {
+  const updates: Array<{ readonly taskId: string; readonly state: TaskState }> = [];
+  const rules: readonly TaskWorkflowRule[] = [
+    {
+      conditions: { actionId: "plan" },
+      effect: { state: "planning", type: "advance_state" },
+      id: "plan-session-advances-planning",
+      trigger: "session_created"
+    }
+  ];
+  const handler = createTaskStateEventHandler(
+    createTaskRepositoryStub(updates),
+    rules
+  );
+
+  await handler({
+    type: "session_created",
+    actionId: "implement",
+    sessionId: "session-1",
+    taskId: "task-1"
+  });
+  await handler({
+    type: "session_created",
+    actionId: "plan",
+    sessionId: "session-2",
+    taskId: "task-1"
+  });
+
+  assert.deepEqual(updates, [{ taskId: "task-1", state: "planning" }]);
+});
+
+void test("task state event handler rejects invalid rules on creation", () => {
+  assert.throws(
+    () =>
+      createTaskStateEventHandler(createTaskRepositoryStub([]), [
+        {
+          conditions: { artifactLabel: "plan" },
+          effect: { state: "planning", type: "advance_state" },
+          id: "invalid-artifact-condition",
+          trigger: "session_created"
+        }
+      ]),
+    /Artifact label conditions only apply to artifact_registered rules/
+  );
 });
 
 function artifactEvent(

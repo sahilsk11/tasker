@@ -253,6 +253,13 @@ void test("task action settings can be updated through the catalog endpoint", as
       method: "PATCH",
       payload: {
         description: "Plan the next concrete implementation steps.",
+        effects: [
+          {
+            state: "planning",
+            trigger: "session_created",
+            type: "advance_state"
+          }
+        ],
         enabled: false,
         iconName: "workflow",
         label: "Plan next",
@@ -266,6 +273,7 @@ void test("task action settings can be updated through the catalog endpoint", as
       readonly action: {
         readonly description: string;
         readonly enabled: boolean;
+        readonly effects: ReadonlyArray<{ readonly state: string }>;
         readonly iconName: string;
         readonly label: string;
         readonly recommendationStates: readonly string[];
@@ -274,6 +282,13 @@ void test("task action settings can be updated through the catalog endpoint", as
     };
     assert.equal(updated.action.label, "Plan next");
     assert.equal(updated.action.enabled, false);
+    assert.deepEqual(updated.action.effects, [
+      {
+        state: "planning",
+        trigger: "session_created",
+        type: "advance_state"
+      }
+    ]);
     assert.equal(updated.action.iconName, "workflow");
     assert.deepEqual(updated.action.recommendationStates, ["done"]);
     assert.equal(updated.action.sortOrder, 8);

@@ -87,6 +87,7 @@ function applyUpdate(
   return {
     ...action,
     ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.effects !== undefined ? { effects: [...input.effects] } : {}),
     ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
     ...(input.iconName !== undefined ? { iconName: input.iconName } : {}),
     ...(input.label !== undefined ? { label: input.label } : {}),
@@ -173,6 +174,7 @@ function toTaskActionRecord(
     createdAt: timestamp,
     description: entry.description,
     enabled: entry.enabled,
+    effects: entry.effects,
     iconName: entry.iconName ?? null,
     id: entry.id,
     isRecommended: false,
@@ -212,6 +214,7 @@ export function toTaskActionDetails(record: TaskActionRecord): TaskActionDetails
     createdAt: record.createdAt.toISOString(),
     description: record.description,
     enabled: record.enabled,
+    effects: record.effects,
     iconName: record.iconName,
     id: record.id,
     isRecommended: record.isRecommended,

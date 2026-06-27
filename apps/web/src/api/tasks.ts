@@ -144,6 +144,23 @@ export type ApiTaskActionOptions = Record<
   ApiTaskActionBooleanOption | undefined
 >;
 
+export type ApiTaskActionEffect =
+  | {
+      readonly state: TaskState;
+      readonly trigger: "session_created" | "session_claimed" | "session_completed";
+      readonly type: "advance_state";
+    }
+  | {
+      readonly signal: string;
+      readonly trigger: "session_created" | "session_claimed" | "session_completed";
+      readonly type: "register_recommendation_signal";
+    }
+  | {
+      readonly stepId: string;
+      readonly trigger: "session_created" | "session_claimed" | "session_completed";
+      readonly type: "enqueue_next_step";
+    };
+
 export type ApiTaskAction = {
   readonly description: string;
   readonly iconName: string | null;
@@ -156,6 +173,7 @@ export type ApiTaskAction = {
 export type ApiTaskActionDetails = ApiTaskAction & {
   readonly createdAt: string;
   readonly enabled: boolean;
+  readonly effects: readonly ApiTaskActionEffect[];
   readonly promptTemplate: string;
   readonly recommendationStates: readonly TaskState[];
   readonly sortOrder: number;
@@ -165,6 +183,7 @@ export type ApiTaskActionDetails = ApiTaskAction & {
 export type UpdateTaskActionInput = {
   readonly description?: string;
   readonly enabled?: boolean;
+  readonly effects?: readonly ApiTaskActionEffect[];
   readonly iconName?: string | null;
   readonly label?: string;
   readonly options?: ApiTaskActionOptions | null;

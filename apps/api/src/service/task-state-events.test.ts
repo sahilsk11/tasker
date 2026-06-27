@@ -3,6 +3,7 @@ import test from "node:test";
 import type { TaskState } from "../domain/task.js";
 import type { TaskEvent } from "../domain/task-event.js";
 import type { TaskWorkflowRule } from "../domain/task-workflow-rule.js";
+import type { TaskActionRepository } from "../repository/task-action.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 import { createTaskStateEventHandler } from "./task-state-events.js";
 
@@ -80,6 +81,30 @@ void test("task state event handler applies configured session action rules", as
   assert.deepEqual(updates, [{ taskId: "task-1", state: "planning" }]);
 });
 
+void test("task state event handler applies action catalog effects", async () => {
+  const updates: Array<{ readonly taskId: string; readonly state: TaskState }> = [];
+  const handler = createTaskStateEventHandler(
+    createTaskRepositoryStub(updates),
+    [],
+    createTaskActionRepositoryStub()
+  );
+
+  await handler({
+    type: "session_created",
+    actionId: "implement",
+    sessionId: "session-1",
+    taskId: "task-1"
+  });
+  await handler({
+    type: "session_created",
+    actionId: "plan",
+    sessionId: "session-2",
+    taskId: "task-1"
+  });
+
+  assert.deepEqual(updates, [{ taskId: "task-1", state: "implementation" }]);
+});
+
 void test("task state event handler rejects invalid rules on creation", () => {
   assert.throws(
     () =>
@@ -105,6 +130,35 @@ function artifactEvent(
     label,
     taskId: "task-1",
     uri: `/tmp/${label}.md`
+  };
+}
+
+function createTaskActionRepositoryStub(): Pick<TaskActionRepository, "listAll"> {
+  return {
+    listAll: () =>
+      Promise.resolve([
+        {
+          createdAt: new Date(0),
+          description: "Implement the task.",
+          effects: [
+            {
+              state: "implementation",
+              trigger: "session_created",
+              type: "advance_state"
+            }
+          ],
+          enabled: true,
+          iconName: "code-2",
+          id: "implement",
+          isRecommended: false,
+          label: "Implement",
+          options: null,
+          promptTemplate: "# Implement",
+          recommendationStates: [],
+          sortOrder: 1,
+          updatedAt: new Date(0)
+        }
+      ])
   };
 }
 

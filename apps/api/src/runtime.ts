@@ -134,7 +134,11 @@ export function createTaskerRuntime(
     workingPath: new SqliteWorkingPathRepository(db)
   };
   const taskEvents = new TaskEventBus();
-  const taskStateEventHandler = createTaskStateEventHandler(repositories.task);
+  const taskStateEventHandler = createTaskStateEventHandler(
+    repositories.task,
+    undefined,
+    repositories.taskAction
+  );
   taskEvents.subscribe("artifact_registered", taskStateEventHandler);
   taskEvents.subscribe("pull_request_registered", taskStateEventHandler);
   taskEvents.subscribe("session_claimed", taskStateEventHandler);

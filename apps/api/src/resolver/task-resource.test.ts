@@ -31,7 +31,7 @@ void test("task state options are exposed in canonical order", async () => {
   }
 });
 
-void test("artifact and pull request endpoints infer task state", async () => {
+void test("artifact and pull request endpoints advance task state from resource events", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-resource-state-"));
   const app = await createApp({
     databasePath: join(dir, "tasker.sqlite"),
@@ -39,7 +39,7 @@ void test("artifact and pull request endpoints infer task state", async () => {
   });
 
   try {
-    const task = await createTask(app, "State inference");
+    const task = await createTask(app, "Resource event state advancement");
     assert.equal(task.state, "ready");
 
     const session = await createSession(app, task.id, {

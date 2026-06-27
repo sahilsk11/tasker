@@ -14,6 +14,12 @@ export type {
   TaskSessionId
 } from "./task-session.js";
 export type { CreateTaskTicketInput, TaskTicket, TaskTicketId } from "./task-ticket.js";
+export type {
+  TaskWorkflowEffect,
+  TaskWorkflowRule,
+  TaskWorkflowRuleConditions,
+  TaskWorkflowRuleTrigger
+} from "./task-workflow-rule.js";
 export type { CreateTaskInput, Task, TaskId, TaskState, UpdateTaskInput } from "./task.js";
 export type {
   UpdateWorkingPathSettingsInput,

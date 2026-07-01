@@ -105,6 +105,57 @@ void test("runCli dispatches default commands locally without fetch", async () =
       assert.equal(childTaskOutput.task.parentTaskId, rootTaskOutput.task.id);
       assert.equal(childTaskOutput.task.workingDirectory, null);
 
+      const rootList = await runCli(["task", "list"], env);
+      assert.equal(rootList.exitCode, 0);
+      assert.match(rootList.output, /^Tasks\n/);
+      assert.match(
+        rootList.output,
+        new RegExp(
+          escapeRegExp(`${rootTaskOutput.task.id} [ready] CLI root task`)
+        )
+      );
+      assert.match(
+        rootList.output,
+        new RegExp(`${escapeRegExp(task.id)} \\[[^\\]]+\\] Task title`)
+      );
+      assertNotJson(rootList.output);
+
+      const childList = await runCli(
+        ["tasks", "list", "--parent-task-id", rootTaskOutput.task.id],
+        env
+      );
+      assert.equal(childList.exitCode, 0);
+      assert.equal(
+        childList.output,
+        [
+          "Tasks",
+          `${childTaskOutput.task.id} [ready] CLI child task`
+        ].join("\n")
+      );
+      assertNotJson(childList.output);
+
+      const emptyChildList = await runCli(
+        ["task", "list", "--parent-task-id", childTaskOutput.task.id],
+        env
+      );
+      assert.deepEqual(emptyChildList, {
+        exitCode: 0,
+        output: "No tasks found"
+      });
+
+      const taskDetails = await runCli(["task", "get", rootTaskOutput.task.id], env);
+      assert.equal(taskDetails.exitCode, 0);
+      assert.match(taskDetails.output, /^Task\n/);
+      assert.match(
+        taskDetails.output,
+        new RegExp(escapeRegExp(`ID: ${rootTaskOutput.task.id}`))
+      );
+      assert.match(taskDetails.output, /Title: CLI root task/);
+      assert.match(taskDetails.output, /State: ready/);
+      assert.match(taskDetails.output, /Description:\n-/);
+      assert.match(taskDetails.output, /Waiting dependencies:\n-/);
+      assertNotJson(taskDetails.output);
+
       const workingDirectoryTask = await runCli(
         [
           "tasks",
@@ -323,6 +374,8 @@ function getExpectedHelpText(): string {
     "  artifacts register      Register a task artifact",
     "  pull-requests register  Register a task pull request",
     "  tasks create     Create a task",
+    "  task list        List root tasks",
+    "  task get         Show task details",
     "  sessions create  Create a task session",
     "  sessions claim   Claim an existing task session",
     "  --help           Show this help",
@@ -331,6 +384,8 @@ function getExpectedHelpText(): string {
     "  tasker artifacts register --task-id <taskId> --label implement --uri /tmp/notes.md",
     "  tasker pull-requests register --task-id <taskId> --url https://github.com/OWNER/REPO/pull/1",
     "  tasker tasks create --title \"Build importer\" --working-directory $PWD",
+    "  tasker task list",
+    "  tasker task get <taskId>",
     "  tasker sessions create --task-id <taskId> --provider codex --unclaimed",
     "  tasker sessions claim --session-id <sessionId> --provider codex --metadata reportedCwd=$PWD"
   ].join("\n");

@@ -24,6 +24,14 @@ export type ParsedCommand =
       readonly workingDirectory?: string | null;
     }
   | {
+      readonly kind: "tasks_get";
+      readonly taskId: string;
+    }
+  | {
+      readonly kind: "tasks_list";
+      readonly parentTaskId: string | null;
+    }
+  | {
       readonly actionId?: string | null;
       readonly claimed: boolean;
       readonly kind: "sessions_create";
@@ -75,7 +83,7 @@ export function parseArgs(argv: readonly string[]): ParsedCommand {
     return parsePullRequestsCommand(remaining);
   }
 
-  if (command === "tasks") {
+  if (command === "task" || command === "tasks") {
     return parseTasksCommand(remaining);
   }
 
@@ -249,11 +257,19 @@ function parseTasksCommand(args: readonly string[]): ParsedCommand {
   const subcommand = remaining.shift();
 
   if (subcommand === undefined) {
-    throw createParseError("tasks requires a subcommand: create");
+    throw createParseError("tasks requires a subcommand: create, get, or list");
   }
 
   if (subcommand === "create") {
     return parseTasksCreate(remaining);
+  }
+
+  if (subcommand === "get") {
+    return parseTasksGet(remaining);
+  }
+
+  if (subcommand === "list") {
+    return parseTasksList(remaining);
   }
 
   throw createParseError(`Unknown tasks subcommand: ${subcommand}`);
@@ -322,6 +338,70 @@ function parseTasksCreate(args: readonly string[]): ParsedCommand {
     ...(parentTaskId !== undefined ? { parentTaskId } : {}),
     title,
     ...(workingDirectory !== undefined ? { workingDirectory } : {})
+  };
+}
+
+function parseTasksGet(args: readonly string[]): ParsedCommand {
+  let taskId: string | undefined;
+
+  const remaining = [...args];
+  while (remaining.length > 0) {
+    const arg = remaining.shift();
+
+    if (arg === "--task-id") {
+      taskId = readFlagValue(remaining, arg);
+      continue;
+    }
+
+    if (arg?.startsWith("--task-id=") === true) {
+      taskId = readInlineFlagValue(arg, "--task-id");
+      continue;
+    }
+
+    if (arg?.startsWith("-") === true) {
+      throw createParseError(`Unknown option for tasks get: ${arg}`);
+    }
+
+    if (taskId !== undefined) {
+      throw createParseError(`Unexpected argument for tasks get: ${arg ?? ""}`);
+    }
+
+    taskId = arg;
+  }
+
+  if (taskId === undefined) {
+    throw createParseError("tasks get requires a task id");
+  }
+
+  return {
+    kind: "tasks_get",
+    taskId
+  };
+}
+
+function parseTasksList(args: readonly string[]): ParsedCommand {
+  let parentTaskId: string | null = null;
+
+  const remaining = [...args];
+  while (remaining.length > 0) {
+    const flag = remaining.shift();
+
+    if (flag === "--parent-task-id") {
+      parentTaskId = readNullableFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--parent-task-id=") === true) {
+      parentTaskId = readNullableInlineFlagValue(flag, "--parent-task-id");
+      continue;
+    }
+
+    throw createParseError(`Unknown option for tasks list: ${flag ?? ""}`);
+  }
+
+  return {
+    kind: "tasks_list",
+    parentTaskId
   };
 }
 

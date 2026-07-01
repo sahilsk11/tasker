@@ -66,6 +66,14 @@ export async function runCli(
               )
             )
           );
+        case "tasks_get":
+          return success(formatTask(await taskService.getTask(command.taskId)));
+        case "tasks_list":
+          return success(
+            formatTaskList(
+              await taskService.listTasks({ parentTaskId: command.parentTaskId })
+            )
+          );
         case "sessions_create":
           return success(
             formatSession(
@@ -251,6 +259,51 @@ function formatTaskJson(value: unknown): string {
   return JSON.stringify({ task: value });
 }
 
+function formatTask(value: unknown): string {
+  const task = asRecord(value);
+  const waitingDependencies = asRecordArray(task["waitingDependencies"]);
+  const lines = [
+    "Task",
+    `ID: ${formatValue(task["id"])}`,
+    `Title: ${formatValue(task["title"])}`,
+    `State: ${formatValue(task["state"])}`,
+    `Parent task ID: ${formatNullableValue(task["parentTaskId"])}`,
+    `Working directory: ${formatNullableValue(task["workingDirectory"])}`,
+    `Created: ${formatDateValue(task["createdAt"])}`,
+    `Updated: ${formatDateValue(task["updatedAt"])}`,
+    "Description:",
+    formatDescription(task["description"]),
+    "Waiting dependencies:"
+  ];
+
+  if (waitingDependencies.length === 0) {
+    return [...lines, "-"].join("\n");
+  }
+
+  return [
+    ...lines,
+    ...waitingDependencies.map(
+      (dependency) =>
+        `- ${formatValue(dependency["id"])} [${formatValue(dependency["state"])}] ${formatValue(dependency["title"])}`
+    )
+  ].join("\n");
+}
+
+function formatTaskList(values: unknown): string {
+  const tasks = Array.isArray(values) ? values.map(asRecord) : [];
+  if (tasks.length === 0) {
+    return "No tasks found";
+  }
+
+  return [
+    "Tasks",
+    ...tasks.map(
+      (task) =>
+        `${formatValue(task["id"])} [${formatValue(task["state"])}] ${formatValue(task["title"])}`
+    )
+  ].join("\n");
+}
+
 function formatSession(title: string, value: unknown): string {
   const session = asRecord(value);
 
@@ -283,6 +336,14 @@ function formatNullableValue(value: unknown): string {
   return value == null || value === "" ? "-" : formatValue(value);
 }
 
+function formatDateValue(value: unknown): string {
+  return value instanceof Date ? value.toISOString() : formatValue(value);
+}
+
+function formatDescription(value: unknown): string {
+  return typeof value === "string" && value.length > 0 ? value : "-";
+}
+
 function formatValue(value: unknown): string {
   if (typeof value === "string") {
     return value;
@@ -301,6 +362,10 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function asRecordArray(value: unknown): ReadonlyArray<Record<string, unknown>> {
+  return Array.isArray(value) ? value.map(asRecord) : [];
+}
+
 function getHelpText(): string {
   return [
     "Usage: tasker <command>",
@@ -310,6 +375,8 @@ function getHelpText(): string {
     "  artifacts register      Register a task artifact",
     "  pull-requests register  Register a task pull request",
     "  tasks create     Create a task",
+    "  task list        List root tasks",
+    "  task get         Show task details",
     "  sessions create  Create a task session",
     "  sessions claim   Claim an existing task session",
     "  --help           Show this help",
@@ -318,6 +385,8 @@ function getHelpText(): string {
     "  tasker artifacts register --task-id <taskId> --label implement --uri /tmp/notes.md",
     "  tasker pull-requests register --task-id <taskId> --url https://github.com/OWNER/REPO/pull/1",
     "  tasker tasks create --title \"Build importer\" --working-directory $PWD",
+    "  tasker task list",
+    "  tasker task get <taskId>",
     "  tasker sessions create --task-id <taskId> --provider codex --unclaimed",
     "  tasker sessions claim --session-id <sessionId> --provider codex --metadata reportedCwd=$PWD"
   ].join("\n");

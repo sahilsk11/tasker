@@ -99,6 +99,35 @@ void test("parseArgs parses tasks create inline nullable flags", () => {
   );
 });
 
+void test("parseArgs parses tasks get by positional id or flag", () => {
+  assert.deepEqual(parseArgs(["tasks", "get", "task-1"]), {
+    kind: "tasks_get",
+    taskId: "task-1"
+  });
+
+  assert.deepEqual(parseArgs(["task", "get", "--task-id=task-2"]), {
+    kind: "tasks_get",
+    taskId: "task-2"
+  });
+});
+
+void test("parseArgs parses tasks list with optional parent task id", () => {
+  assert.deepEqual(parseArgs(["tasks", "list"]), {
+    kind: "tasks_list",
+    parentTaskId: null
+  });
+
+  assert.deepEqual(parseArgs(["task", "list", "--parent-task-id", "parent-1"]), {
+    kind: "tasks_list",
+    parentTaskId: "parent-1"
+  });
+
+  assert.deepEqual(parseArgs(["task", "list", "--parent-task-id=null"]), {
+    kind: "tasks_list",
+    parentTaskId: null
+  });
+});
+
 void test("parseArgs parses sessions create", () => {
   assert.deepEqual(
     parseArgs([
@@ -191,7 +220,7 @@ void test("parseArgs rejects unknown commands with a parse error", () => {
       error instanceof CliError &&
       error.code === "parse_error" &&
       error.exitCode === 2 &&
-      error.message === "tasks requires a subcommand: create"
+      error.message === "tasks requires a subcommand: create, get, or list"
   );
 });
 
@@ -286,6 +315,42 @@ void test("parseArgs rejects unknown tasks create options", () => {
       error instanceof CliError &&
       error.code === "parse_error" &&
       error.message === "Unknown option for tasks create: --state"
+  );
+});
+
+void test("parseArgs rejects invalid tasks get input", () => {
+  assert.throws(
+    () => parseArgs(["tasks", "get"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "tasks get requires a task id"
+  );
+
+  assert.throws(
+    () => parseArgs(["tasks", "get", "task-1", "task-2"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "Unexpected argument for tasks get: task-2"
+  );
+
+  assert.throws(
+    () => parseArgs(["tasks", "get", "--json"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "Unknown option for tasks get: --json"
+  );
+});
+
+void test("parseArgs rejects unknown tasks list options", () => {
+  assert.throws(
+    () => parseArgs(["tasks", "list", "--state", "ready"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "Unknown option for tasks list: --state"
   );
 });
 

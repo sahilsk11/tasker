@@ -11,7 +11,7 @@ on:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -43,3 +43,49 @@ jobs:
 
       - name: Smoke test migrations
         run: pnpm smoke:migrations
+
+  deploy:
+    name: Deploy to Cloudflare
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build hosted app
+        env:
+          VITE_TASKER_HOSTED: "true"
+        run: |
+          pnpm --filter @tasker/core build
+          pnpm --filter @tasker/web build
+
+      - name: Apply D1 migrations and deploy
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_GH_DEPLOY_TASKER }}
+          # Terraform output tasker_d1_id from sahilsk11/cloudflare.
+          TASKER_DATABASE_ID: "1e646c7c-1934-44f6-aabb-7bb1de469810"
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Set the CF_GH_DEPLOY_TASKER Actions secret before deploying."
+            exit 1
+          fi
+          sed "s/00000000-0000-0000-0000-000000000000/$TASKER_DATABASE_ID/g" wrangler.toml > wrangler.deploy.toml
+          pnpm exec wrangler d1 migrations apply DB --remote --config wrangler.deploy.toml
+          pnpm exec wrangler deploy --config wrangler.deploy.toml

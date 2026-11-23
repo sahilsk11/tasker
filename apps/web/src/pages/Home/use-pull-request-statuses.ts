@@ -4,6 +4,7 @@ import {
   type PullRequestStatusResult
 } from "@/api/pull-requests";
 import type { TaskBundle } from "@/api/tasks";
+import { hostedTasker } from "@/lib/env";
 import { getPullRequestsForBundle } from "./task-resource-groups";
 
 export type PullRequestStatusMap = ReadonlyMap<string, PullRequestStatusResult>;
@@ -13,7 +14,7 @@ export function usePullRequestStatuses(
 ): PullRequestStatusMap {
   const urls = getPullRequestUrls(bundles);
   const statusesQuery = useQuery({
-    enabled: urls.length > 0,
+    enabled: !hostedTasker && urls.length > 0,
     queryFn: () => listPullRequestStatuses(urls),
     queryKey: ["pull-request-statuses", urls]
   });

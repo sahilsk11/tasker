@@ -20,6 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { hostedTasker } from "@/lib/env";
 import { TicketFields } from "./NewTaskTicketFields";
 import {
   getLinearProjectOptions,
@@ -67,7 +68,7 @@ export function NewTaskDialog({
     queryKey: ["linear-options"]
   });
   const workingPathsQuery = useQuery({
-    enabled: open,
+    enabled: open && !hostedTasker,
     ...workingPathsQueryOptions
   });
   const linearOptions = linearOptionsQuery.data ?? null;
@@ -258,9 +259,7 @@ export function NewTaskDialog({
         <DialogHeader>
           <DialogTitle>{isSubtask ? "Create subtask" : "New task"}</DialogTitle>
           <DialogDescription>
-            {isSubtask
-              ? "Create a task nested under the current task, optionally linked to Linear."
-              : "Create a task, optionally linked to Linear."}
+            {isSubtask ? "Add a task under the current task." : "Add a task to Tasker."}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -281,26 +280,28 @@ export function NewTaskDialog({
                 </p>
               </div>
             ) : null}
-            <div className="grid gap-2">
-              <Label htmlFor="task-ticket" className="flex items-center gap-1.5">
-                Optional Linear ticket
-                <span className="inline-flex size-4 items-center justify-center">
-                  {resolvedTicket != null ? (
-                    <Check className="size-4 text-emerald-500" />
-                  ) : null}
-                </span>
-              </Label>
-              <Input
-                id="task-ticket"
-                value={ticket}
-                onChange={(event) => setTicket(event.target.value)}
-                placeholder="SAS-32 or https://linear.app/..."
-                autoFocus
-              />
-              {ticketError != null ? (
-                <p className="text-sm text-destructive">{ticketError}</p>
-              ) : null}
-            </div>
+            {hostedTasker ? null : (
+              <div className="grid gap-2">
+                <Label htmlFor="task-ticket" className="flex items-center gap-1.5">
+                  Optional Linear ticket
+                  <span className="inline-flex size-4 items-center justify-center">
+                    {resolvedTicket != null ? (
+                      <Check className="size-4 text-emerald-500" />
+                    ) : null}
+                  </span>
+                </Label>
+                <Input
+                  id="task-ticket"
+                  value={ticket}
+                  onChange={(event) => setTicket(event.target.value)}
+                  placeholder="SAS-32 or https://linear.app/..."
+                  autoFocus
+                />
+                {ticketError != null ? (
+                  <p className="text-sm text-destructive">{ticketError}</p>
+                ) : null}
+              </div>
+            )}
             <div className="grid gap-2">
               <Label htmlFor="task-title">Name</Label>
               <Input
@@ -308,6 +309,7 @@ export function NewTaskDialog({
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="Add cursor support"
+                autoFocus={hostedTasker}
               />
             </div>
             <div className="grid gap-2">
@@ -333,22 +335,24 @@ export function NewTaskDialog({
                 </p>
               ) : null}
             </div>
-            <label
-              className={
-                hasExistingTicket
-                  ? "flex items-center gap-2 text-sm font-medium text-muted-foreground"
-                  : "flex items-center gap-2 text-sm font-medium"
-              }
-            >
-              <input
-                type="checkbox"
-                className="size-4 accent-primary disabled:cursor-not-allowed disabled:opacity-50"
-                checked={createTicket}
-                disabled={hasExistingTicket}
-                onChange={(event) => setCreateTicket(event.target.checked)}
-              />
-              Create Linear ticket
-            </label>
+            {hostedTasker ? null : (
+              <label
+                className={
+                  hasExistingTicket
+                    ? "flex items-center gap-2 text-sm font-medium text-muted-foreground"
+                    : "flex items-center gap-2 text-sm font-medium"
+                }
+              >
+                <input
+                  type="checkbox"
+                  className="size-4 accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  checked={createTicket}
+                  disabled={hasExistingTicket}
+                  onChange={(event) => setCreateTicket(event.target.checked)}
+                />
+                Create Linear ticket
+              </label>
+            )}
             {createTicket ? (
               <TicketFields
                 errorMessage={

@@ -12,3 +12,6 @@ coverage/
 *.tsbuildinfo
 *.sqlite
 *.sqlite-*
+
+.wrangler/
+wrangler.deploy.toml

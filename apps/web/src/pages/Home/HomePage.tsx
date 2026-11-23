@@ -7,6 +7,7 @@ import {
   listTaskStates,
   type TaskState
 } from "@/api/tasks";
+import { hostedTasker } from "@/lib/env";
 import { NewTaskDialog } from "./NewTaskDialog";
 import { SettingsDialog } from "./SettingsDialog";
 import { TaskGrid, TaskGridSkeleton } from "./TaskGrid";
@@ -125,7 +126,7 @@ export function HomePage(): React.JSX.Element {
               parentTaskId={parentTaskId}
               parentTaskTitle={parentTaskQuery.data?.title ?? null}
             />
-            <SettingsDialog />
+            {hostedTasker ? null : <SettingsDialog />}
           </div>
         </header>
 

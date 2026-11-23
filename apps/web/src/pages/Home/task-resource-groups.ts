@@ -136,7 +136,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
         formatActivityTime(session.claimedAt ?? session.createdAt),
         session.claimedAt ?? session.createdAt,
         {
-          href: session.sourceUrl,
+          href: getSessionHref(session.sourceUrl),
           id: session.id,
           taskId: session.taskId
         }
@@ -160,6 +160,21 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
       )
     )
   ];
+}
+
+function getSessionHref(sourceUrl: string | null): string | null {
+  const prefix = "t3-thread://v2/";
+  if (sourceUrl == null || !sourceUrl.startsWith(prefix)) {
+    return sourceUrl;
+  }
+
+  // The t3-thread scheme is an internal T3 chat link. The hosted thread URL
+  // lets a regular browser hand off to the desktop or mobile T3 app.
+  const address = sourceUrl.slice(prefix.length);
+  const split = address.indexOf("/");
+  const environmentId = address.slice(0, split);
+  const threadId = address.slice(split + 1);
+  return `https://app.t3.codes/threads/${encodeURIComponent(environmentId)}/${encodeURIComponent(threadId)}`;
 }
 
 function formatMachineName(name: string | null): string {

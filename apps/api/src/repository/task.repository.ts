@@ -162,7 +162,7 @@ export class SqliteTaskRepository implements TaskRepository {
       return [];
     }
 
-    const rows = await this.db
+    const query = this.db
       .selectFrom("task_dependencies")
       .innerJoin(
         "tasks as dependency",
@@ -175,10 +175,18 @@ export class SqliteTaskRepository implements TaskRepository {
         "dependency.state as state",
         "dependency.title as title"
       ])
-      .where("task_dependencies.task_id", "in", taskIds)
       .where("dependency.state", "!=", "done")
-      .orderBy("dependency.created_at", "asc")
-      .execute();
+      .orderBy("dependency.created_at", "asc");
+
+    // D1 allows 100 bindings per statement. Leave room for the state filter.
+    const batchSize = 99;
+    const batches = [];
+    for (let offset = 0; offset < taskIds.length; offset += batchSize) {
+      batches.push(await query
+        .where("task_dependencies.task_id", "in", taskIds.slice(offset, offset + batchSize))
+        .execute());
+    }
+    const rows = batches.flat();
 
     const dependenciesByTaskId = new Map<TaskId, TaskDependencySummary[]>();
     rows.forEach((row) => {

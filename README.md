@@ -7,7 +7,7 @@ TypeScript frontend/backend for creating and viewing coding-agent tasks with per
 - Node 24 LTS for backend and worker runtime.
 - pnpm workspaces for the monorepo.
 - Vite + React for the frontend.
-- Hono for the API.
+- Fastify for the local API and Hono for the hosted API.
 - Strict TypeScript and ESLint across all packages.
 
 ## Commands
@@ -86,22 +86,47 @@ macOS: ~/Library/Application Support/Tasker
 Linux: ~/.local/share/tasker
 ```
 
+## Hosted Tasker
+
+[tasker.ultron.sh](https://tasker.ultron.sh) serves the existing web app and a
+subset of the API from a Cloudflare Worker. D1 stores tasks, subtasks, and
+session references. The hosted build disables Linear, agent actions, and
+local file operations. Working directories and transcript paths are stored as
+references to paths on the originating machine.
+
+Cloudflare Terraform provisions the Worker and D1 database. The
+`deploy-tasker` workflow in `sahilsk11/cloudflare` reads the D1 binding ID,
+builds Tasker from `main`, applies D1 migrations, and deploys the Worker.
+The D1 baseline reflects the Node schema through migration 000016. Existing
+Node databases can be copied into D1 separately.
+
+### Register a session from an agent
+
+Send both `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers using
+the Ultron Access service token. Tasker uses Cloudflare Access for API auth.
+
+1. Create a task with `POST /api/tasks` and a JSON body containing `title`
+   and an optional `description`.
+2. Send `POST /api/tasks/<task-id>/sessions` with a `provider`, an optional
+   `providerId`, and optional `metadata`. Use the provider and its session ID
+   to associate a trace with the task. For example:
+
+   ```json
+   {
+     "provider": "t3",
+     "providerId": "your-thread-id",
+     "metadata": { "url": "your-thread-link", "summary": "What we decided" }
+   }
+   ```
+
+The linked session appears in Tasker's Sessions list. Use
+`GET /api/tasks/<task-id>/sessions` to read back the metadata.
+
 ## SAS deploy
 
-Pushes to `main` trigger `.github/workflows/sas-redeploy.yml`. The workflow
-posts a signed GitHub-style `push` event to the SAS webhook route:
-
-```text
-https://webhooks-sahil.ultron.sh/github-tasker
-```
-
-SAS maps that route to `sahilsk11/tasker` on `main` and submits the `tasker`
-deploy tag. The SAS role then pulls the latest Tasker checkout, rebuilds the
-workspace, and restarts each `tasker-<user>.service` instance when code or build
-artifacts changed.
-
-The repository secret `SAS_DEPLOY_WEBHOOK_SECRET` must match the SAS-side
-`WEBHOOK_GITHUB_TASKER_SECRET` value.
+The legacy Node deployment uses `.github/workflows/sas-deploy.yml` to
+dispatch the `tasker` deployment in `sahilsk11/sas`. The hosted Worker is
+deployed independently of SAS.
 
 ## Layout
 

@@ -1,6 +1,7 @@
 type ViteEnv = {
   readonly VITE_API_BASE_URL?: string;
   readonly VITE_LOCAL_API_BASE_URL?: string;
+  readonly VITE_TASKER_HOSTED?: string;
 };
 
 const viteEnv = import.meta.env as unknown as ViteEnv;
@@ -14,3 +15,5 @@ export const localApiBaseUrl =
   trimmedLocalApiBaseUrl.length > 0
     ? trimmedLocalApiBaseUrl
     : "http://127.0.0.1:3000";
+
+export const hostedTasker = viteEnv.VITE_TASKER_HOSTED === "true";

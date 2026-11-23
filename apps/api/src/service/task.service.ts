@@ -116,7 +116,8 @@ export class TaskService {
     private readonly publicApiBaseUrl: string,
     private readonly events: TaskEventBus,
     private readonly sessionProviders = new TaskSessionProviderRegistry(),
-    private readonly artifactStorage = new ArtifactStorageService()
+    private readonly artifactStorage = new ArtifactStorageService(),
+    private readonly normalizeWorkingDirectory = normalizeOptionalDirectoryPath
   ) {}
 
   public async addArtifact(
@@ -307,7 +308,7 @@ export class TaskService {
         ...input,
         ...(input.workingDirectory !== undefined
           ? {
-              workingDirectory: await normalizeOptionalDirectoryPath(
+              workingDirectory: await this.normalizeWorkingDirectory(
                 input.workingDirectory,
                 "Working directory"
               )
@@ -526,7 +527,7 @@ export class TaskService {
       ...input,
       ...(input.workingDirectory !== undefined
         ? {
-            workingDirectory: await normalizeOptionalDirectoryPath(
+            workingDirectory: await this.normalizeWorkingDirectory(
               input.workingDirectory,
               "Working directory"
             )

@@ -16,6 +16,7 @@ import {
   restoreTaskArtifact,
   updateTask
 } from "@/api/tasks";
+import { hostedTasker } from "@/lib/env";
 import type {
   ApiSession,
   ApiTaskAction,
@@ -369,7 +370,10 @@ function TaskCard({
 
   return (
     <>
-      <Card className="grid h-full overflow-hidden rounded-[14px] border-[#1f2025] transition-colors hover:border-[#2c2d34] hover:bg-card lg:grid-cols-[minmax(0,1fr)_9.875rem]">
+      <Card className={cn(
+          "grid h-full overflow-hidden rounded-[14px] border-[#1f2025] transition-colors hover:border-[#2c2d34] hover:bg-card",
+          !hostedTasker && "lg:grid-cols-[minmax(0,1fr)_9.875rem]"
+        )}>
         <section className="flex min-w-0 flex-col p-4 md:min-h-48">
           <div className="flex min-w-0 items-center justify-between gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -419,16 +423,18 @@ function TaskCard({
           />
         </section>
 
-        <aside className="flex min-w-0 flex-col justify-center border-t border-[#1c1d22] bg-[#0f1013] p-[15px_14px] lg:border-l lg:border-t-0">
-          <TaskActionRow
-            actions={bundle.actions}
-            isPreparingPrompt={isCreatingPrompt}
-            layout="rail"
-            onSelectAction={selectAction}
-            onViewAll={openAllActions}
-            preparingActionId={preparingActionId}
-          />
-        </aside>
+        {hostedTasker ? null : (
+          <aside className="flex min-w-0 flex-col justify-center border-t border-[#1c1d22] bg-[#0f1013] p-[15px_14px] lg:border-l lg:border-t-0">
+            <TaskActionRow
+              actions={bundle.actions}
+              isPreparingPrompt={isCreatingPrompt}
+              layout="rail"
+              onSelectAction={selectAction}
+              onViewAll={openAllActions}
+              preparingActionId={preparingActionId}
+            />
+          </aside>
+        )}
       </Card>
 
       <TaskActionsDialog

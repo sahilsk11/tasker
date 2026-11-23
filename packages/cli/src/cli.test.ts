@@ -151,7 +151,7 @@ void test("runCli dispatches default commands locally without fetch", async () =
       );
       assert.match(taskDetails.output, /Title: CLI root task/);
       assert.match(taskDetails.output, /Description:\n-/);
-      assert.match(taskDetails.output, /Waiting dependencies:\n-/);
+      assert.match(taskDetails.output, /Dependencies:\n-/);
       assertNotJson(taskDetails.output);
 
       const workingDirectoryTask = await runCli(

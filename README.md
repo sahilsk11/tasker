@@ -130,12 +130,6 @@ deep link copied from the source app. Read back the saved session with
 `GET /api/tasks/<task-id>/sessions`. To update its title or provenance,
 send those fields to `PATCH /api/tasks/<task-id>/sessions/<session-id>`.
 
-## SAS deploy
-
-The legacy Node deployment uses `.github/workflows/sas-deploy.yml` to
-dispatch the `tasker` deployment in `sahilsk11/sas`. The hosted Worker is
-deployed independently of SAS.
-
 ## Layout
 
 ```text

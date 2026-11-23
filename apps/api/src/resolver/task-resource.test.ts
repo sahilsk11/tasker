@@ -271,8 +271,8 @@ void test("task resources aggregate and dedupe explicit resource types", async (
     assert.equal(duplicatePullRequest.id, firstPullRequest.id);
 
     const ticketPayload = {
-      externalId: "SAS-58",
-      url: "https://tracker.example.com/issue/SAS-58"
+      externalId: "WORK-58",
+      url: "https://tracker.example.com/issue/WORK-58"
     };
     const firstTicketResponse = await app.inject({
       method: "POST",

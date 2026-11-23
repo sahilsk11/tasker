@@ -95,11 +95,21 @@ edits the hosted action catalog. Launching agents and managing local files
 requires the local app. Working directories and transcript paths, when
 supplied, refer to paths on the originating machine.
 
-Cloudflare Terraform provisions the Worker and D1 database. The
-`deploy-tasker` workflow in `sahilsk11/cloudflare` reads the D1 binding ID,
-builds Tasker from `main`, applies D1 migrations, and deploys the Worker.
-The D1 baseline reflects the Node schema through migration 000016. Existing
-Node databases can be copied into D1 separately.
+Cloudflare Terraform provisions the Worker and D1 database. A push to
+`main` (including a PR merge) runs CI, builds the hosted app, applies D1
+migrations, and deploys the Worker after checks pass. Use the CI workflow
+dispatch on `main` for a manual retry.
+
+Set the repository Actions secret `CF_GH_DEPLOY_TASKER` to an
+account-owned Cloudflare API token. Grant Workers Editor for the `tasker`
+Worker, D1 write access for the `tasker` database, and Workers Routes
+Write and Zone Read for `ultron.sh` so Wrangler can reconcile the custom
+domain. Scope permissions to the Tasker resources and zone wherever
+Cloudflare offers resource scoping. The deploy job uses the
+`tasker_d1_id` output from the Cloudflare Terraform repo.
+
+The D1 baseline reflects the Node schema through migration 000016.
+Existing Node databases can be copied into D1 separately.
 
 ### Register a session from an agent
 

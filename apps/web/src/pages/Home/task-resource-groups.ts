@@ -128,7 +128,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
         "session",
         session.displayTitle ?? "Untitled session",
         [
-          formatMachineName(session.machineName),
+          session.machineName ?? "Unknown machine",
           session.clientName ?? (!hasAppOnlyProvider(session.provider) ? formatSessionProvider(session.provider) : null),
           session.appName ?? (hasAppOnlyProvider(session.provider) ? formatSessionProvider(session.provider) : null)
         ].filter((value) => value != null).join(" · "),
@@ -175,20 +175,6 @@ function getSessionHref(sourceUrl: string | null): string | null {
   const environmentId = address.slice(0, split);
   const threadId = address.slice(split + 1);
   return `https://app.t3.codes/threads/${encodeURIComponent(environmentId)}/${encodeURIComponent(threadId)}`;
-}
-
-function formatMachineName(name: string | null): string {
-  if (name == null) {
-    return "Unknown machine";
-  }
-  const normalized = name.toLowerCase().split(".")[0]?.replace(/[\s_-]/gu, "");
-  if (normalized === "dullhill" || normalized === "strucker") {
-    return "Strucker";
-  }
-  if (normalized === "minime" || normalized === "minimewired") {
-    return "Mini Me";
-  }
-  return name;
 }
 
 function hasAppOnlyProvider(provider: string): boolean {

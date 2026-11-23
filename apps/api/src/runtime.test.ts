@@ -11,7 +11,6 @@ void test("runtime creates services against a temporary database", async () => {
   const databasePath = join(dir, "tasker.sqlite");
   const runtime = createTaskerRuntime({
     databasePath,
-    linearApiKey: null,
     publicApiBaseUrl: "http://127.0.0.1:4999"
   });
 
@@ -25,7 +24,7 @@ void test("runtime creates services against a temporary database", async () => {
     assert.equal(task.title, "Runtime service smoke");
     assert.equal(task.description, "Runtime service task");
     assert.equal(task.parentTaskId, null);
-    assert.deepEqual(task.waitingDependencies, []);
+    assert.deepEqual(task.dependencies, []);
 
     assert.deepEqual(await runtime.services.task.listTasks({ parentTaskId: null }), [
       task
@@ -41,7 +40,6 @@ void test("runtime exposes resolved metadata", async () => {
   const databasePath = join(dir, "tasker.sqlite");
   const runtime = createTaskerRuntime({
     databasePath,
-    linearApiKey: null,
     publicApiBaseUrl: "http://127.0.0.1:5111"
   });
 
@@ -79,7 +77,6 @@ void test("runtime closes the database connection", async () => {
   const databasePath = join(dir, "tasker.sqlite");
   const runtime = createTaskerRuntime({
     databasePath,
-    linearApiKey: null
   });
 
   try {

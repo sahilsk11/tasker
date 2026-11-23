@@ -11,7 +11,6 @@ export type Env = {
   readonly kannaChatsLogPath: string | undefined;
   readonly kannaCodexFastMode: boolean;
   readonly kannaCodexReasoningEffort: string;
-  readonly linearApiKey: string | null;
   readonly port: number;
   readonly publicApiBaseUrl: string;
   readonly taskActionsPath: string | undefined;
@@ -39,7 +38,6 @@ export function loadEnv(): Env {
     kannaCodexFastMode: parseBooleanEnv(process.env["KANNA_CODEX_FAST_MODE"]) ?? false,
     kannaCodexReasoningEffort:
       normalizeOptionalEnv(process.env["KANNA_CODEX_REASONING_EFFORT"]) ?? "high",
-    linearApiKey: normalizeOptionalEnv(process.env["LINEAR_API_KEY"]),
     port,
     publicApiBaseUrl:
       normalizeOptionalEnv(process.env["PUBLIC_API_BASE_URL"]) ??

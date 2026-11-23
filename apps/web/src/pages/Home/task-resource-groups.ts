@@ -126,13 +126,17 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
     ...bundle.resources.sessions.map((session) =>
       resource(
         "session",
-        session.displayTitle ?? session.providerId ?? capitalize(session.provider),
-        capitalize(session.provider),
-        "Claimed",
+        session.displayTitle ?? "Untitled session",
+        [
+          formatMachineName(session.machineName),
+          session.clientName ?? (!hasAppOnlyProvider(session.provider) ? formatSessionProvider(session.provider) : null),
+          session.appName ?? (hasAppOnlyProvider(session.provider) ? formatSessionProvider(session.provider) : null)
+        ].filter((value) => value != null).join(" · "),
+        "Registered",
         formatActivityTime(session.claimedAt ?? session.createdAt),
         session.claimedAt ?? session.createdAt,
         {
-          href: null,
+          href: session.sourceUrl,
           id: session.id,
           taskId: session.taskId
         }
@@ -156,6 +160,34 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
       )
     )
   ];
+}
+
+function formatMachineName(name: string | null): string {
+  if (name == null) {
+    return "Unknown machine";
+  }
+  const normalized = name.toLowerCase().split(".")[0]?.replace(/[\s_-]/gu, "");
+  if (normalized === "dullhill" || normalized === "strucker") {
+    return "Strucker";
+  }
+  if (normalized === "minime" || normalized === "minimewired") {
+    return "Mini Me";
+  }
+  return name;
+}
+
+function hasAppOnlyProvider(provider: string): boolean {
+  return ["cloud-voice", "grokbot", "chatgpt", "grok"].includes(provider.toLowerCase());
+}
+
+function formatSessionProvider(provider: string): string {
+  const names: Readonly<Record<string, string>> = {
+    chatgpt: "ChatGPT",
+    "cloud-voice": "Cloud Voice",
+    grokbot: "Grokbot",
+    t3: "T3"
+  };
+  return names[provider.toLowerCase()] ?? capitalize(provider);
 }
 
 function resourceFromArtifact(artifact: ApiArtifact): Resource {

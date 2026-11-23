@@ -1,8 +1,8 @@
 import type { Generated, Selectable } from "kysely";
 import type { TaskArtifactLabel } from "../domain/task-artifact.js";
-import type { TaskState } from "../domain/task.js";
 
 export type Database = {
+  readonly task_action_overrides: TaskActionOverridesTable;
   readonly task_artifacts: TaskArtifactsTable;
   readonly task_dependencies: TaskDependenciesTable;
   readonly task_pull_requests: TaskPullRequestsTable;
@@ -23,7 +23,6 @@ export type TasksTable = {
   readonly description: string | null;
   readonly id: string;
   readonly parent_task_id: string | null;
-  readonly state: Generated<TaskState>;
   readonly title: string;
   readonly updated_at: Generated<string>;
   readonly working_directory: string | null;
@@ -47,7 +46,18 @@ export type TaskPullRequestsTable = {
   readonly url: string;
 };
 
+export type TaskActionOverridesTable = {
+  readonly id: string;
+  readonly entry_json: string;
+  readonly updated_at: string;
+};
+
 export type TaskSessionsTable = {
+  readonly app_name: string | null;
+  readonly client_name: string | null;
+  readonly display_title: string | null;
+  readonly machine_name: string | null;
+  readonly source_url: string | null;
   readonly action_id: string | null;
   readonly claimed_at: string | null;
   readonly created_at: Generated<string>;

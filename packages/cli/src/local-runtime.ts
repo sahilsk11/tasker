@@ -41,7 +41,6 @@ function createRuntimeOptions(env: NodeJS.ProcessEnv): CreateTaskerRuntimeOption
       codexReasoningEffort:
         normalizeOptionalEnv(env["KANNA_CODEX_REASONING_EFFORT"]) ?? "high"
     },
-    linearApiKey: normalizeOptionalEnv(env["LINEAR_API_KEY"]) ?? null,
     ...(migrationsDirectory === undefined ? {} : { migrationsDirectory }),
     ...(publicApiBaseUrl === undefined ? {} : { publicApiBaseUrl }),
     ...(taskActionsPath === undefined ? {} : { taskActionsPath })

@@ -59,9 +59,7 @@ export function TaskActionRow({
   readonly preparingActionId?: string | null;
 }): React.JSX.Element {
   const isRail = layout === "rail";
-  const quickActions = actions
-    .filter((action) => action.isRecommended)
-    .slice(0, isRail ? railActionCount : rowActionCount);
+  const quickActions = actions.slice(0, isRail ? railActionCount : rowActionCount);
 
   return (
     <div

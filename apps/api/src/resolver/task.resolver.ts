@@ -1,7 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { parseCreateTaskInput, parseUpdateTaskInput } from "../command/task.command.js";
-import { taskStateDefinitions } from "../domain/task.js";
 import type { TaskService } from "../service/task.service.js";
 
 const taskIdParamsSchema = z.object({
@@ -22,10 +21,6 @@ export function registerTaskResolver(
       tasks: await taskService.listTasks({ parentTaskId: parentTaskId ?? null })
     };
   });
-
-  server.get("/task-states", () => ({
-    states: taskStateDefinitions
-  }));
 
   server.post("/tasks", async (request, reply) => {
     const task = await taskService.createTask(parseCreateTaskInput(request.body));

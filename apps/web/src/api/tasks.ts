@@ -6,32 +6,16 @@ export type ApiTask = {
   readonly description: string | null;
   readonly id: string;
   readonly parentTaskId: string | null;
-  readonly state: TaskState;
   readonly title: string;
   readonly updatedAt: string;
-  readonly waitingDependencies: readonly ApiTaskDependency[];
+  readonly dependencies: readonly ApiTaskDependency[];
   readonly workingDirectory: string | null;
 };
 
 export type ApiTaskDependency = {
   readonly id: string;
-  readonly state: TaskState;
   readonly title: string;
 };
-
-export type TaskStateDefinition = {
-  readonly label: string;
-  readonly rank: number;
-  readonly value: TaskState;
-};
-
-export type TaskState =
-  | "ready"
-  | "scoping"
-  | "planning"
-  | "implementation"
-  | "review"
-  | "done";
 
 export type ApiArtifact = {
   readonly archivedAt: string | null;
@@ -63,6 +47,10 @@ export type ApiArtifactContent = {
 };
 
 export type ApiSession = {
+  readonly appName: string | null;
+  readonly clientName: string | null;
+  readonly machineName: string | null;
+  readonly sourceUrl: string | null;
   readonly actionId: string | null;
   readonly claimedAt: string | null;
   readonly createdAt: string;
@@ -144,28 +132,10 @@ export type ApiTaskActionOptions = Record<
   ApiTaskActionBooleanOption | undefined
 >;
 
-export type ApiTaskActionEffect =
-  | {
-      readonly state: TaskState;
-      readonly trigger: "session_created" | "session_claimed" | "session_completed";
-      readonly type: "advance_state";
-    }
-  | {
-      readonly signal: string;
-      readonly trigger: "session_created" | "session_claimed" | "session_completed";
-      readonly type: "register_recommendation_signal";
-    }
-  | {
-      readonly stepId: string;
-      readonly trigger: "session_created" | "session_claimed" | "session_completed";
-      readonly type: "enqueue_next_step";
-    };
-
 export type ApiTaskAction = {
   readonly description: string;
   readonly iconName: string | null;
   readonly id: string;
-  readonly isRecommended: boolean;
   readonly label: string;
   readonly options: ApiTaskActionOptions | null;
 };
@@ -173,9 +143,7 @@ export type ApiTaskAction = {
 export type ApiTaskActionDetails = ApiTaskAction & {
   readonly createdAt: string;
   readonly enabled: boolean;
-  readonly effects: readonly ApiTaskActionEffect[];
   readonly promptTemplate: string;
-  readonly recommendationStates: readonly TaskState[];
   readonly sortOrder: number;
   readonly updatedAt: string;
 };
@@ -183,12 +151,10 @@ export type ApiTaskActionDetails = ApiTaskAction & {
 export type UpdateTaskActionInput = {
   readonly description?: string;
   readonly enabled?: boolean;
-  readonly effects?: readonly ApiTaskActionEffect[];
   readonly iconName?: string | null;
   readonly label?: string;
   readonly options?: ApiTaskActionOptions | null;
   readonly promptTemplate?: string;
-  readonly recommendationStates?: readonly TaskState[];
   readonly sortOrder?: number;
 };
 
@@ -276,7 +242,6 @@ export type CreateTaskInput = {
 export type UpdateTaskInput = {
   readonly description?: string | null;
   readonly parentTaskId?: string | null;
-  readonly state?: TaskState;
   readonly title?: string;
   readonly workingDirectory?: string | null;
 };
@@ -284,62 +249,6 @@ export type UpdateTaskInput = {
 export type CreateTicketInput = {
   readonly externalId: string;
   readonly url: string | null;
-};
-
-export type LinearStateOption = {
-  readonly id: string;
-  readonly name: string;
-  readonly position: number;
-  readonly type: string;
-};
-
-export type LinearIssueStatus = {
-  readonly id: string;
-  readonly identifier: string;
-  readonly state: LinearStateOption & {
-    readonly team: {
-      readonly id: string;
-      readonly key: string;
-      readonly name: string;
-    };
-  };
-  readonly url: string;
-};
-
-export type LinearIssueDetails = LinearIssueStatus & {
-  readonly description: string | null;
-  readonly title: string;
-};
-
-export type LinearTeamOption = {
-  readonly id: string;
-  readonly key: string;
-  readonly name: string;
-  readonly states: readonly LinearStateOption[];
-};
-
-export type LinearProjectOption = {
-  readonly id: string;
-  readonly name: string;
-  readonly teamIds: readonly string[];
-};
-
-export type LinearOptions = {
-  readonly configured: boolean;
-  readonly projects: readonly LinearProjectOption[];
-  readonly teams: readonly LinearTeamOption[];
-};
-
-export type CreateLinearTicketInput = {
-  readonly description: string | null;
-  readonly projectId: string | null;
-  readonly stateId: string;
-  readonly teamId: string;
-  readonly title: string;
-};
-
-export type CreateTaskFromLinearTicketInput = {
-  readonly identifier: string;
 };
 
 export async function listTaskBundles(
@@ -363,13 +272,6 @@ export async function listTaskBundles(
       return { actions, children, resources, task };
     })
   );
-}
-
-export async function listTaskStates(): Promise<readonly TaskStateDefinition[]> {
-  const { states } = await apiClient.get<{
-    readonly states: readonly TaskStateDefinition[];
-  }>("/task-states");
-  return states;
 }
 
 export async function listTaskActionSettings(): Promise<readonly ApiTaskActionDetails[]> {
@@ -546,42 +448,4 @@ export async function getTaskArtifactContent(
     readonly content: ApiArtifactContent;
   }>(`/tasks/${taskId}/artifacts/${artifactId}/content`);
   return content;
-}
-
-export async function getLinearOptions(): Promise<LinearOptions> {
-  const { linear } = await apiClient.get<{ readonly linear: LinearOptions }>(
-    "/linear/options"
-  );
-  return linear;
-}
-
-export async function resolveLinearIssue(
-  identifier: string
-): Promise<LinearIssueDetails> {
-  const { issue } = await apiClient.post<{ readonly issue: LinearIssueDetails }>(
-    "/linear/issues/resolve",
-    { identifier }
-  );
-  return issue;
-}
-
-export async function createLinearTaskTicket(
-  taskId: string,
-  input: CreateLinearTicketInput
-): Promise<ApiTicket> {
-  const { ticket } = await apiClient.post<{ readonly ticket: ApiTicket }>(
-    `/tasks/${taskId}/linear-ticket`,
-    input
-  );
-  return ticket;
-}
-
-export async function createTaskFromLinearTicket(
-  input: CreateTaskFromLinearTicketInput
-): Promise<ApiTask> {
-  const { task } = await apiClient.post<{ readonly task: ApiTask }>(
-    "/linear/tasks",
-    input
-  );
-  return task;
 }

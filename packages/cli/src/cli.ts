@@ -261,30 +261,29 @@ function formatTaskJson(value: unknown): string {
 
 function formatTask(value: unknown): string {
   const task = asRecord(value);
-  const waitingDependencies = asRecordArray(task["waitingDependencies"]);
+  const dependencies = asRecordArray(task["dependencies"]);
   const lines = [
     "Task",
     `ID: ${formatValue(task["id"])}`,
     `Title: ${formatValue(task["title"])}`,
-    `State: ${formatValue(task["state"])}`,
     `Parent task ID: ${formatNullableValue(task["parentTaskId"])}`,
     `Working directory: ${formatNullableValue(task["workingDirectory"])}`,
     `Created: ${formatDateValue(task["createdAt"])}`,
     `Updated: ${formatDateValue(task["updatedAt"])}`,
     "Description:",
     formatDescription(task["description"]),
-    "Waiting dependencies:"
+    "Dependencies:"
   ];
 
-  if (waitingDependencies.length === 0) {
+  if (dependencies.length === 0) {
     return [...lines, "-"].join("\n");
   }
 
   return [
     ...lines,
-    ...waitingDependencies.map(
+    ...dependencies.map(
       (dependency) =>
-        `- ${formatValue(dependency["id"])} [${formatValue(dependency["state"])}] ${formatValue(dependency["title"])}`
+        `- ${formatValue(dependency["id"])} ${formatValue(dependency["title"])}`
     )
   ].join("\n");
 }
@@ -299,7 +298,7 @@ function formatTaskList(values: unknown): string {
     "Tasks",
     ...tasks.map(
       (task) =>
-        `${formatValue(task["id"])} [${formatValue(task["state"])}] ${formatValue(task["title"])}`
+        `${formatValue(task["id"])} ${formatValue(task["title"])}`
     )
   ].join("\n");
 }

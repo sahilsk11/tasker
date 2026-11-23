@@ -53,7 +53,7 @@ export class FileTaskActionRepository implements TaskActionRepository {
       }
 
       const updatedEntries = entries.map((entry, entryIndex) =>
-        entryIndex === index ? applyUpdate(entry, input) : entry
+        entryIndex === index ? applyTaskActionUpdate(entry, input) : entry
       );
 
       await writeCatalog(this.catalogPath, updatedEntries);
@@ -80,23 +80,19 @@ export class FileTaskActionRepository implements TaskActionRepository {
   }
 }
 
-function applyUpdate(
+export function applyTaskActionUpdate(
   action: TaskActionCatalogEntry,
   input: UpdateTaskActionInput
 ): TaskActionCatalogEntry {
   return {
     ...action,
     ...(input.description !== undefined ? { description: input.description } : {}),
-    ...(input.effects !== undefined ? { effects: [...input.effects] } : {}),
     ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
     ...(input.iconName !== undefined ? { iconName: input.iconName } : {}),
     ...(input.label !== undefined ? { label: input.label } : {}),
     ...(input.options !== undefined ? { options: input.options } : {}),
     ...(input.promptTemplate !== undefined
       ? { promptTemplate: input.promptTemplate }
-      : {}),
-    ...(input.recommendationStates !== undefined
-      ? { recommendationStates: [...input.recommendationStates] }
       : {}),
     ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {})
   };
@@ -166,7 +162,7 @@ function isFileExistsError(error: unknown): boolean {
   );
 }
 
-function toTaskActionRecord(
+export function toTaskActionRecord(
   entry: TaskActionCatalogEntry,
   timestamp: Date
 ): TaskActionRecord {
@@ -174,20 +170,17 @@ function toTaskActionRecord(
     createdAt: timestamp,
     description: entry.description,
     enabled: entry.enabled,
-    effects: entry.effects,
     iconName: entry.iconName ?? null,
     id: entry.id,
-    isRecommended: false,
     label: entry.label,
     options: entry.options ?? null,
     promptTemplate: entry.promptTemplate,
-    recommendationStates: entry.recommendationStates,
     sortOrder: entry.sortOrder,
     updatedAt: timestamp
   };
 }
 
-function compareTaskActionRecords(
+export function compareTaskActionRecords(
   left: TaskActionRecord,
   right: TaskActionRecord
 ): number {
@@ -199,7 +192,6 @@ function toTaskActionSummary(record: TaskActionRecord) {
     description: record.description,
     iconName: record.iconName,
     id: record.id,
-    isRecommended: record.isRecommended,
     label: record.label,
     options: record.options
   };
@@ -214,14 +206,11 @@ export function toTaskActionDetails(record: TaskActionRecord): TaskActionDetails
     createdAt: record.createdAt.toISOString(),
     description: record.description,
     enabled: record.enabled,
-    effects: record.effects,
     iconName: record.iconName,
     id: record.id,
-    isRecommended: record.isRecommended,
     label: record.label,
     options: record.options,
     promptTemplate: record.promptTemplate,
-    recommendationStates: record.recommendationStates,
     sortOrder: record.sortOrder,
     updatedAt: record.updatedAt.toISOString()
   };

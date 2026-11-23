@@ -14,7 +14,6 @@ const app = await createApp({
     ? {}
     : { codexSessionsRoot: env.codexSessionsRoot }),
   databasePath: env.databasePath,
-  linearApiKey: env.linearApiKey,
   ...(env.migrationsDirectory === undefined
     ? {}
     : { migrationsDirectory: env.migrationsDirectory }),

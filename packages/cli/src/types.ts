@@ -10,6 +10,10 @@ export type RuntimeInfo = {
 };
 
 export type ApiTaskSession = {
+  readonly appName: string | null;
+  readonly clientName: string | null;
+  readonly machineName: string | null;
+  readonly sourceUrl: string | null;
   readonly actionId: string | null;
   readonly claimedAt: string | null;
   readonly createdAt: string;
@@ -35,18 +39,16 @@ export type ApiTask = {
   readonly description: string | null;
   readonly id: string;
   readonly parentTaskId: string | null;
-  readonly state: string;
   readonly title: string;
   readonly updatedAt: string;
   readonly workingDirectory: string | null;
-  readonly waitingDependencies: readonly unknown[];
+  readonly dependencies: readonly unknown[];
 };
 
 export type ApiTaskAction = {
   readonly description: string;
   readonly iconName: string | null;
   readonly id: string;
-  readonly isRecommended: boolean;
   readonly label: string;
   readonly options: unknown;
 };

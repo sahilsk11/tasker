@@ -31,7 +31,6 @@ void test("pull request statuses are fetched from GitHub with discovered gh toke
       },
       homeDir: dir
     },
-    linearApiKey: null
   });
 
   try {
@@ -97,7 +96,6 @@ void test("pull request statuses classify draft, open, closed, and invalid urls"
       fetchImpl: () => Promise.resolve(Response.json(responses.shift())),
       homeDir: join(dir, "missing-home")
     },
-    linearApiKey: null
   });
 
   try {
@@ -161,7 +159,6 @@ void test("pull request statuses retry without auth when discovered token is sta
       },
       homeDir: join(dir, "missing-home")
     },
-    linearApiKey: null
   });
 
   try {

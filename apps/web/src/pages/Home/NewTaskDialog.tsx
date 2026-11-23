@@ -1,393 +1,93 @@
-import { AlertTriangle, Check, Plus } from "lucide-react";
-import { type SyntheticEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  createLinearTaskTicket,
-  createTask,
-  createTaskTicket,
-  getLinearOptions,
-  type LinearIssueDetails,
-  resolveLinearIssue
-} from "@/api/tasks";
+import { Plus } from "lucide-react";
+import { useState } from "react";
+import { createTask } from "@/api/tasks";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { hostedTasker } from "@/lib/env";
-import { TicketFields } from "./NewTaskTicketFields";
-import {
-  getLinearProjectOptions,
-  getMutationErrorMessage,
-  getSelectedLinearTeam,
-  normalizeOptionalText,
-  parseTicketInput
-} from "./new-task-utils";
+import { normalizeOptionalText } from "./new-task-utils";
 import { workingPathsQueryOptions } from "./working-paths-query";
 
-type NewTaskDialogProps = {
-  readonly parentTaskId?: string | null;
-  readonly parentTaskTitle?: string | null;
-};
-
 export function NewTaskDialog({
-  parentTaskId = null,
-  parentTaskTitle = null
-}: NewTaskDialogProps): React.JSX.Element {
+  parentTaskId,
+  parentTaskTitle
+}: {
+  readonly parentTaskId: string | null;
+  readonly parentTaskTitle: string | null;
+}): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [workingDirectory, setWorkingDirectory] = useState("");
-  const [ticket, setTicket] = useState("");
-  const [resolvedTicket, setResolvedTicket] = useState<LinearIssueDetails | null>(null);
-  const [ticketError, setTicketError] = useState<string | null>(null);
-  const [createTicket, setCreateTicket] = useState(false);
-  const [linearTeamId, setLinearTeamId] = useState("");
-  const [linearProjectId, setLinearProjectId] = useState("");
-  const [linearStateId, setLinearStateId] = useState("");
-  const didApplyDefaultWorkingDirectory = useRef(false);
+  const [directory, setDirectory] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  const hasExistingTicket = ticket.trim().length > 0;
-  const isSubtask = parentTaskId != null;
-  const createLabel = isSubtask ? "Create subtask" : "Create task";
-  const triggerLabel = isSubtask ? "Create subtask" : "New task";
-  const pendingLabel = isSubtask ? "Creating subtask..." : "Creating...";
-  const parentContext =
-    parentTaskTitle == null || parentTaskTitle.trim().length === 0
-      ? "the current task"
-      : `"${parentTaskTitle}"`;
-  const linearOptionsQuery = useQuery({
-    enabled: createTicket,
-    queryFn: getLinearOptions,
-    queryKey: ["linear-options"]
-  });
-  const workingPathsQuery = useQuery({
-    enabled: open && !hostedTasker,
-    ...workingPathsQueryOptions
-  });
-  const linearOptions = linearOptionsQuery.data ?? null;
-  const selectedLinearTeam = getSelectedLinearTeam(linearOptions, linearTeamId);
-  const linearStateOptions = useMemo(
-    () => selectedLinearTeam?.states ?? [],
-    [selectedLinearTeam]
-  );
-  const linearProjectOptions = useMemo(
-    () => getLinearProjectOptions(linearOptions, linearTeamId),
-    [linearOptions, linearTeamId]
-  );
-
-  useEffect(() => {
-    if (!hasExistingTicket) {
-      setResolvedTicket(null);
-      setTicketError(null);
-      return;
-    }
-
-    const ticketValue = ticket.trim();
-    const timeout = window.setTimeout(() => {
-      void resolveLinearIssue(ticketValue)
-        .then((issue) => {
-          if (ticket.trim() !== ticketValue) {
-            return;
-          }
-
-          setResolvedTicket(issue);
-          setTicketError(null);
-          setTitle(issue.title);
-          setDescription(issue.description ?? "");
-        })
-        .catch((error: unknown) => {
-          if (ticket.trim() !== ticketValue) {
-            return;
-          }
-
-          setResolvedTicket(null);
-          setTicketError(getMutationErrorMessage(error));
-        });
-    }, 350);
-
-    return () => window.clearTimeout(timeout);
-  }, [hasExistingTicket, ticket]);
-
-  useEffect(() => {
-    if (!hasExistingTicket) {
-      return;
-    }
-
-    setCreateTicket(false);
-    setLinearTeamId("");
-    setLinearProjectId("");
-    setLinearStateId("");
-  }, [hasExistingTicket]);
-
-  useEffect(() => {
-    if (!createTicket || linearTeamId.length > 0) {
-      return;
-    }
-
-    const firstTeam = linearOptions?.teams.at(0);
-    if (firstTeam != null) {
-      setLinearTeamId(firstTeam.id);
-    }
-  }, [createTicket, linearOptions, linearTeamId]);
-
-  useEffect(() => {
-    if (!createTicket || linearTeamId.length === 0) {
-      return;
-    }
-
-    const firstState = linearStateOptions.at(0);
-    if (firstState == null) {
-      return;
-    }
-
-    const stateStillAvailable = linearStateOptions.some(
-      (state) => state.id === linearStateId
-    );
-    if (!stateStillAvailable) {
-      setLinearStateId(firstState.id);
-    }
-  }, [createTicket, linearStateId, linearStateOptions, linearTeamId]);
-
-  useEffect(() => {
-    if (!open) {
-      didApplyDefaultWorkingDirectory.current = false;
-      return;
-    }
-
-    if (!workingPathsQuery.isSuccess || didApplyDefaultWorkingDirectory.current) {
-      return;
-    }
-
-    setWorkingDirectory(
-      workingPathsQuery.data.settings.defaultWorkingDirectory ?? ""
-    );
-    didApplyDefaultWorkingDirectory.current = true;
-  }, [open, workingPathsQuery.data, workingPathsQuery.isSuccess]);
-
+  const workingPaths = useQuery({ ...workingPathsQueryOptions, enabled: open && !hostedTasker });
+  const workingDirectory = directory ?? workingPaths.data?.settings.defaultWorkingDirectory ?? "";
+  const createLabel = parentTaskId == null ? "Create task" : "Create subtask";
   const mutation = useMutation({
-    mutationFn: async () => {
-      const task = await createTask({
-        description: normalizeOptionalText(description),
-        parentTaskId,
-        title: title.trim(),
-        workingDirectory: normalizeOptionalText(workingDirectory)
-      });
-
-      if (resolvedTicket != null) {
-        await createTaskTicket(task.id, {
-          externalId: resolvedTicket.identifier,
-          url: resolvedTicket.url
-        });
-        return;
-      }
-
-      const ticketInput = parseTicketInput(ticket);
-      if (ticketInput != null) {
-        await createTaskTicket(task.id, ticketInput);
-        return;
-      }
-
-      if (createTicket) {
-        await createLinearTaskTicket(task.id, {
-          description: normalizeOptionalText(description),
-          projectId: normalizeOptionalText(linearProjectId),
-          stateId: linearStateId,
-          teamId: linearTeamId,
-          title: title.trim()
-        });
-      }
-    },
+    mutationFn: () => createTask({
+      description: normalizeOptionalText(description),
+      parentTaskId,
+      title: title.trim(),
+      ...(hostedTasker ? {} : { workingDirectory: normalizeOptionalText(workingDirectory) })
+    }),
     onSuccess: () => {
-      resetForm();
-      setOpen(false);
+      close(false);
       void queryClient.invalidateQueries({ queryKey: ["tasks"] });
     }
   });
 
-  const linearReady =
-    !createTicket ||
-    (linearOptions?.configured === true &&
-      linearTeamId.length > 0 &&
-      linearStateId.length > 0);
-  const canSubmit = title.trim().length > 0 && linearReady && !mutation.isPending;
-  const errorMessage = mutation.isError ? getMutationErrorMessage(mutation.error) : null;
-
-  async function handleSubmit(event: SyntheticEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    if (!canSubmit) {
-      return;
+  function close(next: boolean): void {
+    setOpen(next);
+    if (!next) {
+      setTitle("");
+      setDescription("");
+      setDirectory(null);
+      mutation.reset();
     }
-
-    await mutation.mutateAsync();
-  }
-
-  function resetForm(): void {
-    setTitle("");
-    setDescription("");
-    setWorkingDirectory("");
-    setTicket("");
-    setResolvedTicket(null);
-    setTicketError(null);
-    setCreateTicket(false);
-    setLinearTeamId("");
-    setLinearProjectId("");
-    setLinearStateId("");
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(isOpen) => {
-        setOpen(isOpen);
-        if (!isOpen) {
-          resetForm();
-        }
-      }}
-    >
-      <Button size="sm" className="shrink-0" onClick={() => setOpen(true)}>
-        <Plus className="size-4" />
-        {triggerLabel}
-      </Button>
-      <DialogContent className="flex h-[min(582px,calc(100dvh-2rem))] max-w-xl flex-col gap-0 overflow-hidden p-0">
+    <Dialog open={open} onOpenChange={close}>
+      <DialogTrigger asChild>
+        <Button size="sm"><Plus className="size-4" />{parentTaskId == null ? "New task" : "Create subtask"}</Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg gap-0">
         <DialogHeader>
-          <DialogTitle>{isSubtask ? "Create subtask" : "New task"}</DialogTitle>
-          <DialogDescription>
-            {isSubtask ? "Add a task under the current task." : "Add a task to Tasker."}
+          <DialogTitle>{parentTaskId == null ? "New task" : "Create subtask"}</DialogTitle>
+          <DialogDescription className={parentTaskTitle == null ? "sr-only" : ""}>
+            {parentTaskTitle == null ? "Add a task to Tasker." : `Under ${parentTaskTitle}`}
           </DialogDescription>
         </DialogHeader>
-        <form
-          className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-border"
-          onSubmit={(event) => void handleSubmit(event)}
-        >
-          <div className="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto p-5">
-            {isSubtask ? (
-              <div
-                aria-label={`You are creating a subtask inside ${parentContext}. It will not appear in the root task list.`}
-                className="flex gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100"
-                role="alert"
-              >
-                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-300" />
-                <p>
-                  You are creating a subtask inside {parentContext}. It will not
-                  appear in the root task list.
-                </p>
-              </div>
-            ) : null}
-            {hostedTasker ? null : (
-              <div className="grid gap-2">
-                <Label htmlFor="task-ticket" className="flex items-center gap-1.5">
-                  Optional Linear ticket
-                  <span className="inline-flex size-4 items-center justify-center">
-                    {resolvedTicket != null ? (
-                      <Check className="size-4 text-emerald-500" />
-                    ) : null}
-                  </span>
-                </Label>
-                <Input
-                  id="task-ticket"
-                  value={ticket}
-                  onChange={(event) => setTicket(event.target.value)}
-                  placeholder="SAS-32 or https://linear.app/..."
-                  autoFocus
-                />
-                {ticketError != null ? (
-                  <p className="text-sm text-destructive">{ticketError}</p>
-                ) : null}
-              </div>
-            )}
+        <form onSubmit={(event) => {
+          event.preventDefault();
+          if (title.trim().length > 0 && !mutation.isPending) {
+            mutation.mutate();
+          }
+        }}>
+          <div className="grid gap-4 border-y border-border p-5">
             <div className="grid gap-2">
-              <Label htmlFor="task-title">Name</Label>
-              <Input
-                id="task-title"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="Add cursor support"
-                autoFocus={hostedTasker}
-              />
+              <Label htmlFor="task-title">Title</Label>
+              <Input id="task-title" value={title} onChange={(event) => setTitle(event.target.value)} autoFocus />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="task-description">Description</Label>
-              <Textarea
-                id="task-description"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="What should the agent do?"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="task-working-directory">Working directory</Label>
-              <Input
-                id="task-working-directory"
-                value={workingDirectory}
-                onChange={(event) => setWorkingDirectory(event.target.value)}
-                placeholder="/path/to/project"
-              />
-              {workingPathsQuery.isError ? (
-                <p className="text-sm text-destructive">
-                  {getMutationErrorMessage(workingPathsQuery.error)}
-                </p>
-              ) : null}
+              <Textarea id="task-description" rows={4} value={description} onChange={(event) => setDescription(event.target.value)} />
             </div>
             {hostedTasker ? null : (
-              <label
-                className={
-                  hasExistingTicket
-                    ? "flex items-center gap-2 text-sm font-medium text-muted-foreground"
-                    : "flex items-center gap-2 text-sm font-medium"
-                }
-              >
-                <input
-                  type="checkbox"
-                  className="size-4 accent-primary disabled:cursor-not-allowed disabled:opacity-50"
-                  checked={createTicket}
-                  disabled={hasExistingTicket}
-                  onChange={(event) => setCreateTicket(event.target.checked)}
-                />
-                Create Linear ticket
-              </label>
+              <div className="grid gap-2">
+                <Label htmlFor="task-working-directory">Working directory</Label>
+                <Input id="task-working-directory" value={workingDirectory} onChange={(event) => setDirectory(event.target.value)} />
+              </div>
             )}
-            {createTicket ? (
-              <TicketFields
-                errorMessage={
-                  linearOptionsQuery.isError
-                    ? getMutationErrorMessage(linearOptionsQuery.error)
-                    : null
-                }
-                isLoading={linearOptionsQuery.isLoading}
-                linearOptions={linearOptions}
-                onProjectChange={setLinearProjectId}
-                onStateChange={setLinearStateId}
-                onTeamChange={(teamId) => {
-                  setLinearTeamId(teamId);
-                  setLinearProjectId("");
-                  setLinearStateId("");
-                }}
-                projectId={linearProjectId}
-                projectOptions={linearProjectOptions}
-                stateId={linearStateId}
-                stateOptions={linearStateOptions}
-                teamId={linearTeamId}
-              />
-            ) : null}
-            {errorMessage != null ? (
-              <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {errorMessage}
-              </p>
-            ) : null}
+            {mutation.error == null ? null : <p role="alert" className="text-sm text-destructive">{mutation.error.message}</p>}
           </div>
-          <div className="flex justify-end gap-2 border-t border-border p-5">
-            <Button variant="ghost" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!canSubmit}>
-              {mutation.isPending ? pendingLabel : createLabel}
+          <div className="flex justify-end gap-2 p-4">
+            <Button type="button" variant="ghost" onClick={() => close(false)}>Cancel</Button>
+            <Button type="submit" disabled={title.trim().length === 0 || mutation.isPending}>
+              {mutation.isPending ? "Creating…" : createLabel}
             </Button>
           </div>
         </form>

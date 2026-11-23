@@ -22,16 +22,12 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type {
-  ApiTaskActionEffect,
   ApiWorkingPathSettings,
   ApiTaskActionDetails,
   ApiTaskActionOptions,
-  TaskState,
-  TaskStateDefinition,
   UpdateTaskActionInput
 } from "@/api/tasks";
 import {
-  listTaskStates,
   listTaskActionSettings,
   updateTaskActionSettings,
   updateWorkingPathSettings
@@ -56,6 +52,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
+import { hostedTasker } from "@/lib/env";
 import { cn } from "@/lib/utils";
 import {
   ActionOptionsEditor,
@@ -78,13 +75,11 @@ import type { LucideIcon } from "lucide-react";
 
 type ActionDraft = {
   readonly description: string;
-  readonly effects: readonly ApiTaskActionEffect[];
   readonly enabled: boolean;
   readonly iconName: string;
   readonly label: string;
   readonly options: ApiTaskActionOptions | null;
   readonly promptTemplate: string;
-  readonly recommendationStates: readonly TaskState[];
   readonly sortOrder: string;
 };
 
@@ -112,7 +107,7 @@ const iconOptions = [
 export function SettingsDialog(): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedSection, setSelectedSection] =
-    useState<SettingsSection>("working-paths");
+    useState<SettingsSection>(hostedTasker ? "actions" : "working-paths");
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ActionDraft | null>(null);
   const queryClient = useQueryClient();
@@ -122,13 +117,8 @@ export function SettingsDialog(): React.JSX.Element {
     queryKey: ["action-settings"]
   });
   const workingPathsQuery = useQuery({
-    enabled: isOpen,
+    enabled: isOpen && !hostedTasker,
     ...workingPathsQueryOptions
-  });
-  const taskStatesQuery = useQuery({
-    enabled: isOpen,
-    queryFn: listTaskStates,
-    queryKey: ["task-states"]
   });
   const actions = actionsQuery.data ?? [];
   const selectedAction =
@@ -156,7 +146,7 @@ export function SettingsDialog(): React.JSX.Element {
 
   useEffect(() => {
     if (!isOpen) {
-      setSelectedSection("working-paths");
+      setSelectedSection(hostedTasker ? "actions" : "working-paths");
       setSelectedActionId(null);
     }
   }, [isOpen]);
@@ -193,13 +183,11 @@ export function SettingsDialog(): React.JSX.Element {
       actionId: selectedAction.id,
       input: {
         description: draft.description,
-        effects: draft.effects,
         enabled: draft.enabled,
         iconName: draft.iconName,
         label: draft.label,
         options: draft.options,
         promptTemplate: draft.promptTemplate,
-        recommendationStates: draft.recommendationStates,
         sortOrder: Number.parseInt(draft.sortOrder, 10)
       }
     });
@@ -245,7 +233,9 @@ export function SettingsDialog(): React.JSX.Element {
               }}
             />
             {selectedSection === "working-paths" ? (
-              <WorkingPathsSettings
+              hostedTasker ? (
+                <p className="p-5 text-sm text-muted-foreground">Working paths are available in the local Tasker app.</p>
+              ) : <WorkingPathsSettings
                 error={
                   workingPathsQuery.error instanceof Error
                     ? workingPathsQuery.error.message
@@ -277,7 +267,6 @@ export function SettingsDialog(): React.JSX.Element {
                 preview={preview}
                 previewContext={previewContext}
                 selectedAction={selectedAction}
-                taskStateDefinitions={taskStatesQuery.data ?? []}
                 onDraftChange={setDraft}
                 onSave={saveSelectedAction}
               />
@@ -357,6 +346,7 @@ function ActionSettingsOverview({
 }): React.JSX.Element {
   return (
     <section className="min-h-0 overflow-y-auto p-5">
+      {hostedTasker ? <p className="mb-3 text-sm text-muted-foreground">Action templates can be edited here. Running actions from Tasker is available in the local app.</p> : null}
       {error == null ? null : <p className="mb-3 text-sm text-destructive">{error}</p>}
       {isLoading ? (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -482,7 +472,6 @@ function ActionEditor({
   preview: fallbackPreview,
   previewContext,
   selectedAction,
-  taskStateDefinitions
 }: {
   readonly draft: ActionDraft | null;
   readonly error: string | null;
@@ -492,7 +481,6 @@ function ActionEditor({
   readonly preview: string;
   readonly previewContext: TaskActionPromptContext | null;
   readonly selectedAction: ApiTaskActionDetails | null;
-  readonly taskStateDefinitions: readonly TaskStateDefinition[];
 }): React.JSX.Element {
   const [mode, setMode] = useState<"editor" | "preview">("editor");
   const [previewOptionValues, setPreviewOptionValues] = useState<PreviewOptionValues>(
@@ -643,16 +631,6 @@ function ActionEditor({
               />
               <span>Enabled</span>
             </label>
-            <RecommendationStateEditor
-              draft={draft}
-              stateDefinitions={taskStateDefinitions}
-              onDraftChange={onDraftChange}
-            />
-            <SessionStateEffectEditor
-              draft={draft}
-              stateDefinitions={taskStateDefinitions}
-              onDraftChange={onDraftChange}
-            />
             <ActionOptionsEditor draft={draft} onDraftChange={onDraftChange} />
             <Field label="Prompt template" id="action-prompt-template">
               <Textarea
@@ -752,93 +730,6 @@ function TemplateReference({
   );
 }
 
-function RecommendationStateEditor({
-  draft,
-  onDraftChange,
-  stateDefinitions
-}: {
-  readonly draft: ActionDraft;
-  readonly onDraftChange: (draft: ActionDraft) => void;
-  readonly stateDefinitions: readonly TaskStateDefinition[];
-}): React.JSX.Element {
-  function toggleState(state: TaskState, checked: boolean): void {
-    const nextStates = checked
-      ? [...draft.recommendationStates, state]
-      : draft.recommendationStates.filter((currentState) => currentState !== state);
-    onDraftChange({ ...draft, recommendationStates: nextStates });
-  }
-
-  return (
-    <section className="grid gap-2">
-      <Label>Recommend this action when state is</Label>
-      <div className="flex flex-wrap gap-2">
-        {stateDefinitions.map((state) => (
-          <label
-            key={state.value}
-            className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
-          >
-            <Checkbox
-              checked={draft.recommendationStates.includes(state.value)}
-              onChange={(event) => toggleState(state.value, event.target.checked)}
-            />
-            <span>{state.label}</span>
-          </label>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function SessionStateEffectEditor({
-  draft,
-  onDraftChange,
-  stateDefinitions
-}: {
-  readonly draft: ActionDraft;
-  readonly onDraftChange: (draft: ActionDraft) => void;
-  readonly stateDefinitions: readonly TaskStateDefinition[];
-}): React.JSX.Element {
-  const selectedState = getSessionCreatedAdvanceState(draft.effects);
-
-  function selectState(state: string): void {
-    const effects = draft.effects.filter(
-      (effect) =>
-        !(effect.trigger === "session_created" && effect.type === "advance_state")
-    );
-    onDraftChange({
-      ...draft,
-      effects:
-        state.length === 0
-          ? effects
-          : [
-              ...effects,
-              {
-                state: state as TaskState,
-                trigger: "session_created",
-                type: "advance_state"
-              }
-            ]
-    });
-  }
-
-  return (
-    <Field label="When session starts" id="action-session-created-effect">
-      <NativeSelect
-        id="action-session-created-effect"
-        value={selectedState ?? ""}
-        onChange={(event) => selectState(event.target.value)}
-      >
-        <option value="">No state change</option>
-        {stateDefinitions.map((state) => (
-          <option key={state.value} value={state.value}>
-            Move to {state.label}
-          </option>
-        ))}
-      </NativeSelect>
-    </Field>
-  );
-}
-
 function ActionSettingsCard({
   action,
   onSelect
@@ -892,27 +783,13 @@ function Field({
 function toDraft(action: ApiTaskActionDetails): ActionDraft {
   return {
     description: action.description,
-    effects: action.effects,
     enabled: action.enabled,
     iconName: action.iconName ?? getDefaultIconName(action.id),
     label: action.label,
     options: action.options,
     promptTemplate: action.promptTemplate,
-    recommendationStates: action.recommendationStates,
     sortOrder: String(action.sortOrder)
   };
-}
-
-function getSessionCreatedAdvanceState(
-  effects: readonly ApiTaskActionEffect[]
-): TaskState | null {
-  for (const effect of effects) {
-    if (effect.trigger === "session_created" && effect.type === "advance_state") {
-      return effect.state;
-    }
-  }
-
-  return null;
 }
 
 function getDefaultIconName(actionId: string): string {

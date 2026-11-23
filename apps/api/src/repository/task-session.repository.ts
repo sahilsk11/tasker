@@ -4,8 +4,10 @@ import type { Database, TaskSessionRow } from "../db/schema.js";
 import type {
   ClaimTaskSessionInput,
   CreateTaskSessionInput,
+  SessionContext,
   TaskSession
 } from "../domain/task-session.js";
+import { safeSessionUrl } from "../domain/task-session.js";
 import type { TaskId } from "../domain/task.js";
 
 function nullableIsoDate(value: Date | null): string | null {
@@ -17,6 +19,7 @@ function serializeMetadata(value: Record<string, unknown> | null | undefined): s
 }
 
 export type TaskSessionRepository = {
+  readonly updateContext: (taskId: TaskId, sessionId: string, input: SessionContext) => Promise<TaskSession | null>;
   readonly claim: (
     sessionId: string,
     input: ClaimTaskSessionInput
@@ -37,17 +40,27 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
     input: ClaimTaskSessionInput
   ): Promise<TaskSession | null> {
     const values: Partial<{
+      app_name: string | null;
+      client_name: string | null;
+      display_title: string | null;
+      machine_name: string | null;
+      source_url: string | null;
       claimed_at: string;
       metadata_json: string | null;
       provider: string;
       provider_id: string | null;
       transcript_path: string | null;
     }> = {
+      ...contextValues(input),
       claimed_at: new Date().toISOString()
     };
 
     if (input.metadata !== undefined) {
       values.metadata_json = serializeMetadata(input.metadata);
+      const url = safeSessionUrl(input.metadata?.["url"]);
+      if (input.sourceUrl === undefined && url != null) {
+        values.source_url = url;
+      }
     }
     if (input.provider != null) {
       values.provider = input.provider;
@@ -80,6 +93,11 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
       .insertInto("task_sessions")
       .values({
         action_id: input.actionId ?? null,
+        app_name: input.appName ?? null,
+        client_name: input.clientName ?? null,
+        display_title: input.displayTitle ?? null,
+        machine_name: input.machineName ?? null,
+        source_url: input.sourceUrl === undefined ? safeSessionUrl(input.metadata?.["url"]) : input.sourceUrl,
         claimed_at: nullableIsoDate(claimedAt),
         created_at: now.toISOString(),
         id: randomUUID(),
@@ -93,6 +111,23 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
       .executeTakeFirstOrThrow();
 
     return toTaskSession(row);
+  }
+
+  public async updateContext(taskId: TaskId, sessionId: string, input: SessionContext): Promise<TaskSession | null> {
+    const values = contextValues(input);
+    if (Object.keys(values).length === 0) {
+      const session = await this.findById(sessionId);
+      return session?.taskId === taskId ? session : null;
+    }
+
+    const row = await this.db
+      .updateTable("task_sessions")
+      .set(values)
+      .where("task_id", "=", taskId)
+      .where("id", "=", sessionId)
+      .returningAll()
+      .executeTakeFirst();
+    return row == null ? null : toTaskSession(row);
   }
 
   public async findById(sessionId: string): Promise<TaskSession | null> {
@@ -118,14 +153,29 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
   }
 }
 
+function contextValues(input: SessionContext) {
+  return {
+    ...(input.appName !== undefined ? { app_name: input.appName } : {}),
+    ...(input.clientName !== undefined ? { client_name: input.clientName } : {}),
+    ...(input.displayTitle !== undefined ? { display_title: input.displayTitle } : {}),
+    ...(input.machineName !== undefined ? { machine_name: input.machineName } : {}),
+    ...(input.sourceUrl !== undefined ? { source_url: input.sourceUrl } : {})
+  };
+}
+
 function toTaskSession(row: TaskSessionRow): TaskSession {
+  const metadata = parseMetadata(row.metadata_json);
   return {
     actionId: row.action_id,
     claimedAt: row.claimed_at == null ? null : new Date(row.claimed_at),
     createdAt: new Date(row.created_at),
-    displayTitle: null,
+    appName: row.app_name,
+    clientName: row.client_name,
+    displayTitle: row.display_title,
+    machineName: row.machine_name,
     id: row.id,
-    metadata: parseMetadata(row.metadata_json),
+    metadata,
+    sourceUrl: safeSessionUrl(row.source_url),
     provider: row.provider,
     providerId: row.provider_id,
     taskId: row.task_id,

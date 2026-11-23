@@ -90,9 +90,10 @@ Linux: ~/.local/share/tasker
 
 [tasker.ultron.sh](https://tasker.ultron.sh) serves the existing web app and a
 subset of the API from a Cloudflare Worker. D1 stores tasks, subtasks, and
-session references. The hosted build disables Linear, agent actions, and
-local file operations. Working directories and transcript paths are stored as
-references to paths on the originating machine.
+session references. The hosted app runs behind Cloudflare Access. Settings
+edits the hosted action catalog. Launching agents and managing local files
+requires the local app. Working directories and transcript paths, when
+supplied, refer to paths on the originating machine.
 
 Cloudflare Terraform provisions the Worker and D1 database. The
 `deploy-tasker` workflow in `sahilsk11/cloudflare` reads the D1 binding ID,
@@ -108,19 +109,26 @@ the Ultron Access service token. Tasker uses Cloudflare Access for API auth.
 1. Create a task with `POST /api/tasks` and a JSON body containing `title`
    and an optional `description`.
 2. Send `POST /api/tasks/<task-id>/sessions` with a `provider`, an optional
-   `providerId`, and optional `metadata`. Use the provider and its session ID
-   to associate a trace with the task. For example:
+   `providerId`, and optional `metadata`. Send the source app's actual ID as
+   `providerId`, a readable `displayTitle`, and any known provenance. For example:
 
    ```json
    {
      "provider": "t3",
      "providerId": "your-thread-id",
-     "metadata": { "url": "your-thread-link", "summary": "What we decided" }
+     "displayTitle": "Review API design",
+     "machineName": "Strucker",
+     "clientName": "T3",
+     "sourceUrl": "t3-thread://v2/your-environment-id/your-thread-id",
+     "metadata": { "summary": "What we decided" }
    }
    ```
 
-The linked session appears in Tasker's Sessions list. Use
-`GET /api/tasks/<task-id>/sessions` to read back the metadata.
+Leave unknown provenance unset. Use `appName` for a source such as Cloud
+Voice or Grokbot. The link can be an HTTPS conversation URL or a desktop
+deep link copied from the source app. Read back the saved session with
+`GET /api/tasks/<task-id>/sessions`. To update its title or provenance,
+send those fields to `PATCH /api/tasks/<task-id>/sessions/<session-id>`.
 
 ## SAS deploy
 

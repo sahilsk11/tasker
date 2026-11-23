@@ -48,7 +48,7 @@ const resourceLabels: Record<ResourceKind, string> = {
 const resourceDetailLabels: Record<ResourceKind, string> = {
   artifact: "Format",
   pr: "Host",
-  session: "Provider",
+  session: "Machine · Client · App",
   subtask: "Task",
   ticket: "Source",
   worktree: "Location"
@@ -421,13 +421,17 @@ function ResourceTable({
             </TableCell>
             <TableCell>
               <div className="flex justify-end gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onOpenResource(resource)}
-                >
-                  Open
-                </Button>
+                {resource.kind === "session" ? (
+                  resource.href == null ? null : (
+                    <Button asChild variant="ghost" size="sm">
+                      <a href={resource.href} target={resource.href.startsWith("http") ? "_blank" : undefined} rel="noreferrer">Open session</a>
+                    </Button>
+                  )
+                ) : (
+                  <Button variant="ghost" size="sm" onClick={() => onOpenResource(resource)}>
+                    Open
+                  </Button>
+                )}
                 <ResourceActions
                   onArchive={onArtifactArchive}
                   onDelete={onArtifactDelete}

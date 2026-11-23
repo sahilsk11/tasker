@@ -1,7 +1,6 @@
 export type { CreateTaskArtifactInput, TaskArtifact, TaskArtifactId } from "./task-artifact.js";
 export type {
   TaskAction,
-  TaskActionEffect,
   TaskActionPromptContext,
   TaskActionRecord
 } from "./task-action.js";
@@ -19,13 +18,7 @@ export type {
   TaskSessionId
 } from "./task-session.js";
 export type { CreateTaskTicketInput, TaskTicket, TaskTicketId } from "./task-ticket.js";
-export type {
-  TaskWorkflowEffect,
-  TaskWorkflowRule,
-  TaskWorkflowRuleConditions,
-  TaskWorkflowRuleTrigger
-} from "./task-workflow-rule.js";
-export type { CreateTaskInput, Task, TaskId, TaskState, UpdateTaskInput } from "./task.js";
+export type { CreateTaskInput, Task, TaskId, UpdateTaskInput } from "./task.js";
 export type {
   UpdateWorkingPathSettingsInput,
   WorkingPathSettings

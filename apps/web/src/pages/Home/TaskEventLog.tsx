@@ -25,7 +25,6 @@ const eventIcons: Partial<Record<ResourceKind, LucideIcon>> = {
 const eventVerbs: Partial<Record<ResourceKind, string>> = {
   artifact: "Artifact saved",
   pr: "Opened",
-  session: "Session started",
   subtask: "Subtask created",
   ticket: "Ticket linked"
 };
@@ -98,9 +97,11 @@ function TaskEventRow({
       </span>
       <span className="grid min-w-0 gap-0.5 pt-0.5">
         <span className="flex min-w-0 items-center gap-1.5 text-sm text-[#a9abb2]">
-          <span className="shrink-0 text-[#83868f]">
-            {eventVerbs[resource.kind] ?? "Resource updated"}
-          </span>
+          {resource.kind === "session" ? null : (
+            <span className="shrink-0 text-[#83868f]">
+              {eventVerbs[resource.kind] ?? "Resource updated"}
+            </span>
+          )}
           <span className="min-w-0 truncate font-medium">{title}</span>
         </span>
         {note == null ? null : <span className="min-w-0">{note}</span>}

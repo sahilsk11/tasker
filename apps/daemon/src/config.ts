@@ -6,7 +6,6 @@ export type DaemonEnv = {
   readonly codexSessionsRoot: string | undefined;
   readonly databasePath: string;
   readonly host: string;
-  readonly linearApiKey: string | null;
   readonly migrationsDirectory: string | undefined;
   readonly port: number;
   readonly webDistDirectory: string;
@@ -20,7 +19,6 @@ export function loadDaemonEnv(): DaemonEnv {
     codexSessionsRoot: normalizeOptionalEnv(process.env["CODEX_SESSIONS_ROOT"]) ?? undefined,
     databasePath: process.env["DATABASE_PATH"] ?? "./tasker.sqlite",
     host: process.env["HOST"] ?? "127.0.0.1",
-    linearApiKey: normalizeOptionalEnv(process.env["LINEAR_API_KEY"]),
     migrationsDirectory:
       normalizeOptionalEnv(process.env["TASKER_MIGRATIONS_DIR"]) ?? undefined,
     port: parsePort(process.env["PORT"] ?? "48273"),

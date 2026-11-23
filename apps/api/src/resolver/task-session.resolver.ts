@@ -1,10 +1,11 @@
-import { agentPromptProviderValues, defaultAgentPromptProvider } from "@tasker/core";
+import { agentPromptProviderValues } from "@tasker/core";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { taskActionPromptValuesSchema } from "../domain/task-action-prompt-values.js";
 import {
   parseClaimSessionInput,
-  parseCreateSessionInput
+  parseCreateSessionInput,
+  parseSessionContext,
+  renderSessionPromptSchema
 } from "../command/task-session.command.js";
 import type { TaskService } from "../service/task.service.js";
 
@@ -18,11 +19,6 @@ const sessionIdParamsSchema = z.object({
 
 const taskSessionParamsSchema = taskIdParamsSchema.extend({
   sessionId: z.string().min(1)
-});
-
-const renderSessionPromptSchema = z.object({
-  provider: z.enum(agentPromptProviderValues).default(defaultAgentPromptProvider),
-  promptOptions: taskActionPromptValuesSchema.optional()
 });
 
 const runSessionPromptSchema = z.object({
@@ -45,6 +41,11 @@ export function registerTaskSessionResolver(
     const { id } = taskIdParamsSchema.parse(request.params);
     const session = await taskService.addSession(id, parseCreateSessionInput(request.body));
     return reply.code(201).send({ session });
+  });
+
+  server.patch("/tasks/:id/sessions/:sessionId", async (request) => {
+    const { id, sessionId } = taskSessionParamsSchema.parse(request.params);
+    return { session: await taskService.updateSessionContext(id, sessionId, parseSessionContext(request.body)) };
   });
 
   server.post("/tasks/:id/sessions/:sessionId/prompt", async (request) => {

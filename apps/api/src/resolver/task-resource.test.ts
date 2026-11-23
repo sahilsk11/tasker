@@ -5,156 +5,11 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { createApp } from "../app.js";
-import { taskStateDefinitions } from "../domain/task.js";
-
-void test("task state options are exposed in canonical order", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "tasker-state-options-"));
-  const app = await createApp({
-    databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null
-  });
-
-  try {
-    const response = await app.inject({
-      method: "GET",
-      url: "/task-states"
-    });
-
-    assert.equal(response.statusCode, 200);
-    const body = readJson(response.body) as {
-      readonly states: typeof taskStateDefinitions;
-    };
-    assert.deepEqual(body.states, taskStateDefinitions);
-  } finally {
-    await app.close();
-    await rm(dir, { force: true, recursive: true });
-  }
-});
-
-void test("artifact and pull request endpoints infer task state", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "tasker-resource-state-"));
-  const app = await createApp({
-    databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null
-  });
-
-  try {
-    const task = await createTask(app, "State inference");
-    assert.equal(task.state, "ready");
-
-    const session = await createSession(app, task.id, {
-      actionId: "implement",
-      claimed: false
-    });
-    assert.equal(await getTaskState(app, task.id), "implementation");
-
-    await claimSession(app, session.id);
-    assert.equal(await getTaskState(app, task.id), "implementation");
-
-    const research = await createArtifact(app, task.id, {
-      label: "research",
-      uri: "/tmp/research.md"
-    });
-    assert.equal(research.label, "research");
-    assert.equal(research.taskId, task.id);
-    assert.equal(await getTaskState(app, task.id), "implementation");
-
-    await createArtifact(app, task.id, {
-      label: "plan",
-      uri: "/tmp/plan.md"
-    });
-    assert.equal(await getTaskState(app, task.id), "implementation");
-
-    const pullRequest = await createPullRequest(app, task.id, {
-      url: "https://github.com/sahilsk11/tasker/pull/21"
-    });
-    assert.equal(pullRequest.taskId, task.id);
-    assert.equal(pullRequest.url, "https://github.com/sahilsk11/tasker/pull/21");
-    assert.equal(await getTaskState(app, task.id), "implementation");
-
-    await createArtifact(app, task.id, {
-      label: "implement",
-      uri: "/tmp/implementation.md"
-    });
-    assert.equal(await getTaskState(app, task.id), "implementation");
-
-    await createArtifact(app, task.id, {
-      label: "other",
-      uri: "/tmp/other.md"
-    });
-    assert.equal(await getTaskState(app, task.id), "implementation");
-
-    await createArtifact(app, task.id, {
-      label: "plan",
-      uri: "/tmp/late-plan.md"
-    });
-    assert.equal(await getTaskState(app, task.id), "implementation");
-
-    const doneResponse = await app.inject({
-      method: "PATCH",
-      payload: { state: "done" },
-      url: `/tasks/${task.id}`
-    });
-    assert.equal(doneResponse.statusCode, 200);
-    assert.equal(await getTaskState(app, task.id), "done");
-
-    await createPullRequest(app, task.id, {
-      url: "https://github.com/sahilsk11/tasker/pull/22"
-    });
-    assert.equal(await getTaskState(app, task.id), "done");
-
-    await createArtifact(app, task.id, {
-      label: "research",
-      uri: "/tmp/research-after-done.md"
-    });
-    assert.equal(await getTaskState(app, task.id), "done");
-  } finally {
-    await app.close();
-    await rm(dir, { force: true, recursive: true });
-  }
-});
-
-void test("task state can be manually updated", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "tasker-manual-state-"));
-  const app = await createApp({
-    databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null
-  });
-
-  try {
-    const task = await createTask(app, "Manual state");
-    const response = await app.inject({
-      method: "PATCH",
-      payload: { state: "done" },
-      url: `/tasks/${task.id}`
-    });
-
-    assert.equal(response.statusCode, 200);
-    const updated = (readJson(response.body) as {
-      readonly task: { readonly id: string; readonly state: string };
-    }).task;
-
-    assert.equal(updated.id, task.id);
-    assert.equal(updated.state, "done");
-    assert.equal(await getTaskState(app, task.id), "done");
-
-    const invalidResponse = await app.inject({
-      method: "PATCH",
-      payload: { state: "running" },
-      url: `/tasks/${task.id}`
-    });
-    assert.equal(invalidResponse.statusCode, 400);
-  } finally {
-    await app.close();
-    await rm(dir, { force: true, recursive: true });
-  }
-});
 
 void test("task working directory persists on create and update", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-working-directory-"));
   const app = await createApp({
     databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null
   });
 
   try {
@@ -234,7 +89,6 @@ void test("omitted task working directory stays unset", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-unset-working-directory-"));
   const app = await createApp({
     databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null
   });
 
   try {
@@ -258,7 +112,6 @@ void test("tasks endpoint scopes results by parent task", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-parent-scope-"));
   const app = await createApp({
     databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null
   });
 
   try {
@@ -304,7 +157,6 @@ void test("task artifacts expose renderable local file content", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-artifact-content-"));
   const app = await createApp({
     databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null
   });
 
   try {
@@ -387,7 +239,6 @@ void test("task resources aggregate and dedupe explicit resource types", async (
   const dir = await mkdtemp(join(tmpdir(), "tasker-resource-dedupe-"));
   const app = await createApp({
     databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null
   });
 
   try {
@@ -421,7 +272,7 @@ void test("task resources aggregate and dedupe explicit resource types", async (
 
     const ticketPayload = {
       externalId: "SAS-58",
-      url: "https://linear.app/example/issue/SAS-58"
+      url: "https://tracker.example.com/issue/SAS-58"
     };
     const firstTicketResponse = await app.inject({
       method: "POST",
@@ -496,7 +347,6 @@ void test("artifact lifecycle archives, restores, deletes, and filters active re
   const app = await createApp({
     artifactStorage: { activeRoot, archiveRoot },
     databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null
   });
 
   try {
@@ -511,7 +361,6 @@ void test("artifact lifecycle archives, restores, deletes, and filters active re
       uri: sourcePath
     });
     assert.equal(artifact.archivedAt, null);
-    assert.equal(await getTaskState(app, task.id), "planning");
 
     const archiveResponse = await app.inject({
       method: "POST",
@@ -523,7 +372,6 @@ void test("artifact lifecycle archives, restores, deletes, and filters active re
     assert.equal(archived.uri, join(archiveRoot, task.id, artifact.id, "notes.md"));
     await assertMissing(sourcePath);
     await assertExists(archived.uri);
-    assert.equal(await getTaskState(app, task.id), "planning");
 
     const activeListResponse = await app.inject({
       method: "GET",
@@ -596,7 +444,6 @@ void test("artifact lifecycle archives, restores, deletes, and filters active re
     });
     assert.equal(deleteResponse.statusCode, 200);
     await assertMissing(restored.uri);
-    assert.equal(await getTaskState(app, task.id), "planning");
 
     const deletedMetadataResponse = await app.inject({
       method: "GET",
@@ -616,7 +463,6 @@ void test("artifact lifecycle refuses unmanaged paths without deleting rows or f
   const app = await createApp({
     artifactStorage: { activeRoot, archiveRoot },
     databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null
   });
 
   try {
@@ -675,7 +521,7 @@ async function createTask(
   app: Awaited<ReturnType<typeof createApp>>,
   title: string,
   parentTaskId: string | null = null
-): Promise<{ readonly id: string; readonly state: string }> {
+): Promise<{ readonly id: string }> {
   const response = await app.inject({
     method: "POST",
     payload: { parentTaskId, title },
@@ -683,7 +529,7 @@ async function createTask(
   });
   assert.equal(response.statusCode, 201);
   return (readJson(response.body) as {
-    readonly task: { readonly id: string; readonly state: string };
+    readonly task: { readonly id: string };
   }).task;
 }
 
@@ -691,20 +537,6 @@ function taskTitles(body: string): readonly string[] {
   return (readJson(body) as {
     readonly tasks: ReadonlyArray<{ readonly title: string }>;
   }).tasks.map((task) => task.title).sort();
-}
-
-async function getTaskState(
-  app: Awaited<ReturnType<typeof createApp>>,
-  taskId: string
-): Promise<string> {
-  const response = await app.inject({
-    method: "GET",
-    url: `/tasks/${taskId}`
-  });
-  assert.equal(response.statusCode, 200);
-  return (readJson(response.body) as {
-    readonly task: { readonly state: string };
-  }).task.state;
 }
 
 async function createArtifact(
@@ -780,22 +612,6 @@ async function createSession(
   assert.equal(response.statusCode, 201);
   return (readJson(response.body) as { readonly session: { readonly id: string } })
     .session;
-}
-
-async function claimSession(
-  app: Awaited<ReturnType<typeof createApp>>,
-  sessionId: string
-): Promise<void> {
-  const response = await app.inject({
-    method: "POST",
-    payload: {
-      metadata: {
-        source: "state-event-test"
-      }
-    },
-    url: `/sessions/${sessionId}/claim`
-  });
-  assert.equal(response.statusCode, 200);
 }
 
 function readContent(body: string): {

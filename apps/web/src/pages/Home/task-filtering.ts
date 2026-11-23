@@ -1,4 +1,4 @@
-import type { TaskBundle, TaskState } from "@/api/tasks";
+import type { TaskBundle } from "@/api/tasks";
 import {
   getLatestResourceActivityAt,
   getPullRequestsForBundle
@@ -9,8 +9,6 @@ export type TaskFilter = "all" | "has-pr" | "has-ticket";
 export type TaskViewOptions = {
   readonly filter: TaskFilter;
   readonly query: string;
-  readonly taskAllStates: readonly TaskState[];
-  readonly taskStates: readonly TaskState[];
 };
 
 type TaskSearchDocument = {
@@ -26,22 +24,10 @@ export function getVisibleTaskBundles(
   const documents = bundles.map(toSearchDocument);
   const matched = documents
     .filter((document) => matchesFilter(document.bundle, options.filter))
-    .filter((document) => matchesTaskState(document.bundle, options))
     .filter((document) => matchesQuery(document, options.query))
     .map((document) => document.bundle);
 
   return [...matched].sort(compareTaskBundleActivity);
-}
-
-function matchesTaskState(bundle: TaskBundle, options: TaskViewOptions): boolean {
-  if (
-    options.taskStates.length === 0 ||
-    options.taskStates.length === options.taskAllStates.length
-  ) {
-    return true;
-  }
-
-  return options.taskStates.includes(bundle.task.state);
 }
 
 function matchesFilter(bundle: TaskBundle, filter: TaskFilter): boolean {

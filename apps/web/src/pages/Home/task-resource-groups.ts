@@ -164,7 +164,7 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
 
 function getSessionHref(sourceUrl: string | null): string | null {
   const prefix = "t3-thread://v2/";
-  if (sourceUrl == null || !sourceUrl.startsWith(prefix)) {
+  if (!sourceUrl?.startsWith(prefix)) {
     return sourceUrl;
   }
 

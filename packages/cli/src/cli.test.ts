@@ -115,7 +115,7 @@ void test("runCli dispatches default commands locally without fetch", async () =
       );
       assert.match(
         rootList.output,
-        new RegExp(`${escapeRegExp(task.id)} \\[[^\\]]+\\] Task title`)
+        new RegExp(escapeRegExp(`${task.id} Task title`))
       );
       assertNotJson(rootList.output);
 

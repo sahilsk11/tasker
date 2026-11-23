@@ -10,7 +10,6 @@ void test("runtime endpoint reports the active Tasker API identity", async () =>
   const databasePath = join(dir, "tasker.sqlite");
   const app = await createApp({
     databasePath,
-    linearApiKey: null,
     publicApiBaseUrl: "http://127.0.0.1:3999"
   });
 
@@ -54,7 +53,6 @@ void test("runtime and health endpoints honor the configured route prefix", asyn
   const dir = await mkdtemp(join(tmpdir(), "tasker-runtime-prefix-"));
   const app = await createApp({
     databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null,
     routePrefix: "/api"
   });
 

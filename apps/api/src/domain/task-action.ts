@@ -1,25 +1,9 @@
 import type { AgentPromptProvider } from "@tasker/core";
 import type { TaskActionOptions } from "./task-action-options.js";
-import type { TaskState } from "./task.js";
-import type { TaskWorkflowEffect } from "./task-workflow-rule.js";
-
-export const taskActionEffectTriggers = [
-  "session_created",
-  "session_claimed",
-  "session_completed"
-] as const;
-
-export type TaskActionEffectTrigger = (typeof taskActionEffectTriggers)[number];
-
-export type TaskActionEffect = TaskWorkflowEffect & {
-  readonly trigger: TaskActionEffectTrigger;
-};
-
 export type TaskAction = {
   readonly description: string;
   readonly iconName: string | null;
   readonly id: string;
-  readonly isRecommended: boolean;
   readonly label: string;
   readonly options: TaskActionOptions | null;
 };
@@ -27,9 +11,7 @@ export type TaskAction = {
 export type TaskActionRecord = TaskAction & {
   readonly createdAt: Date;
   readonly enabled: boolean;
-  readonly effects: readonly TaskActionEffect[];
   readonly promptTemplate: string;
-  readonly recommendationStates: readonly TaskState[];
   readonly sortOrder: number;
   readonly updatedAt: Date;
 };
@@ -37,9 +19,7 @@ export type TaskActionRecord = TaskAction & {
 export type TaskActionDetails = TaskAction & {
   readonly createdAt: string;
   readonly enabled: boolean;
-  readonly effects: readonly TaskActionEffect[];
   readonly promptTemplate: string;
-  readonly recommendationStates: readonly TaskState[];
   readonly sortOrder: number;
   readonly updatedAt: string;
 };
@@ -47,12 +27,10 @@ export type TaskActionDetails = TaskAction & {
 export type UpdateTaskActionInput = {
   readonly description?: string;
   readonly enabled?: boolean;
-  readonly effects?: readonly TaskActionEffect[];
   readonly iconName?: string | null;
   readonly label?: string;
   readonly options?: TaskActionOptions | null;
   readonly promptTemplate?: string;
-  readonly recommendationStates?: readonly TaskState[];
   readonly sortOrder?: number;
 };
 

@@ -24,7 +24,6 @@ const app = await createApp({
     codexFastMode: env.kannaCodexFastMode,
     codexReasoningEffort: env.kannaCodexReasoningEffort
   },
-  linearApiKey: env.linearApiKey,
   publicApiBaseUrl: env.publicApiBaseUrl,
   ...(env.taskActionsPath === undefined ? {} : { taskActionsPath: env.taskActionsPath })
 });

@@ -3,6 +3,8 @@ import { Hono } from "hono";
 import { Kysely } from "kysely";
 import { D1Dialect } from "kysely-d1";
 import { ZodError } from "zod";
+import taskActions from "../task-actions.json" with { type: "json" };
+import { parseUpdateTaskActionInput } from "./command/task-action.command.js";
 import {
   parseCreateArtifactInput,
   parseCreatePullRequestInput,
@@ -10,12 +12,13 @@ import {
 } from "./command/task-resource.command.js";
 import {
   parseClaimSessionInput,
-  parseCreateSessionInput
+  parseCreateSessionInput,
+  parseSessionContext
 } from "./command/task-session.command.js";
 import { parseCreateTaskInput, parseUpdateTaskInput } from "./command/task.command.js";
 import type { Database } from "./db/schema.js";
-import { taskStateDefinitions } from "./domain/task.js";
-import type { TaskActionRepository } from "./repository/task-action.repository.js";
+import { D1TaskActionRepository } from "./repository/d1-task-action.repository.js";
+import { parseTaskActionCatalog } from "./task-actions/catalog.js";
 import { SqliteTaskArtifactRepository } from "./repository/task-artifact.repository.js";
 import { SqliteTaskPullRequestRepository } from "./repository/task-pull-request.repository.js";
 import { SqliteTaskSessionRepository } from "./repository/task-session.repository.js";
@@ -24,7 +27,6 @@ import { SqliteTaskRepository } from "./repository/task.repository.js";
 import { ArtifactStorageService } from "./service/artifact-storage.service.js";
 import { BadRequestError, ConflictError, NotFoundError } from "./service/errors.js";
 import { TaskSessionProviderRegistry } from "./service/session-provider.js";
-import { TaskEventBus } from "./service/task-events.js";
 import { TaskService } from "./service/task.service.js";
 
 type Bindings = {
@@ -34,13 +36,7 @@ type Bindings = {
 
 type Variables = { readonly tasks: TaskService };
 
-const disabledActions: TaskActionRepository = {
-  findById: () => Promise.resolve(null),
-  findEditableById: () => Promise.resolve(null),
-  listAll: () => Promise.resolve([]),
-  listEnabled: () => Promise.resolve([]),
-  update: () => Promise.resolve(null)
-};
+const actionCatalog = parseTaskActionCatalog(taskActions);
 
 function createCloudTaskService(binding: D1Database, origin: string): TaskService {
   const db = new Kysely<Database>({ dialect: new D1Dialect({ database: binding }) });
@@ -50,9 +46,8 @@ function createCloudTaskService(binding: D1Database, origin: string): TaskServic
     new SqliteTaskPullRequestRepository(db),
     new SqliteTaskSessionRepository(db),
     new SqliteTaskTicketRepository(db),
-    disabledActions,
+    new D1TaskActionRepository(db, actionCatalog),
     `${origin}/api`,
-    new TaskEventBus(),
     new TaskSessionProviderRegistry(),
     new ArtifactStorageService({ activeRoot: "/tmp/artifacts", archiveRoot: "/tmp/archive" }),
     (directory) => {
@@ -105,7 +100,6 @@ api.get("/health", async (c) => {
   await c.env.DB.prepare("SELECT id FROM tasks LIMIT 1").first();
   return c.json({ ok: true });
 });
-api.get("/task-states", (c) => c.json({ states: taskStateDefinitions }));
 api.get("/tasks", async (c) => c.json({
   tasks: await c.var.tasks.listTasks({ parentTaskId: c.req.query("parentTaskId") ?? null })
 }));
@@ -121,7 +115,14 @@ api.patch("/tasks/:id", async (c) => c.json({
 api.get("/tasks/:id/children", async (c) => c.json({
   tasks: await c.var.tasks.listChildren(c.req.param("id"))
 }));
-api.get("/tasks/:id/actions", (c) => c.json({ actions: [] }));
+api.get("/actions", async (c) => c.json({ actions: await c.var.tasks.listActionSettings() }));
+api.patch("/actions/:actionId", async (c) => c.json({
+  action: await c.var.tasks.updateActionSettings(c.req.param("actionId"),
+    parseUpdateTaskActionInput(await readJson(c.req)))
+}));
+api.get("/tasks/:id/actions", async (c) => c.json({
+  actions: await c.var.tasks.listActions(c.req.param("id"))
+}));
 api.get("/tasks/:id/resources", async (c) => c.json({
   resources: await c.var.tasks.getResources(c.req.param("id"))
 }));
@@ -131,6 +132,10 @@ api.get("/tasks/:id/sessions", async (c) => c.json({
 api.post("/tasks/:id/sessions", async (c) => c.json({
   session: await c.var.tasks.addSession(c.req.param("id"), parseCreateSessionInput(await readJson(c.req)))
 }, 201));
+api.patch("/tasks/:id/sessions/:sessionId", async (c) => c.json({
+  session: await c.var.tasks.updateSessionContext(c.req.param("id"), c.req.param("sessionId"),
+    parseSessionContext(await readJson(c.req)))
+}));
 api.post("/sessions/:id/claim", async (c) =>
   c.json(await c.var.tasks.claimSession(c.req.param("id"), parseClaimSessionInput(await readJson(c.req))))
 );

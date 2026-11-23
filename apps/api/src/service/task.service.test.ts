@@ -10,7 +10,6 @@ import type { TaskSessionRepository } from "../repository/task-session.repositor
 import type { TaskTicketRepository } from "../repository/task-ticket.repository.js";
 import type { TaskRepository } from "../repository/task.repository.js";
 import { TaskSessionProviderRegistry } from "./session-provider.js";
-import { TaskEventBus } from "./task-events.js";
 import { TaskService } from "./task.service.js";
 
 void test("task service merges flexible claim metadata before claiming a session", async () => {
@@ -21,7 +20,7 @@ void test("task service merges flexible claim metadata before claiming a session
     {
       findById: (taskId: string) => Promise.resolve(taskId === task.id ? task : null),
       findChildren: () => Promise.resolve([]),
-      listWaitingDependenciesByTaskIds: () => Promise.resolve([])
+      listDependenciesByTaskIds: () => Promise.resolve([])
     } as unknown as TaskRepository,
     {
       listByTaskId: () => Promise.resolve([])
@@ -43,7 +42,6 @@ void test("task service merges flexible claim metadata before claiming a session
       findById: () => Promise.resolve(createAction())
     } as unknown as TaskActionRepository,
     "http://127.0.0.1:3000",
-    new TaskEventBus(),
     new TaskSessionProviderRegistry()
   );
 
@@ -77,7 +75,6 @@ function createTask(): Task {
     description: "Task description",
     id: "task-1",
     parentTaskId: null,
-    state: "ready",
     title: "Task title",
     updatedAt: now,
     workingDirectory: null
@@ -91,6 +88,10 @@ function createSession(taskId: string): TaskSession {
     claimedAt: now,
     createdAt: now,
     displayTitle: null,
+    appName: null,
+    clientName: null,
+    machineName: null,
+    sourceUrl: null,
     id: "session-1",
     metadata: null,
     provider: "codex",
@@ -105,7 +106,6 @@ function createAction(): TaskAction {
     description: "Scope the task",
     iconName: "search",
     id: "scope",
-    isRecommended: true,
     label: "Scope",
     options: null
   };

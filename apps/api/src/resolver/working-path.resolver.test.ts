@@ -9,7 +9,6 @@ void test("working path settings can be read and updated", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-working-path-settings-"));
   const app = await createApp({
     databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null
   });
 
   try {

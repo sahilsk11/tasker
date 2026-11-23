@@ -1,7 +1,6 @@
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { registerGitHubResolver } from "./resolver/github.resolver.js";
-import { registerLinearResolver } from "./resolver/linear.resolver.js";
 import { registerTaskActionResolver } from "./resolver/task-action.resolver.js";
 import { registerTaskBreakdownResolver } from "./resolver/task-breakdown.resolver.js";
 import { registerTaskResourceResolver } from "./resolver/task-resource.resolver.js";
@@ -58,7 +57,6 @@ export async function createApp(options: CreateAppOptions) {
       registerTaskResourceResolver(api, runtime.services.task);
       registerTaskSessionResolver(api, runtime.services.task);
       registerWorkingPathResolver(api, runtime.services.workingPath);
-      registerLinearResolver(api, runtime.services.linearTask, runtime.services.linear);
       registerGitHubResolver(api, runtime.services.github);
       done();
     },

@@ -1,10 +1,8 @@
 import { Check, ChevronDown, Search, SlidersHorizontal } from "lucide-react";
-import type { TaskState, TaskStateDefinition } from "@/api/tasks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import type { TaskFilter } from "./task-filtering";
 
@@ -19,26 +17,17 @@ export function TaskToolbar({
   isFilterOpen,
   onFilterChange,
   onFilterOpenChange,
-  onTaskStatesChange,
   onQueryChange,
   query,
-  selectedTaskStates,
-  taskStates
 }: {
   readonly filter: TaskFilter;
   readonly isFilterOpen: boolean;
   readonly onFilterChange: (filter: TaskFilter) => void;
   readonly onFilterOpenChange: (isOpen: boolean) => void;
-  readonly onTaskStatesChange: (states: readonly TaskState[]) => void;
   readonly onQueryChange: (query: string) => void;
   readonly query: string;
-  readonly selectedTaskStates: readonly TaskState[];
-  readonly taskStates: readonly TaskStateDefinition[];
 }): React.JSX.Element {
-  const hasPartialTaskStateFilter =
-    selectedTaskStates.length > 0 && selectedTaskStates.length !== taskStates.length;
-  const activeFilterCount =
-    (filter === "all" ? 0 : 1) + (hasPartialTaskStateFilter ? 1 : 0);
+  const activeFilterCount = filter === "all" ? 0 : 1;
 
   return (
     <section className="mx-auto flex w-full max-w-[76rem] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -71,9 +60,6 @@ export function TaskToolbar({
             <FilterContent
               filter={filter}
               onFilterChange={onFilterChange}
-              onTaskStatesChange={onTaskStatesChange}
-              selectedTaskStates={selectedTaskStates}
-              taskStates={taskStates}
             />
           </PopoverContent>
         </Popover>
@@ -85,15 +71,9 @@ export function TaskToolbar({
 function FilterContent({
   filter,
   onFilterChange,
-  onTaskStatesChange,
-  selectedTaskStates,
-  taskStates
 }: {
   readonly filter: TaskFilter;
   readonly onFilterChange: (filter: TaskFilter) => void;
-  readonly onTaskStatesChange: (states: readonly TaskState[]) => void;
-  readonly selectedTaskStates: readonly TaskState[];
-  readonly taskStates: readonly TaskStateDefinition[];
 }): React.JSX.Element {
   return (
     <div className="grid gap-4 p-3">
@@ -104,12 +84,6 @@ function FilterContent({
           onChange={onFilterChange}
         />
       </FilterSection>
-      <Separator />
-      <TaskStateFilter
-        onSelectedStatesChange={onTaskStatesChange}
-        selectedStates={selectedTaskStates}
-        states={taskStates}
-      />
     </div>
   );
 }
@@ -156,58 +130,5 @@ function SegmentedOptions<TValue extends string>({
         </button>
       ))}
     </div>
-  );
-}
-
-function TaskStateFilter({
-  onSelectedStatesChange,
-  selectedStates,
-  states
-}: {
-  readonly onSelectedStatesChange: (states: readonly TaskState[]) => void;
-  readonly selectedStates: readonly TaskState[];
-  readonly states: readonly TaskStateDefinition[];
-}): React.JSX.Element {
-  if (states.length === 0) {
-    return (
-      <FilterSection title="Task state">
-        <p className="text-sm text-muted-foreground">Loading states...</p>
-      </FilterSection>
-    );
-  }
-
-  return (
-    <FilterSection title="Task state">
-      <div className="grid max-h-48 gap-1 overflow-y-auto pr-1">
-        {states.map((state) => {
-          const isSelected = selectedStates.includes(state.value);
-          return (
-            <button
-              key={state.value}
-              aria-pressed={isSelected}
-              data-task-state={state.value}
-              type="button"
-              onClick={() =>
-                onSelectedStatesChange(
-                  isSelected
-                    ? selectedStates.filter((value) => value !== state.value)
-                    : [...selectedStates, state.value]
-                )
-              }
-              className={cn(
-                "flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm",
-                "transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                isSelected ? "text-foreground" : "text-muted-foreground"
-              )}
-            >
-              <span className="flex size-4 items-center justify-center">
-                {isSelected ? <Check className="size-4" /> : null}
-              </span>
-              <span className="truncate">{state.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </FilterSection>
   );
 }

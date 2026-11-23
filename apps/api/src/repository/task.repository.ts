@@ -6,27 +6,24 @@ import type {
   Task,
   TaskDependencySummary,
   TaskId,
-  TaskState,
   UpdateTaskInput
 } from "../domain/task.js";
-import { taskStateRanks } from "../domain/task.js";
 
 export type TaskRepository = {
   readonly create: (input: CreateTaskInput) => Promise<Task>;
   readonly createSubtasks: (input: CreateSubtasksInput) => Promise<readonly Task[]>;
   readonly findById: (id: TaskId) => Promise<Task | null>;
   readonly findChildren: (parentTaskId: TaskId) => Promise<readonly Task[]>;
-  readonly listWaitingDependenciesByTaskIds: (
+  readonly listDependenciesByTaskIds: (
     taskIds: readonly TaskId[]
-  ) => Promise<readonly TaskDependencyState[]>;
+  ) => Promise<readonly TaskDependencyList[]>;
   readonly listByParentTaskId: (parentTaskId: TaskId | null) => Promise<readonly Task[]>;
-  readonly updateStateAtLeast: (id: TaskId, state: TaskState) => Promise<Task | null>;
   readonly update: (id: TaskId, input: UpdateTaskInput) => Promise<Task | null>;
 };
 
-export type TaskDependencyState = {
+export type TaskDependencyList = {
   readonly taskId: TaskId;
-  readonly waitingDependencies: readonly TaskDependencySummary[];
+  readonly dependencies: readonly TaskDependencySummary[];
 };
 
 export type CreateSubtaskInput = {
@@ -155,9 +152,9 @@ export class SqliteTaskRepository implements TaskRepository {
     return rows.map(toTask);
   }
 
-  public async listWaitingDependenciesByTaskIds(
+  public async listDependenciesByTaskIds(
     taskIds: readonly TaskId[]
-  ): Promise<readonly TaskDependencyState[]> {
+  ): Promise<readonly TaskDependencyList[]> {
     if (taskIds.length === 0) {
       return [];
     }
@@ -172,14 +169,11 @@ export class SqliteTaskRepository implements TaskRepository {
       .select([
         "task_dependencies.task_id as taskId",
         "dependency.id as id",
-        "dependency.state as state",
         "dependency.title as title"
       ])
-      .where("dependency.state", "!=", "done")
       .orderBy("dependency.created_at", "asc");
 
-    // D1 allows 100 bindings per statement. Leave room for the state filter.
-    const batchSize = 99;
+    const batchSize = 100;
     const batches = [];
     for (let offset = 0; offset < taskIds.length; offset += batchSize) {
       batches.push(await query
@@ -193,7 +187,6 @@ export class SqliteTaskRepository implements TaskRepository {
       const dependencies = dependenciesByTaskId.get(row.taskId) ?? [];
       dependencies.push({
         id: row.id,
-        state: row.state,
         title: row.title
       });
       dependenciesByTaskId.set(row.taskId, dependencies);
@@ -201,7 +194,7 @@ export class SqliteTaskRepository implements TaskRepository {
 
     return taskIds.map((taskId) => ({
       taskId,
-      waitingDependencies: dependenciesByTaskId.get(taskId) ?? []
+      dependencies: dependenciesByTaskId.get(taskId) ?? []
     }));
   }
 
@@ -209,7 +202,6 @@ export class SqliteTaskRepository implements TaskRepository {
     const values: {
       readonly description?: string | null;
       readonly parent_task_id?: string | null;
-      readonly state?: TaskState;
       readonly title?: string;
       readonly updated_at: string;
       readonly working_directory?: string | null;
@@ -223,7 +215,6 @@ export class SqliteTaskRepository implements TaskRepository {
         ...values,
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.parentTaskId !== undefined ? { parent_task_id: input.parentTaskId } : {}),
-        ...(input.state !== undefined ? { state: input.state } : {}),
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.workingDirectory !== undefined
           ? { working_directory: input.workingDirectory }
@@ -236,38 +227,7 @@ export class SqliteTaskRepository implements TaskRepository {
     return row == null ? null : toTask(row);
   }
 
-  public async updateStateAtLeast(
-    id: TaskId,
-    state: TaskState
-  ): Promise<Task | null> {
-    return this.db.transaction().execute(async (trx) => {
-      const currentRow = await trx
-        .selectFrom("tasks")
-        .selectAll()
-        .where("id", "=", id)
-        .executeTakeFirst();
 
-      if (currentRow == null) {
-        return null;
-      }
-
-      if (taskStateRanks[currentRow.state] >= taskStateRanks[state]) {
-        return toTask(currentRow);
-      }
-
-      const row = await trx
-        .updateTable("tasks")
-        .set({
-          state,
-          updated_at: new Date().toISOString()
-        })
-        .where("id", "=", id)
-        .returningAll()
-        .executeTakeFirstOrThrow();
-
-      return toTask(row);
-    });
-  }
 }
 
 function toTask(row: TaskRow): Task {
@@ -276,7 +236,6 @@ function toTask(row: TaskRow): Task {
     description: row.description,
     id: row.id,
     parentTaskId: row.parent_task_id,
-    state: row.state,
     title: row.title,
     updatedAt: new Date(row.updated_at),
     workingDirectory: row.working_directory

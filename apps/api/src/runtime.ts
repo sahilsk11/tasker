@@ -18,15 +18,11 @@ import {
   KannaSessionProvider,
   type KannaSessionProviderOptions
 } from "./service/kanna-session-provider.js";
-import { LinearTaskService } from "./service/linear-task.service.js";
-import { LinearService, type LinearServiceOptions } from "./service/linear.service.js";
 import { TaskBreakdownService } from "./service/task-breakdown.service.js";
 import {
   TaskSessionProviderRegistry,
   type TaskSessionProvider
 } from "./service/session-provider.js";
-import { createTaskStateEventHandler } from "./service/task-state-events.js";
-import { TaskEventBus } from "./service/task-events.js";
 import { TaskService } from "./service/task.service.js";
 import { WorkingPathService } from "./service/working-path.service.js";
 import { getDefaultTaskActionsPath } from "./task-actions/catalog.js";
@@ -40,8 +36,6 @@ export type CreateTaskerRuntimeOptions = {
   readonly databasePath: string;
   readonly github?: GitHubServiceOptions;
   readonly kanna?: KannaSessionProviderOptions;
-  readonly linear?: LinearServiceOptions;
-  readonly linearApiKey: string | null;
   readonly migrationsDirectory?: string;
   readonly publicApiBaseUrl?: string;
   readonly sessionProviders?: readonly TaskSessionProvider[];
@@ -71,8 +65,6 @@ export type TaskerRuntimeRepositories = {
 
 export type TaskerRuntimeServices = {
   readonly github: GitHubService;
-  readonly linear: LinearService;
-  readonly linearTask: LinearTaskService;
   readonly task: TaskService;
   readonly taskBreakdown: TaskBreakdownService;
   readonly workingPath: WorkingPathService;
@@ -85,7 +77,6 @@ export type TaskerRuntime = {
   readonly repositories: TaskerRuntimeRepositories;
   readonly services: TaskerRuntimeServices;
   readonly sessionProviders: TaskSessionProviderRegistry;
-  readonly taskEvents: TaskEventBus;
 };
 
 export function createTaskerRuntime(
@@ -133,19 +124,7 @@ export function createTaskerRuntime(
     ticket: new SqliteTaskTicketRepository(db),
     workingPath: new SqliteWorkingPathRepository(db)
   };
-  const taskEvents = new TaskEventBus();
-  const taskStateEventHandler = createTaskStateEventHandler(
-    repositories.task,
-    undefined,
-    repositories.taskAction
-  );
-  taskEvents.subscribe("artifact_registered", taskStateEventHandler);
-  taskEvents.subscribe("pull_request_registered", taskStateEventHandler);
-  taskEvents.subscribe("session_claimed", taskStateEventHandler);
-  taskEvents.subscribe("session_created", taskStateEventHandler);
-
   const githubService = new GitHubService(options.github);
-  const linearService = new LinearService(options.linearApiKey, options.linear);
   const taskService = new TaskService(
     repositories.task,
     repositories.artifact,
@@ -154,15 +133,12 @@ export function createTaskerRuntime(
     repositories.ticket,
     repositories.taskAction,
     publicApiBaseUrl,
-    taskEvents,
     sessionProviders,
     new ArtifactStorageService(options.artifactStorage)
   );
 
   const services: TaskerRuntimeServices = {
     github: githubService,
-    linear: linearService,
-    linearTask: new LinearTaskService(linearService, taskService),
     task: taskService,
     taskBreakdown: new TaskBreakdownService(repositories.task, publicApiBaseUrl),
     workingPath: new WorkingPathService(repositories.workingPath)
@@ -193,7 +169,6 @@ export function createTaskerRuntime(
     },
     repositories,
     services,
-    sessionProviders,
-    taskEvents
+    sessionProviders
   };
 }

@@ -15,6 +15,7 @@ import type {
 import type {
   ClaimTaskSessionInput,
   CreateTaskSessionInput,
+  SessionContext,
   TaskSession,
   TaskSessionMetadata
 } from "../domain/task-session.js";
@@ -28,7 +29,7 @@ import type {
   CreateTaskInput,
   Task,
   TaskId,
-  TaskWithDependencyState,
+  TaskWithDependencies,
   UpdateTaskInput
 } from "../domain/task.js";
 import type { TaskArtifactRepository } from "../repository/task-artifact.repository.js";
@@ -48,7 +49,6 @@ import {
   type StartedTaskSession
 } from "./session-provider.js";
 import { renderActionPrompt } from "./task-action-prompt.js";
-import type { TaskEventBus } from "./task-events.js";
 import { normalizeOptionalDirectoryPath } from "./working-directory.js";
 
 export type TaskResources = {
@@ -64,10 +64,10 @@ export type ListTasksInput = {
 
 export type TaskOverview = {
   readonly action: TaskAction | null;
-  readonly children: readonly TaskWithDependencyState[];
+  readonly children: readonly TaskWithDependencies[];
   readonly latestTaskActivityAt: Date;
   readonly resources: TaskResources;
-  readonly task: TaskWithDependencyState;
+  readonly task: TaskWithDependencies;
 };
 
 export type ClaimTaskSessionResult = {
@@ -114,7 +114,6 @@ export class TaskService {
     private readonly tickets: TaskTicketRepository,
     private readonly actions: TaskActionRepository,
     private readonly publicApiBaseUrl: string,
-    private readonly events: TaskEventBus,
     private readonly sessionProviders = new TaskSessionProviderRegistry(),
     private readonly artifactStorage = new ArtifactStorageService(),
     private readonly normalizeWorkingDirectory = normalizeOptionalDirectoryPath
@@ -127,14 +126,6 @@ export class TaskService {
     await this.requireTask(taskId);
     await this.requireSessionForTask(taskId, input.createdBySessionId);
     const artifact = await this.artifacts.createForTask(taskId, input);
-    await this.events.publish({
-      type: "artifact_registered",
-      artifactId: artifact.id,
-      createdBySessionId: artifact.createdBySessionId,
-      label: artifact.label,
-      taskId,
-      uri: artifact.uri
-    });
     return artifact;
   }
 
@@ -144,12 +135,6 @@ export class TaskService {
   ): Promise<TaskPullRequest> {
     await this.requireTask(taskId);
     const pullRequest = await this.pullRequests.createForTask(taskId, input);
-    await this.events.publish({
-      type: "pull_request_registered",
-      pullRequestId: pullRequest.id,
-      taskId,
-      url: pullRequest.url
-    });
     return pullRequest;
   }
 
@@ -164,12 +149,6 @@ export class TaskService {
     const session = await this.sessionProviders.enrichSession(
       await this.sessions.createForTask(taskId, input)
     );
-    await this.events.publish({
-      type: "session_created",
-      actionId: session.actionId,
-      sessionId: session.id,
-      taskId
-    });
     return session;
   }
 
@@ -277,12 +256,6 @@ export class TaskService {
       throw new NotFoundError(`Task session ${sessionId} not found`);
     }
 
-    await this.events.publish({
-      type: "session_claimed",
-      actionId: session.actionId,
-      sessionId: session.id,
-      taskId: session.taskId
-    });
 
     return {
       taskOverview: await this.getTaskOverview(session),
@@ -298,12 +271,12 @@ export class TaskService {
     return this.tickets.createForTask(taskId, input);
   }
 
-  public async createTask(input: CreateTaskInput): Promise<TaskWithDependencyState> {
+  public async createTask(input: CreateTaskInput): Promise<TaskWithDependencies> {
     if (input.parentTaskId != null) {
       await this.requireTask(input.parentTaskId);
     }
 
-    return withWaitingDependencies(
+    return withDependencies(
       await this.tasks.create({
         ...input,
         ...(input.workingDirectory !== undefined
@@ -456,14 +429,8 @@ export class TaskService {
   }
 
   public async listActions(taskId: TaskId): Promise<readonly TaskAction[]> {
-    const task = await this.requireTask(taskId);
-    const records = await this.actions.listEnabled();
-    return records.map((record) =>
-      toTaskAction({
-        ...record,
-        isRecommended: record.recommendationStates.includes(task.state)
-      })
-    );
+    await this.requireTask(taskId);
+    return (await this.actions.listEnabled()).map(toTaskAction);
   }
 
   public async listActionSettings(): Promise<readonly TaskActionDetails[]> {
@@ -471,8 +438,8 @@ export class TaskService {
     return records.map(toTaskActionDetails);
   }
 
-  public async getTask(taskId: TaskId): Promise<TaskWithDependencyState> {
-    return this.addDependencyState(await this.requireTask(taskId));
+  public async getTask(taskId: TaskId): Promise<TaskWithDependencies> {
+    return this.addDependencies(await this.requireTask(taskId));
   }
 
   public async listArtifacts(
@@ -488,9 +455,17 @@ export class TaskService {
     return this.pullRequests.listByTaskId(taskId);
   }
 
-  public async listChildren(taskId: TaskId): Promise<readonly TaskWithDependencyState[]> {
+  public async listChildren(taskId: TaskId): Promise<readonly TaskWithDependencies[]> {
     await this.requireTask(taskId);
-    return this.addDependencyStates(await this.tasks.findChildren(taskId));
+    return this.addDependenciesToTasks(await this.tasks.findChildren(taskId));
+  }
+
+  public async updateSessionContext(taskId: TaskId, sessionId: string, input: SessionContext): Promise<TaskSession> {
+    const session = await this.sessions.updateContext(taskId, sessionId, input);
+    if (session == null) {
+      throw new NotFoundError(`Task session ${sessionId} not found`);
+    }
+    return session;
   }
 
   public async listSessions(taskId: TaskId): Promise<readonly TaskSession[]> {
@@ -500,12 +475,12 @@ export class TaskService {
     );
   }
 
-  public async listTasks(input: ListTasksInput): Promise<readonly TaskWithDependencyState[]> {
+  public async listTasks(input: ListTasksInput): Promise<readonly TaskWithDependencies[]> {
     if (input.parentTaskId != null) {
       await this.requireTask(input.parentTaskId);
     }
 
-    return this.addDependencyStates(
+    return this.addDependenciesToTasks(
       await this.tasks.listByParentTaskId(input.parentTaskId)
     );
   }
@@ -518,7 +493,7 @@ export class TaskService {
   public async updateTask(
     taskId: TaskId,
     input: UpdateTaskInput
-  ): Promise<TaskWithDependencyState> {
+  ): Promise<TaskWithDependencies> {
     if (input.parentTaskId != null) {
       await this.requireTask(input.parentTaskId);
     }
@@ -538,7 +513,7 @@ export class TaskService {
       throw new NotFoundError(`Task ${taskId} not found`);
     }
 
-    return this.addDependencyState(task);
+    return this.addDependencies(task);
   }
 
   public async updateActionSettings(
@@ -610,40 +585,40 @@ export class TaskService {
     };
   }
 
-  private async addDependencyState(task: Task): Promise<TaskWithDependencyState> {
-    const [dependencyState] = await this.tasks.listWaitingDependenciesByTaskIds([
+  private async addDependencies(task: Task): Promise<TaskWithDependencies> {
+    const [dependencyList] = await this.tasks.listDependenciesByTaskIds([
       task.id
     ]);
-    return withWaitingDependencies(
+    return withDependencies(
       task,
-      dependencyState?.waitingDependencies ?? []
+      dependencyList?.dependencies ?? []
     );
   }
 
-  private async addDependencyStates(
+  private async addDependenciesToTasks(
     tasks: readonly Task[]
-  ): Promise<readonly TaskWithDependencyState[]> {
-    const dependencyStates = await this.tasks.listWaitingDependenciesByTaskIds(
+  ): Promise<readonly TaskWithDependencies[]> {
+    const dependencyLists = await this.tasks.listDependenciesByTaskIds(
       tasks.map((task) => task.id)
     );
     const dependenciesByTaskId = new Map(
-      dependencyStates.map((state) => [state.taskId, state.waitingDependencies])
+      dependencyLists.map((state) => [state.taskId, state.dependencies])
     );
 
     return tasks.map((task) =>
-      withWaitingDependencies(task, dependenciesByTaskId.get(task.id) ?? [])
+      withDependencies(task, dependenciesByTaskId.get(task.id) ?? [])
     );
   }
 
 }
 
-function withWaitingDependencies(
+function withDependencies(
   task: Task,
-  waitingDependencies: TaskWithDependencyState["waitingDependencies"]
-): TaskWithDependencyState {
+  dependencies: TaskWithDependencies["dependencies"]
+): TaskWithDependencies {
   return {
     ...task,
-    waitingDependencies
+    dependencies
   };
 }
 
@@ -704,6 +679,11 @@ function normalizeClaimSessionInput(
   const metadata = mergeClaimMetadata(input);
 
   return {
+    ...(input.appName !== undefined ? { appName: input.appName } : {}),
+    ...(input.clientName !== undefined ? { clientName: input.clientName } : {}),
+    ...(input.displayTitle !== undefined ? { displayTitle: input.displayTitle } : {}),
+    ...(input.machineName !== undefined ? { machineName: input.machineName } : {}),
+    ...(input.sourceUrl !== undefined ? { sourceUrl: input.sourceUrl } : {}),
     ...(metadata !== undefined ? { metadata } : {}),
     ...(input.provider !== undefined ? { provider: input.provider } : {}),
     ...(input.providerId !== undefined ? { providerId: input.providerId } : {}),
@@ -730,7 +710,10 @@ function mergeClaimMetadata(
 function getExtraClaimMetadata(
   input: ClaimTaskSessionRequestInput
 ): TaskSessionMetadata {
-  const reservedKeys = new Set(["metadata", "provider", "providerId", "transcriptPath"]);
+  const reservedKeys = new Set([
+    "appName", "clientName", "displayTitle", "machineName", "metadata",
+    "provider", "providerId", "sourceUrl", "transcriptPath"
+  ]);
   return Object.fromEntries(
     Object.entries(input).filter(([key]) => !reservedKeys.has(key))
   );

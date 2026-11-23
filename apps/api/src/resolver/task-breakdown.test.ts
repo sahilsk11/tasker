@@ -10,7 +10,6 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
   const dir = await mkdtemp(join(tmpdir(), "tasker-breakdown-"));
   const app = await createApp({
     databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null,
     publicApiBaseUrl: "http://127.0.0.1:7501"
   });
 
@@ -107,7 +106,7 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
     const children = (readJson(childrenResponse.body) as {
       readonly tasks: ReadonlyArray<{
         readonly title: string;
-        readonly waitingDependencies: ReadonlyArray<{ readonly title: string }>;
+        readonly dependencies: ReadonlyArray<{ readonly title: string }>;
         readonly workingDirectory: string | null;
       }>;
     }).tasks;
@@ -117,42 +116,13 @@ void test("breakdown endpoints validate, preview, and create child tasks", async
     );
     assert.deepEqual(
       children.map((child) =>
-        child.waitingDependencies.map((dependency) => dependency.title)
+        child.dependencies.map((dependency) => dependency.title)
       ),
       [[], [], ["Add breakdown API"]]
     );
     assert.deepEqual(
       children.map((child) => child.workingDirectory),
       [null, workingDirectory, workingDirectory]
-    );
-
-    const [apiContract] = accepted.createdSubtasks;
-    if (apiContract == null) {
-      assert.fail("Expected accepted breakdown to create an API contract subtask.");
-    }
-    const doneResponse = await app.inject({
-      method: "PATCH",
-      payload: { state: "done" },
-      url: `/tasks/${apiContract.id}`
-    });
-    assert.equal(doneResponse.statusCode, 200);
-
-    const updatedChildrenResponse = await app.inject({
-      method: "GET",
-      url: `/tasks/${parent.id}/children`
-    });
-    assert.equal(updatedChildrenResponse.statusCode, 200);
-    const updatedChildren = (readJson(updatedChildrenResponse.body) as {
-      readonly tasks: ReadonlyArray<{
-        readonly title: string;
-        readonly waitingDependencies: ReadonlyArray<{ readonly title: string }>;
-      }>;
-    }).tasks;
-    assert.deepEqual(
-      updatedChildren.map((child) =>
-        child.waitingDependencies.map((dependency) => dependency.title)
-      ),
-      [[], [], []]
     );
 
     const database = new SqliteDatabase(databasePath);
@@ -192,7 +162,6 @@ void test("breakdown validation reports structured errors", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-breakdown-invalid-"));
   const app = await createApp({
     databasePath: join(dir, "tasker.sqlite"),
-    linearApiKey: null
   });
 
   try {

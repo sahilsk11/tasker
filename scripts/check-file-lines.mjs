@@ -10,6 +10,7 @@ const ignoredDirectories = new Set([
   ".turbo",
   "coverage",
   "dist",
+  ".wrangler",
   "node_modules"
 ]);
 const ignoredFiles = new Set(["pnpm-lock.yaml"]);

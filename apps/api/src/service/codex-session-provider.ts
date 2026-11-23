@@ -46,7 +46,7 @@ export class CodexSessionProvider implements TaskSessionProvider {
   }
 
   public async enrichSession(session: TaskSession): Promise<TaskSession> {
-    if (session.providerId == null || session.providerId.length === 0) {
+    if (session.displayTitle != null || session.providerId == null || session.providerId.length === 0) {
       return session;
     }
 

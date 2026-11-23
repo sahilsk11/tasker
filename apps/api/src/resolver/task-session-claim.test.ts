@@ -19,7 +19,6 @@ void test("external task sessions can be claimed with flexible metadata", async 
     codexSessionsRoot,
     codexStatePath,
     databasePath,
-    linearApiKey: null,
     taskActionsPath
   });
 
@@ -92,7 +91,7 @@ void test("external task sessions can be claimed with flexible metadata", async 
       method: "POST",
       payload: {
         externalId: "TASK-123",
-        url: "https://linear.app/example/issue/TASK-123"
+        url: "https://tracker.example.com/issue/TASK-123"
       },
       url: `/tasks/${task.id}/tickets`
     });

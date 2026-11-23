@@ -34,7 +34,6 @@ void test("action prompt sessions can be launched through a configured provider"
   const app = await createApp({
     agentRunProvider: "kanna",
     databasePath,
-    linearApiKey: null,
     sessionProviders: [provider],
     taskActionsPath
   });
@@ -132,7 +131,6 @@ void test("launching an already claimed session is rejected before provider star
   const app = await createApp({
     agentRunProvider: "kanna",
     databasePath,
-    linearApiKey: null,
     sessionProviders: [provider],
     taskActionsPath
   });
@@ -165,7 +163,6 @@ void test("launching a session through an unsupported provider is rejected", asy
   const app = await createApp({
     agentRunProvider: "missing-agent",
     databasePath,
-    linearApiKey: null,
     taskActionsPath
   });
 
@@ -211,7 +208,6 @@ void test("action prompt run payload can request Claude Code through Kanna", asy
   const app = await createApp({
     agentRunProvider: "kanna",
     databasePath,
-    linearApiKey: null,
     sessionProviders: [provider],
     taskActionsPath
   });

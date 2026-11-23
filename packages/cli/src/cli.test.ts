@@ -80,7 +80,6 @@ void test("runCli dispatches default commands locally without fetch", async () =
       assert.equal(rootTaskOutput.task.title, "CLI root task");
       assert.equal(rootTaskOutput.task.description, null);
       assert.equal(rootTaskOutput.task.parentTaskId, null);
-      assert.equal(rootTaskOutput.task.state, "ready");
       assert.equal(rootTaskOutput.task.workingDirectory, null);
 
       const childTask = await runCli(
@@ -111,12 +110,12 @@ void test("runCli dispatches default commands locally without fetch", async () =
       assert.match(
         rootList.output,
         new RegExp(
-          escapeRegExp(`${rootTaskOutput.task.id} [ready] CLI root task`)
+          escapeRegExp(`${rootTaskOutput.task.id} CLI root task`)
         )
       );
       assert.match(
         rootList.output,
-        new RegExp(`${escapeRegExp(task.id)} \\[[^\\]]+\\] Task title`)
+        new RegExp(escapeRegExp(`${task.id} Task title`))
       );
       assertNotJson(rootList.output);
 
@@ -129,7 +128,7 @@ void test("runCli dispatches default commands locally without fetch", async () =
         childList.output,
         [
           "Tasks",
-          `${childTaskOutput.task.id} [ready] CLI child task`
+          `${childTaskOutput.task.id} CLI child task`
         ].join("\n")
       );
       assertNotJson(childList.output);
@@ -151,9 +150,8 @@ void test("runCli dispatches default commands locally without fetch", async () =
         new RegExp(escapeRegExp(`ID: ${rootTaskOutput.task.id}`))
       );
       assert.match(taskDetails.output, /Title: CLI root task/);
-      assert.match(taskDetails.output, /State: ready/);
       assert.match(taskDetails.output, /Description:\n-/);
-      assert.match(taskDetails.output, /Waiting dependencies:\n-/);
+      assert.match(taskDetails.output, /Dependencies:\n-/);
       assertNotJson(taskDetails.output);
 
       const workingDirectoryTask = await runCli(
@@ -251,7 +249,6 @@ void test("runCli creates tasks readable through a real Fastify app", async () =
 
     const app = await createApp({
       databasePath,
-      linearApiKey: null
     });
     try {
       const response = await app.inject({
@@ -264,7 +261,6 @@ void test("runCli creates tasks readable through a real Fastify app", async () =
       assert.equal(read.title, "Wire readable task");
       assert.equal(read.description, "Created through CLI");
       assert.equal(read.parentTaskId, null);
-      assert.equal(read.state, "ready");
       assert.equal(read.workingDirectory, null);
     } finally {
       await app.close();
@@ -343,7 +339,6 @@ async function withRuntime<T>(
   const runtime = createTaskerRuntime({
     agentRunProvider: "codex",
     databasePath,
-    linearApiKey: null
   });
   try {
     return await callback(runtime);
@@ -400,7 +395,6 @@ function readTaskOutput(value: string): {
     readonly description: string | null;
     readonly id: string;
     readonly parentTaskId: string | null;
-    readonly state: string;
     readonly title: string;
     readonly workingDirectory: string | null;
   };
@@ -410,7 +404,6 @@ function readTaskOutput(value: string): {
       readonly description: string | null;
       readonly id: string;
       readonly parentTaskId: string | null;
-      readonly state: string;
       readonly title: string;
       readonly workingDirectory: string | null;
     };

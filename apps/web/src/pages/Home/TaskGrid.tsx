@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   AlertTriangle,
-  Check,
   FileText,
   GitPullRequest,
   MessageSquareText
@@ -13,17 +12,14 @@ import {
   createTaskSession,
   deleteTaskArtifact,
   listTaskArtifacts,
-  restoreTaskArtifact,
-  updateTask
+  restoreTaskArtifact
 } from "@/api/tasks";
 import { hostedTasker } from "@/lib/env";
 import type {
   ApiSession,
   ApiTaskAction,
   ApiTask,
-  TaskBundle,
-  TaskState,
-  TaskStateDefinition
+  TaskBundle
 } from "@/api/tasks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +31,6 @@ import {
   DialogHeader,
   DialogTitle
 } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { PullRequestStatusMap } from "./use-pull-request-statuses";
 import { TaskEventLog } from "./TaskEventLog";
@@ -58,12 +53,10 @@ export function TaskGrid({
   bundles,
   onSessionRun,
   pullRequestStatuses,
-  taskStateDefinitions
 }: {
   readonly bundles: readonly TaskBundle[];
   readonly onSessionRun: () => void;
   readonly pullRequestStatuses: PullRequestStatusMap;
-  readonly taskStateDefinitions: readonly TaskStateDefinition[];
 }): React.JSX.Element {
   if (bundles.length === 0) {
     return (
@@ -84,17 +77,11 @@ export function TaskGrid({
           bundle={bundle}
           onSessionRun={onSessionRun}
           pullRequestStatuses={pullRequestStatuses}
-          taskStateDefinitions={taskStateDefinitions}
         />
       ))}
     </section>
   );
 }
-
-type TaskStateMeta = {
-  readonly iconClassName: string;
-  readonly segmentClassName: string;
-};
 
 type PendingDuplicateAction = {
   readonly action: ApiTaskAction;
@@ -110,43 +97,6 @@ type ArtifactLifecycleVariables = {
   readonly taskId: string;
 };
 
-const taskStateMetaByState: Record<TaskState, TaskStateMeta> = {
-  done: {
-    iconClassName: "border-success/25 bg-success/10 text-success",
-    segmentClassName: "bg-success"
-  },
-  implementation: {
-    iconClassName: "border-warning/25 bg-warning/10 text-warning",
-    segmentClassName: "bg-warning"
-  },
-  planning: {
-    iconClassName: "border-accent/25 bg-accent/10 text-[#a89eff]",
-    segmentClassName: "bg-[#a89eff]"
-  },
-  ready: {
-    iconClassName: "border-border bg-[#a1a1aa]/10 text-[#a1a1aa]",
-    segmentClassName: "bg-[#a1a1aa]"
-  },
-  review: {
-    iconClassName: "border-[#a78bfa]/25 bg-[#a78bfa]/10 text-[#a78bfa]",
-    segmentClassName: "bg-[#a78bfa]"
-  },
-  scoping: {
-    iconClassName: "border-info/25 bg-info/10 text-info",
-    segmentClassName: "bg-info"
-  }
-};
-
-function getTaskStateLabel(
-  state: TaskState,
-  definitions: readonly TaskStateDefinition[]
-): string {
-  return (
-    definitions.find((definition) => definition.value === state)?.label ??
-    state.replaceAll("_", " ")
-  );
-}
-
 export function TaskGridSkeleton(): React.JSX.Element {
   return (
     <section className="mx-auto grid w-full max-w-[76rem] grid-cols-1 gap-4 md:grid-cols-2 2xl:max-w-[96rem] 2xl:grid-cols-3">
@@ -161,12 +111,10 @@ function TaskCard({
   bundle,
   onSessionRun,
   pullRequestStatuses,
-  taskStateDefinitions
 }: {
   readonly bundle: TaskBundle;
   readonly onSessionRun: () => void;
   readonly pullRequestStatuses: PullRequestStatusMap;
-  readonly taskStateDefinitions: readonly TaskStateDefinition[];
 }): React.JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -176,8 +124,6 @@ function TaskCard({
   const [actionError, setActionError] = useState<string | null>(null);
   const [isCreatingPrompt, setIsCreatingPrompt] = useState(false);
   const [preparingActionId, setPreparingActionId] = useState<string | null>(null);
-  const [isStateOpen, setIsStateOpen] = useState(false);
-  const [stateError, setStateError] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<ApiSession | null>(null);
   const [selectedKind, setSelectedKind] = useState<ResourceKind | null>(null);
   const [selectedAction, setSelectedAction] = useState<ApiTaskAction | null>(null);
@@ -196,40 +142,6 @@ function TaskCard({
     selectedKind === "artifact" && artifactsQuery.data != null
       ? getResourceGroupForArtifacts(artifactsQuery.data)
       : selectedGroup;
-  const stateMutation = useMutation({
-    mutationFn: (state: TaskState) => updateTask(bundle.task.id, { state }),
-    onError: (error, _state, previousBundles) => {
-      if (previousBundles != null) {
-        queryClient.setQueryData(["tasks"], previousBundles);
-      }
-      setStateError(error instanceof Error ? error.message : "Failed to update state.");
-    },
-    onMutate: async (state) => {
-      setStateError(null);
-      setIsStateOpen(false);
-      await queryClient.cancelQueries({ queryKey: ["tasks"] });
-      const previousBundles =
-        queryClient.getQueryData<readonly TaskBundle[]>(["tasks"]) ?? undefined;
-      queryClient.setQueryData<readonly TaskBundle[]>(["tasks"], (current) =>
-        current?.map((candidate) =>
-          candidate.task.id === bundle.task.id
-            ? {
-                ...candidate,
-                task: {
-                  ...candidate.task,
-                  state,
-                  updatedAt: new Date().toISOString()
-                }
-              }
-            : candidate
-        )
-      );
-      return previousBundles;
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
-    }
-  });
   const artifactLifecycleMutation = useMutation({
     mutationFn: ({ action, artifactId, taskId }: ArtifactLifecycleVariables) => {
       switch (action) {
@@ -334,15 +246,6 @@ function TaskCard({
     setShowAllActions(true);
   }
 
-  function selectState(state: TaskState): void {
-    if (state === bundle.task.state || stateMutation.isPending) {
-      setIsStateOpen(false);
-      return;
-    }
-
-    stateMutation.mutate(state);
-  }
-
   function openResource(resource: Resource): void {
     switch (resource.kind) {
       case "artifact":
@@ -360,7 +263,13 @@ function TaskCard({
         void navigate(`/?parentTask=${resource.taskId}`);
         return;
       case "session":
-        setSelectedKind(resource.kind);
+        if (resource.href == null) {
+          setSelectedKind(resource.kind);
+        } else if (resource.href.startsWith("http")) {
+          window.open(resource.href, "_blank", "noopener,noreferrer");
+        } else {
+          window.location.assign(resource.href);
+        }
         return;
       default:
         setSelectedKind(resource.kind);
@@ -377,27 +286,16 @@ function TaskCard({
         <section className="flex min-w-0 flex-col p-4 md:min-h-48">
           <div className="flex min-w-0 items-center justify-between gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <TaskStatePicker
-                currentState={bundle.task.state}
-                disabled={stateMutation.isPending || taskStateDefinitions.length === 0}
-                onOpenChange={setIsStateOpen}
-                onSelectState={selectState}
-                open={isStateOpen}
-                stateDefinitions={taskStateDefinitions}
-              />
-              {bundle.task.waitingDependencies.length === 0 ? null : (
+              {bundle.task.dependencies.length === 0 ? null : (
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-7 rounded-full border-destructive/30 bg-destructive/10 px-3 text-[13px] font-semibold text-destructive hover:border-destructive/45 hover:bg-destructive/15 hover:text-destructive"
-                  title={getWaitingDependenciesTitle(bundle.task)}
+                  className="h-7 rounded-full border-border px-3 text-[13px] text-muted-foreground"
+                  title={getDependenciesTitle(bundle.task)}
                   onClick={() => setIsDependencyDialogOpen(true)}
                 >
-                  Not Ready
+                  Dependencies
                 </Button>
-              )}
-              {stateError == null ? null : (
-                <span className="text-sm text-destructive">{stateError}</span>
               )}
             </div>
             <TicketBadge bundle={bundle} />
@@ -476,7 +374,6 @@ function TaskCard({
         onOpenChange={setIsDependencyDialogOpen}
         open={isDependencyDialogOpen}
         task={bundle.task}
-        taskStateDefinitions={taskStateDefinitions}
       />
       <ResourceTableDialog
         error={
@@ -529,61 +426,34 @@ function DependencyDialog({
   onOpenChange,
   open,
   task,
-  taskStateDefinitions
 }: {
   readonly onOpenChange: (open: boolean) => void;
   readonly open: boolean;
   readonly task: ApiTask;
-  readonly taskStateDefinitions: readonly TaskStateDefinition[];
 }): React.JSX.Element {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Not Ready</DialogTitle>
+          <DialogTitle>Dependencies</DialogTitle>
           <DialogDescription>
             This task is dependent on:
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-2 px-5 pb-5">
-          {task.waitingDependencies.map((dependency) => {
-            const stateMeta = taskStateMetaByState[dependency.state];
-            const stateLabel = getTaskStateLabel(
-              dependency.state,
-              taskStateDefinitions
-            );
-
-            return (
-              <div
-                key={dependency.id}
-                className="rounded-[8px] border border-[#24252b] bg-[#101116] p-3"
-              >
-                <div className="flex min-w-0 items-center justify-between gap-3">
-                  <h3 className="min-w-0 truncate text-sm font-semibold text-[#f1f2f4]">
-                    {dependency.title}
-                  </h3>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "h-6 shrink-0 rounded-full px-2.5 text-xs font-semibold",
-                      stateMeta.iconClassName
-                    )}
-                  >
-                    <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
-                    {stateLabel}
-                  </Badge>
-                </div>
-              </div>
-            );
-          })}
+          {task.dependencies.map((dependency) => (
+            <div key={dependency.id} className="rounded-lg border border-border p-3 text-sm">
+              {dependency.title}
+            </div>
+          ))}
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-function getWaitingDependenciesTitle(task: ApiTask): string {
-  return `Not ready: ${task.waitingDependencies
+function getDependenciesTitle(task: ApiTask): string {
+  return `Depends on: ${task.dependencies
     .map((dependency) => dependency.title)
     .join(", ")}`;
 }
@@ -686,76 +556,6 @@ function capitalize(value: string): string {
   return firstCharacter == null ? value : `${firstCharacter.toUpperCase()}${value.slice(1)}`;
 }
 
-function TaskStatePicker({
-  currentState,
-  disabled,
-  onOpenChange,
-  onSelectState,
-  open,
-  stateDefinitions
-}: {
-  readonly currentState: TaskState;
-  readonly disabled: boolean;
-  readonly onOpenChange: (open: boolean) => void;
-  readonly onSelectState: (state: TaskState) => void;
-  readonly open: boolean;
-  readonly stateDefinitions: readonly TaskStateDefinition[];
-}): React.JSX.Element {
-  const stateMeta = taskStateMetaByState[currentState];
-  const stateLabel = getTaskStateLabel(currentState, stateDefinitions);
-  const orderedStateDefinitions = [...stateDefinitions].sort((left, right) => {
-    const rankComparison = left.rank - right.rank;
-    return rankComparison === 0 ? left.value.localeCompare(right.value) : rankComparison;
-  });
-
-  return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          className={cn(
-            "h-7 rounded-full px-3 text-[13px] font-semibold",
-            stateMeta.iconClassName
-          )}
-          title={`Task state: ${stateLabel}`}
-        >
-          <span className="size-2 rounded-full bg-current" aria-hidden="true" />
-          {stateLabel}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-52 border-[#1f2025] bg-[#111216] p-1.5">
-        <div className="flex flex-col gap-1">
-          {orderedStateDefinitions.map((definition) => {
-            const optionMeta = taskStateMetaByState[definition.value];
-            const isSelected = definition.value === currentState;
-
-            return (
-              <Button
-                key={definition.value}
-                type="button"
-                variant="ghost"
-                className="h-8 justify-start rounded-[7px] px-2 text-sm font-medium text-[#cdd0d6] hover:bg-[#191a20] hover:text-[#f1f2f4]"
-                onClick={() => onSelectState(definition.value)}
-              >
-                <span
-                  className={cn("size-2 rounded-full", optionMeta.iconClassName)}
-                  aria-hidden="true"
-                />
-                <span className="min-w-0 flex-1 truncate text-left">
-                  {definition.label}
-                </span>
-                {isSelected ? <Check className="size-4 text-[#7c6cff]" /> : null}
-              </Button>
-            );
-          })}
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 function ResourceCounters({
   groups,
   onOpen,
@@ -810,60 +610,18 @@ function SubtaskToggle({
   readonly onOpen: () => void;
   readonly subtasks: readonly ApiTask[];
 }): React.JSX.Element | null {
-  if (subtasks.length === 0) {
-    return null;
-  }
-
-  const orderedSubtasks = getOrderedSubtasks(subtasks);
-
   return (
     <Button
       type="button"
       variant="outline"
       className="ml-auto h-9 min-w-0 rounded-[9px] border-[#24252b] bg-[#101116] px-3 text-[#cdd0d6] hover:border-[#32333a] hover:bg-[#16171c] hover:text-[#f1f2f4]"
       onClick={onOpen}
-      aria-label={`Open ${String(subtasks.length)} subtasks`}
+      aria-label="Open subtasks"
       title="Open subtasks"
     >
-      <SubtaskProgress subtasks={orderedSubtasks} />
+      Subtasks{ subtasks.length > 0 ? ` · ${String(subtasks.length)}` : "" }
     </Button>
   );
-}
-
-function SubtaskProgress({
-  subtasks
-}: {
-  readonly subtasks: readonly ApiTask[];
-}): React.JSX.Element {
-  return (
-    <span className="flex shrink-0 gap-1" aria-hidden="true">
-      {subtasks.map((subtask) => (
-        <span
-          key={subtask.id}
-          className={cn(
-            "h-1.5 w-5 rounded-full",
-            taskStateMetaByState[subtask.state].segmentClassName
-          )}
-        />
-      ))}
-    </span>
-  );
-}
-
-function getOrderedSubtasks(subtasks: readonly ApiTask[]): readonly ApiTask[] {
-  return [...subtasks].sort((left, right) => {
-    const createdAtComparison =
-      getTaskTime(left.createdAt) - getTaskTime(right.createdAt);
-
-    return createdAtComparison === 0
-      ? left.id.localeCompare(right.id)
-      : createdAtComparison;
-  });
-}
-
-function getTaskTime(value: string): number {
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? 0 : time;
 }
 
 function TicketBadge({

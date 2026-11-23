@@ -126,13 +126,17 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
     ...bundle.resources.sessions.map((session) =>
       resource(
         "session",
-        session.displayTitle ?? session.providerId ?? capitalize(session.provider),
-        capitalize(session.provider),
-        "Claimed",
+        session.displayTitle ?? "Untitled session",
+        [
+          session.machineName ?? "Unknown machine",
+          session.clientName ?? (!hasAppOnlyProvider(session.provider) ? formatSessionProvider(session.provider) : null),
+          session.appName ?? (hasAppOnlyProvider(session.provider) ? formatSessionProvider(session.provider) : null)
+        ].filter((value) => value != null).join(" · "),
+        "Registered",
         formatActivityTime(session.claimedAt ?? session.createdAt),
         session.claimedAt ?? session.createdAt,
         {
-          href: null,
+          href: getSessionHref(session.sourceUrl),
           id: session.id,
           taskId: session.taskId
         }
@@ -156,6 +160,35 @@ function getResourcesForBundle(bundle: TaskBundle): readonly Resource[] {
       )
     )
   ];
+}
+
+function getSessionHref(sourceUrl: string | null): string | null {
+  const prefix = "t3-thread://v2/";
+  if (!sourceUrl?.startsWith(prefix)) {
+    return sourceUrl;
+  }
+
+  // The t3-thread scheme is an internal T3 chat link. The hosted thread URL
+  // lets a regular browser hand off to the desktop or mobile T3 app.
+  const address = sourceUrl.slice(prefix.length);
+  const split = address.indexOf("/");
+  const environmentId = address.slice(0, split);
+  const threadId = address.slice(split + 1);
+  return `https://app.t3.codes/threads/${encodeURIComponent(environmentId)}/${encodeURIComponent(threadId)}`;
+}
+
+function hasAppOnlyProvider(provider: string): boolean {
+  return ["cloud-voice", "grokbot", "chatgpt", "grok"].includes(provider.toLowerCase());
+}
+
+function formatSessionProvider(provider: string): string {
+  const names: Readonly<Record<string, string>> = {
+    chatgpt: "ChatGPT",
+    "cloud-voice": "Cloud Voice",
+    grokbot: "Grokbot",
+    t3: "T3"
+  };
+  return names[provider.toLowerCase()] ?? capitalize(provider);
 }
 
 function resourceFromArtifact(artifact: ApiArtifact): Resource {

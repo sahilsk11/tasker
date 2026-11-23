@@ -49,13 +49,12 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
       ]);
 
       const tasks = database
-        .prepare("SELECT id, state FROM tasks ORDER BY id")
+        .prepare("SELECT id FROM tasks ORDER BY id")
         .all();
 
       assert.deepEqual(tasks, [
         {
-          id: "task-1",
-          state: "review"
+          id: "task-1"
         }
       ]);
 
@@ -116,8 +115,15 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000013_working_paths",
         "000014_action_recommendation_states",
         "000015_drop_task_actions",
-        "000016_artifact_lifecycle"
+        "000016_artifact_lifecycle",
+        "000017_session_context"
       ]);
+
+      const taskColumns = database
+        .prepare("PRAGMA table_info(tasks)")
+        .all()
+        .map((row) => (row as { name: string }).name);
+      assert.ok(!taskColumns.includes("state"));
 
       const artifactColumns = database
         .prepare("PRAGMA table_info(task_artifacts)")
@@ -319,6 +325,15 @@ void test("migrations drop legacy task action table", async () => {
           updated_at text NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
         );
 
+        CREATE TABLE task_sessions (
+          id text PRIMARY KEY,
+          task_id text NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          metadata_json text
+        );
+        INSERT INTO tasks (id, title, state) VALUES ('legacy-task', 'Legacy task', 'planning');
+        INSERT INTO task_sessions (id, task_id, metadata_json)
+          VALUES ('legacy-session', 'legacy-task', '{"url":"https://example.com/session"}');
+
         CREATE TABLE task_artifacts (
           id text PRIMARY KEY,
           task_id text NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -356,6 +371,10 @@ void test("migrations drop legacy task action table", async () => {
     const migrated = new SqliteDatabase(databasePath);
     try {
       assert.equal(tableExists(migrated, "task_actions"), false);
+      assert.deepEqual(
+        migrated.prepare("SELECT id, task_id, source_url FROM task_sessions").all(),
+        [{ id: "legacy-session", task_id: "legacy-task", source_url: "https://example.com/session" }]
+      );
     } finally {
       migrated.close();
     }

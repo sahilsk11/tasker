@@ -6,6 +6,7 @@ import { migrate } from "./db/migrate.js";
 import { FileTaskActionRepository } from "./repository/task-action.repository.js";
 import { SqliteTaskArtifactRepository } from "./repository/task-artifact.repository.js";
 import { SqliteTaskPullRequestRepository } from "./repository/task-pull-request.repository.js";
+import { SqliteTaskSessionMessageRepository } from "./repository/task-session-message.repository.js";
 import { SqliteTaskSessionRepository } from "./repository/task-session.repository.js";
 import { SqliteTaskTicketRepository } from "./repository/task-ticket.repository.js";
 import { SqliteTaskRepository } from "./repository/task.repository.js";
@@ -23,6 +24,7 @@ import {
   TaskSessionProviderRegistry,
   type TaskSessionProvider
 } from "./service/session-provider.js";
+import { TaskSessionMessageService } from "./service/task-session-message.service.js";
 import { TaskService } from "./service/task.service.js";
 import { WorkingPathService } from "./service/working-path.service.js";
 import { getDefaultTaskActionsPath } from "./task-actions/catalog.js";
@@ -57,6 +59,7 @@ export type TaskerRuntimeRepositories = {
   readonly artifact: SqliteTaskArtifactRepository;
   readonly pullRequest: SqliteTaskPullRequestRepository;
   readonly session: SqliteTaskSessionRepository;
+  readonly sessionMessage: SqliteTaskSessionMessageRepository;
   readonly task: SqliteTaskRepository;
   readonly taskAction: FileTaskActionRepository;
   readonly ticket: SqliteTaskTicketRepository;
@@ -65,6 +68,7 @@ export type TaskerRuntimeRepositories = {
 
 export type TaskerRuntimeServices = {
   readonly github: GitHubService;
+  readonly sessionMessage: TaskSessionMessageService;
   readonly task: TaskService;
   readonly taskBreakdown: TaskBreakdownService;
   readonly workingPath: WorkingPathService;
@@ -119,6 +123,7 @@ export function createTaskerRuntime(
     artifact: new SqliteTaskArtifactRepository(db),
     pullRequest: new SqliteTaskPullRequestRepository(db),
     session: new SqliteTaskSessionRepository(db),
+    sessionMessage: new SqliteTaskSessionMessageRepository(db),
     task: new SqliteTaskRepository(db),
     taskAction: new FileTaskActionRepository(taskActionsPath),
     ticket: new SqliteTaskTicketRepository(db),
@@ -139,6 +144,10 @@ export function createTaskerRuntime(
 
   const services: TaskerRuntimeServices = {
     github: githubService,
+    sessionMessage: new TaskSessionMessageService(
+      repositories.session,
+      repositories.sessionMessage
+    ),
     task: taskService,
     taskBreakdown: new TaskBreakdownService(repositories.task, publicApiBaseUrl),
     workingPath: new WorkingPathService(repositories.workingPath)

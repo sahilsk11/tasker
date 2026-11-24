@@ -1,11 +1,13 @@
 import type { Generated, Selectable } from "kysely";
 import type { TaskArtifactLabel } from "../domain/task-artifact.js";
+import type { TaskSessionMessageRole } from "../domain/task-session-message.js";
 import type { TaskState } from "../domain/task.js";
 
 export type Database = {
   readonly task_artifacts: TaskArtifactsTable;
   readonly task_dependencies: TaskDependenciesTable;
   readonly task_pull_requests: TaskPullRequestsTable;
+  readonly task_session_messages: TaskSessionMessagesTable;
   readonly task_sessions: TaskSessionsTable;
   readonly task_tickets: TaskTicketsTable;
   readonly tasks: TasksTable;
@@ -47,6 +49,18 @@ export type TaskPullRequestsTable = {
   readonly url: string;
 };
 
+export type TaskSessionMessagesTable = {
+  readonly content_hash: string;
+  readonly created_at: Generated<string>;
+  readonly external_id: string;
+  readonly id: string;
+  readonly occurred_at: string | null;
+  readonly ordinal: number;
+  readonly role: TaskSessionMessageRole;
+  readonly session_id: string;
+  readonly text: string;
+};
+
 export type TaskSessionsTable = {
   readonly action_id: string | null;
   readonly claimed_at: string | null;
@@ -78,6 +92,7 @@ export type TaskArtifactRow = Selectable<TaskArtifactsTable>;
 export type TaskDependencyRow = Selectable<TaskDependenciesTable>;
 export type TaskPullRequestRow = Selectable<TaskPullRequestsTable>;
 export type TaskRow = Selectable<TasksTable>;
+export type TaskSessionMessageRow = Selectable<TaskSessionMessagesTable>;
 export type TaskSessionRow = Selectable<TaskSessionsTable>;
 export type TaskTicketRow = Selectable<TaskTicketsTable>;
 export type WorkingPathSettingsRow = Selectable<WorkingPathSettingsTable>;

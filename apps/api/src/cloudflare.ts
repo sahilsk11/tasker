@@ -9,6 +9,10 @@ import {
   parseCreateTicketInput
 } from "./command/task-resource.command.js";
 import {
+  parseListSessionMessagesQuery,
+  parsePushSessionMessagesInput
+} from "./command/task-session-message.command.js";
+import {
   parseClaimSessionInput,
   parseCreateSessionInput
 } from "./command/task-session.command.js";
@@ -18,13 +22,20 @@ import { taskStateDefinitions } from "./domain/task.js";
 import type { TaskActionRepository } from "./repository/task-action.repository.js";
 import { SqliteTaskArtifactRepository } from "./repository/task-artifact.repository.js";
 import { SqliteTaskPullRequestRepository } from "./repository/task-pull-request.repository.js";
+import { SqliteTaskSessionMessageRepository } from "./repository/task-session-message.repository.js";
 import { SqliteTaskSessionRepository } from "./repository/task-session.repository.js";
 import { SqliteTaskTicketRepository } from "./repository/task-ticket.repository.js";
 import { SqliteTaskRepository } from "./repository/task.repository.js";
 import { ArtifactStorageService } from "./service/artifact-storage.service.js";
-import { BadRequestError, ConflictError, NotFoundError } from "./service/errors.js";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+  SessionMessageConflictError
+} from "./service/errors.js";
 import { TaskSessionProviderRegistry } from "./service/session-provider.js";
 import { TaskEventBus } from "./service/task-events.js";
+import { TaskSessionMessageService } from "./service/task-session-message.service.js";
 import { TaskService } from "./service/task.service.js";
 
 type Bindings = {
@@ -32,7 +43,10 @@ type Bindings = {
   readonly DB: D1Database;
 };
 
-type Variables = { readonly tasks: TaskService };
+type Variables = {
+  readonly sessionMessages: TaskSessionMessageService;
+  readonly tasks: TaskService;
+};
 
 const disabledActions: TaskActionRepository = {
   findById: () => Promise.resolve(null),
@@ -42,24 +56,31 @@ const disabledActions: TaskActionRepository = {
   update: () => Promise.resolve(null)
 };
 
-function createCloudTaskService(binding: D1Database, origin: string): TaskService {
+function createCloudServices(binding: D1Database, origin: string): Variables {
   const db = new Kysely<Database>({ dialect: new D1Dialect({ database: binding }) });
-  return new TaskService(
-    new SqliteTaskRepository(db),
-    new SqliteTaskArtifactRepository(db),
-    new SqliteTaskPullRequestRepository(db),
-    new SqliteTaskSessionRepository(db),
-    new SqliteTaskTicketRepository(db),
-    disabledActions,
-    `${origin}/api`,
-    new TaskEventBus(),
-    new TaskSessionProviderRegistry(),
-    new ArtifactStorageService({ activeRoot: "/tmp/artifacts", archiveRoot: "/tmp/archive" }),
-    (directory) => {
-      const path = directory?.trim();
-      return Promise.resolve(path == null || path.length === 0 ? null : path);
-    }
-  );
+  const sessions = new SqliteTaskSessionRepository(db);
+  const sessionMessagesRepo = new SqliteTaskSessionMessageRepository(db, {
+    d1: binding
+  });
+  return {
+    sessionMessages: new TaskSessionMessageService(sessions, sessionMessagesRepo),
+    tasks: new TaskService(
+      new SqliteTaskRepository(db),
+      new SqliteTaskArtifactRepository(db),
+      new SqliteTaskPullRequestRepository(db),
+      sessions,
+      new SqliteTaskTicketRepository(db),
+      disabledActions,
+      `${origin}/api`,
+      new TaskEventBus(),
+      new TaskSessionProviderRegistry(),
+      new ArtifactStorageService({ activeRoot: "/tmp/artifacts", archiveRoot: "/tmp/archive" }),
+      (directory) => {
+        const path = directory?.trim();
+        return Promise.resolve(path == null || path.length === 0 ? null : path);
+      }
+    )
+  };
 }
 
 async function readJson(request: { json: () => Promise<unknown> }): Promise<unknown> {
@@ -79,7 +100,9 @@ api.use("*", async (c, next) => {
       return c.json({ error: "Cross-origin writes are disabled" }, 403);
     }
   }
-  c.set("tasks", createCloudTaskService(c.env.DB, new URL(c.req.url).origin));
+  const services = createCloudServices(c.env.DB, new URL(c.req.url).origin);
+  c.set("tasks", services.tasks);
+  c.set("sessionMessages", services.sessionMessages);
   return next();
 });
 
@@ -92,6 +115,15 @@ app.onError((error, c) => {
   }
   if (error instanceof NotFoundError) {
     return c.json({ error: error.message }, 404);
+  }
+  if (error instanceof SessionMessageConflictError) {
+    return c.json(
+      {
+        conflictingExternalIds: error.conflictingExternalIds,
+        error: error.message
+      },
+      409
+    );
   }
   if (error instanceof ConflictError) {
     return c.json({ error: error.message }, 409);
@@ -133,6 +165,28 @@ api.post("/tasks/:id/sessions", async (c) => c.json({
 }, 201));
 api.post("/sessions/:id/claim", async (c) =>
   c.json(await c.var.tasks.claimSession(c.req.param("id"), parseClaimSessionInput(await readJson(c.req))))
+);
+api.post("/sessions/:sessionId/messages", async (c) =>
+  c.json(
+    await c.var.sessionMessages.pushMessages(
+      c.req.param("sessionId"),
+      parsePushSessionMessagesInput(await readJson(c.req))
+    )
+  )
+);
+api.get("/sessions/:sessionId/messages/head", async (c) =>
+  c.json(await c.var.sessionMessages.getHead(c.req.param("sessionId")))
+);
+api.get("/sessions/:sessionId/messages", async (c) =>
+  c.json(
+    await c.var.sessionMessages.listMessages(
+      c.req.param("sessionId"),
+      parseListSessionMessagesQuery({
+        after: c.req.query("after"),
+        limit: c.req.query("limit")
+      })
+    )
+  )
 );
 api.get("/tasks/:id/artifacts", async (c) => c.json({
   artifacts: await c.var.tasks.listArtifacts(c.req.param("id"), {

@@ -116,7 +116,8 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000013_working_paths",
         "000014_action_recommendation_states",
         "000015_drop_task_actions",
-        "000016_artifact_lifecycle"
+        "000016_artifact_lifecycle",
+        "000017_task_session_messages"
       ]);
 
       const artifactColumns = database
@@ -475,6 +476,145 @@ void test("task dependency migration persists task edges", async () => {
       );
     } finally {
       database.close();
+    }
+  } finally {
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+void test("task session messages migration enforces constraints, cascade delete, rollback, and D1 parity", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-migrate-session-messages-"));
+  const databasePath = join(dir, "tasker.sqlite");
+  const d1DatabasePath = join(dir, "d1.sqlite");
+  const d1MigrationsDirectory = new URL("../../d1/migrations", import.meta.url).pathname;
+
+  try {
+    migrate({ databasePath, migrationsDirectory });
+
+    const database = new SqliteDatabase(databasePath);
+    database.pragma("foreign_keys = ON");
+    try {
+      database
+        .prepare(
+          `
+            INSERT INTO tasks (id, title, created_at, updated_at)
+            VALUES (?, ?, ?, ?)
+          `
+        )
+        .run(
+          "task-1",
+          "Message task",
+          "2026-01-01T00:00:00.000Z",
+          "2026-01-01T00:00:00.000Z"
+        );
+      database
+        .prepare(
+          `
+            INSERT INTO task_sessions (id, task_id, provider, created_at)
+            VALUES (?, ?, ?, ?)
+          `
+        )
+        .run("session-1", "task-1", "codex", "2026-01-01T00:00:00.000Z");
+
+      const insertMessage = database.prepare(`
+        INSERT INTO task_session_messages (
+          id,
+          session_id,
+          external_id,
+          ordinal,
+          role,
+          text,
+          content_hash,
+          occurred_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      insertMessage.run(
+        "row-1",
+        "session-1",
+        "ext-1",
+        0,
+        "user",
+        "Hello",
+        "hash-1",
+        "2026-01-01T00:00:01.000Z"
+      );
+
+      assert.throws(() => {
+        insertMessage.run(
+          "row-dup",
+          "session-1",
+          "ext-1",
+          1,
+          "assistant",
+          "Duplicate external_id",
+          "hash-2",
+          null
+        );
+      }, /UNIQUE constraint failed/u);
+
+      assert.throws(() => {
+        insertMessage.run(
+          "row-bad-role",
+          "session-1",
+          "ext-2",
+          1,
+          "system",
+          "Bad role",
+          "hash-2",
+          null
+        );
+      }, /CHECK constraint failed/u);
+
+      assert.throws(() => {
+        insertMessage.run(
+          "row-missing-session",
+          "missing-session",
+          "ext-2",
+          1,
+          "assistant",
+          "Missing session",
+          "hash-2",
+          null
+        );
+      }, /FOREIGN KEY constraint failed/u);
+
+      database.prepare("DELETE FROM task_sessions WHERE id = ?").run("session-1");
+      assert.deepEqual(
+        database.prepare("SELECT id FROM task_session_messages").all(),
+        []
+      );
+
+      database.exec(
+        readFileSync(
+          join(migrationsDirectory, "000017_task_session_messages.down.sql"),
+          "utf8"
+        )
+      );
+      assert.equal(tableExists(database, "task_session_messages"), false);
+    } finally {
+      database.close();
+    }
+
+    const d1Database = new SqliteDatabase(d1DatabasePath);
+    d1Database.pragma("foreign_keys = ON");
+    try {
+      d1Database.exec(
+        readFileSync(join(d1MigrationsDirectory, "0001_baseline.sql"), "utf8")
+      );
+      d1Database.exec(
+        readFileSync(join(d1MigrationsDirectory, "0002_task_session_messages.sql"), "utf8")
+      );
+
+      assert.equal(tableExists(d1Database, "task_session_messages"), true);
+      const indexes = d1Database
+        .prepare("PRAGMA index_list(task_session_messages)")
+        .all()
+        .map((row) => (row as { name: string }).name);
+      assert.ok(indexes.includes("task_session_messages_session_ordinal_idx"));
+    } finally {
+      d1Database.close();
     }
   } finally {
     await rm(dir, { force: true, recursive: true });

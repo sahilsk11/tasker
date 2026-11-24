@@ -8,3 +8,7 @@ export {
   parseClaimSessionInput,
   parseCreateSessionInput
 } from "./task-session.command.js";
+export {
+  parseListSessionMessagesQuery,
+  parsePushSessionMessagesInput
+} from "./task-session-message.command.js";

@@ -36,6 +36,10 @@ void test("createApp keeps HTTP concerns and resolver wiring in app.ts", async (
   );
   assert.match(source, /registerTaskResourceResolver\(api, runtime\.services\.task\)/u);
   assert.match(source, /registerTaskSessionResolver\(api, runtime\.services\.task\)/u);
+  assert.match(
+    source,
+    /registerTaskSessionMessageResolver\(api, runtime\.services\.sessionMessage\)/u
+  );
   assert.match(source, /registerWorkingPathResolver\(api, runtime\.services\.workingPath\)/u);
   assert.match(
     source,

@@ -18,6 +18,16 @@ export type {
   TaskSession,
   TaskSessionId
 } from "./task-session.js";
+export type {
+  ListTaskSessionMessagesOptions,
+  PreparedTaskSessionMessage,
+  PushTaskSessionMessagesResult,
+  TaskSessionMessage,
+  TaskSessionMessageId,
+  TaskSessionMessageRole,
+  TaskSessionMessagesHead,
+  TaskSessionMessagesPage
+} from "./task-session-message.js";
 export type { CreateTaskTicketInput, TaskTicket, TaskTicketId } from "./task-ticket.js";
 export type {
   TaskWorkflowEffect,

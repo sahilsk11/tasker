@@ -28,3 +28,15 @@ export type {
   KnownPromptPlaceholder,
   TaskActionPromptContext
 } from "./task-actions/index.js";
+
+export {
+  pushSessionMessagesRequestSchema,
+  SESSION_MESSAGE_MAX_TEXT_LENGTH,
+  SESSION_MESSAGES_MAX_PER_PUSH,
+  sessionMessageRoles,
+  sessionMessageSchema
+} from "./session-messages/index.js";
+export type {
+  PushSessionMessagesRequest,
+  SessionMessage
+} from "./session-messages/index.js";

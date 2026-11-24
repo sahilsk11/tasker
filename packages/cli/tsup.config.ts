@@ -5,6 +5,7 @@ export default defineConfig({
   entry: ["src/bin.ts"],
   external: ["better-sqlite3"],
   format: ["esm"],
-  noExternal: ["@tasker/api", "@tasker/core"],
-  platform: "node"
+  noExternal: ["@tasker/agents", "@tasker/api", "@tasker/core"],
+  platform: "node",
+  removeNodeProtocol: false
 });

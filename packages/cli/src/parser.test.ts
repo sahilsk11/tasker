@@ -399,3 +399,132 @@ void test("parseArgs rejects invalid metadata JSON", () => {
       error.message === "--metadata-json must be a JSON object or null"
   );
 });
+
+void test("parseArgs parses sessions push with all options", () => {
+  for (const harness of ["claude", "codex", "t3"] as const) {
+    assert.deepEqual(
+      parseArgs([
+        "sessions",
+        "push",
+        "--session-id",
+        "session-1",
+        "--harness",
+        harness,
+        "--thread-id",
+        "thread-1",
+        "--transcript-path",
+        "/tmp/transcript.jsonl",
+        "--home",
+        "/tmp/home",
+        "--full"
+      ]),
+      {
+        full: true,
+        harness,
+        homeDir: "/tmp/home",
+        kind: "sessions_push",
+        sessionId: "session-1",
+        threadId: "thread-1",
+        transcriptPath: "/tmp/transcript.jsonl"
+      }
+    );
+  }
+
+  assert.deepEqual(
+    parseArgs([
+      "sessions",
+      "push",
+      "--session-id=session-2",
+      "--harness=codex",
+      "--thread-id=thread-2",
+      "--transcript-path=/tmp/rollout.jsonl",
+      "--home=/tmp/alt-home"
+    ]),
+    {
+      full: false,
+      harness: "codex",
+      homeDir: "/tmp/alt-home",
+      kind: "sessions_push",
+      sessionId: "session-2",
+      threadId: "thread-2",
+      transcriptPath: "/tmp/rollout.jsonl"
+    }
+  );
+});
+
+void test("parseArgs parses sessions push help", () => {
+  assert.deepEqual(parseArgs(["sessions", "push", "--help"]), { kind: "help" });
+  assert.deepEqual(parseArgs(["sessions", "push", "-h"]), { kind: "help" });
+  assert.deepEqual(parseArgs(["sessions", "--help"]), { kind: "help" });
+});
+
+void test("parseArgs rejects invalid sessions push arguments", () => {
+  assert.throws(
+    () => parseArgs(["sessions"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "sessions requires a subcommand: create, claim, or push"
+  );
+
+  assert.throws(
+    () => parseArgs(["sessions", "push", "--harness", "claude", "--thread-id", "t-1"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "sessions push requires --session-id"
+  );
+
+  assert.throws(
+    () => parseArgs(["sessions", "push", "--session-id", "s-1", "--thread-id", "t-1"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "sessions push requires --harness"
+  );
+
+  assert.throws(
+    () => parseArgs(["sessions", "push", "--session-id", "s-1", "--harness", "claude"]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "sessions push requires --thread-id"
+  );
+
+  assert.throws(
+    () =>
+      parseArgs([
+        "sessions",
+        "push",
+        "--session-id",
+        "s-1",
+        "--harness",
+        "cursor",
+        "--thread-id",
+        "t-1"
+      ]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "--harness must be one of: claude, codex, t3"
+  );
+
+  assert.throws(
+    () =>
+      parseArgs([
+        "sessions",
+        "push",
+        "--session-id",
+        "s-1",
+        "--harness",
+        "claude",
+        "--thread-id",
+        "t-1",
+        "--unknown"
+      ]),
+    (error: unknown) =>
+      error instanceof CliError &&
+      error.code === "parse_error" &&
+      error.message === "Unknown option for sessions push: --unknown"
+  );
+});

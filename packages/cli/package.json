@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tasker/agents": "workspace:*",
     "@tasker/api": "workspace:*",
+    "@tasker/core": "workspace:*",
     "better-sqlite3": "^12.10.0"
   },
   "devDependencies": {

@@ -1,5 +1,7 @@
 import { createParseError } from "./errors.js";
 
+export type SessionPushHarness = "claude" | "codex" | "t3";
+
 export type ParsedCommand =
   | {
       readonly kind: "runtime";
@@ -48,6 +50,15 @@ export type ParsedCommand =
       readonly providerId?: string | null;
       readonly sessionId: string;
       readonly transcriptPath?: string | null;
+    }
+  | {
+      readonly full: boolean;
+      readonly harness: SessionPushHarness;
+      readonly homeDir?: string;
+      readonly kind: "sessions_push";
+      readonly sessionId: string;
+      readonly threadId: string;
+      readonly transcriptPath?: string;
     }
   | {
       readonly kind: "help";
@@ -410,7 +421,11 @@ function parseSessionsCommand(args: readonly string[]): ParsedCommand {
   const subcommand = remaining.shift();
 
   if (subcommand === undefined) {
-    throw createParseError("sessions requires a subcommand: create or claim");
+    throw createParseError("sessions requires a subcommand: create, claim, or push");
+  }
+
+  if (subcommand === "--help" || subcommand === "-h") {
+    return { kind: "help" };
   }
 
   if (subcommand === "create") {
@@ -419,6 +434,10 @@ function parseSessionsCommand(args: readonly string[]): ParsedCommand {
 
   if (subcommand === "claim") {
     return parseSessionsClaim(remaining);
+  }
+
+  if (subcommand === "push") {
+    return parseSessionsPush(remaining);
   }
 
   throw createParseError(`Unknown sessions subcommand: ${subcommand}`);
@@ -633,6 +652,111 @@ function parseSessionsClaim(args: readonly string[]): ParsedCommand {
     sessionId,
     ...(transcriptPath !== undefined ? { transcriptPath } : {})
   };
+}
+
+function parseSessionsPush(args: readonly string[]): ParsedCommand {
+  let full = false;
+  let harness: SessionPushHarness | undefined;
+  let homeDir: string | undefined;
+  let sessionId: string | undefined;
+  let threadId: string | undefined;
+  let transcriptPath: string | undefined;
+
+  const remaining = [...args];
+  while (remaining.length > 0) {
+    const flag = remaining.shift();
+
+    if (flag === "--help" || flag === "-h") {
+      return { kind: "help" };
+    }
+
+    if (flag === "--full") {
+      full = true;
+      continue;
+    }
+
+    if (flag === "--session-id") {
+      sessionId = readFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--session-id=") === true) {
+      sessionId = readInlineFlagValue(flag, "--session-id");
+      continue;
+    }
+
+    if (flag === "--harness") {
+      harness = parseSessionPushHarness(readFlagValue(remaining, flag));
+      continue;
+    }
+
+    if (flag?.startsWith("--harness=") === true) {
+      harness = parseSessionPushHarness(readInlineFlagValue(flag, "--harness"));
+      continue;
+    }
+
+    if (flag === "--thread-id") {
+      threadId = readFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--thread-id=") === true) {
+      threadId = readInlineFlagValue(flag, "--thread-id");
+      continue;
+    }
+
+    if (flag === "--transcript-path") {
+      transcriptPath = readFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--transcript-path=") === true) {
+      transcriptPath = readInlineFlagValue(flag, "--transcript-path");
+      continue;
+    }
+
+    if (flag === "--home") {
+      homeDir = readFlagValue(remaining, flag);
+      continue;
+    }
+
+    if (flag?.startsWith("--home=") === true) {
+      homeDir = readInlineFlagValue(flag, "--home");
+      continue;
+    }
+
+    throw createParseError(`Unknown option for sessions push: ${flag ?? ""}`);
+  }
+
+  if (sessionId === undefined) {
+    throw createParseError("sessions push requires --session-id");
+  }
+
+  if (harness === undefined) {
+    throw createParseError("sessions push requires --harness");
+  }
+
+  if (threadId === undefined) {
+    throw createParseError("sessions push requires --thread-id");
+  }
+
+  return {
+    full,
+    harness,
+    ...(homeDir !== undefined ? { homeDir } : {}),
+    kind: "sessions_push",
+    sessionId,
+    threadId,
+    ...(transcriptPath !== undefined ? { transcriptPath } : {})
+  };
+}
+
+function parseSessionPushHarness(value: string): SessionPushHarness {
+  if (value === "claude" || value === "codex" || value === "t3") {
+    return value;
+  }
+
+  throw createParseError("--harness must be one of: claude, codex, t3");
 }
 
 function readFlagValue(remaining: string[], flag: string): string {

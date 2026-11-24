@@ -235,9 +235,15 @@ importers:
 
   packages/cli:
     dependencies:
+      '@tasker/agents':
+        specifier: workspace:*
+        version: link:../agents
       '@tasker/api':
         specifier: workspace:*
         version: link:../../apps/api
+      '@tasker/core':
+        specifier: workspace:*
+        version: link:../core
       better-sqlite3:
         specifier: ^12.10.0
         version: 12.10.0

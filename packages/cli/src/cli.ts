@@ -13,15 +13,36 @@ import {
 } from "./errors.js";
 import { createLocalRuntime } from "./local-runtime.js";
 import { parseArgs, type ParsedCommand } from "./parser.js";
+import {
+  executeSessionsPush,
+  type SessionMessagesClient,
+  type SessionsPushDependencies,
+  type SessionsPushSummary
+} from "./sessions-push.js";
 
 export type CliRunResult = {
   readonly exitCode: number;
   readonly output: string;
 };
 
+export type CliRuntime = {
+  readonly close: () => Promise<void>;
+  readonly metadata: Record<string, unknown>;
+  readonly services: {
+    readonly sessionMessage: SessionMessagesClient;
+    readonly task: ReturnType<typeof createLocalRuntime>["services"]["task"];
+  };
+};
+
+export type RunCliOptions = {
+  readonly createRuntime?: (env: NodeJS.ProcessEnv) => CliRuntime;
+  readonly sessionsPushDependencies?: SessionsPushDependencies;
+};
+
 export async function runCli(
   argv: readonly string[],
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv,
+  options?: RunCliOptions
 ): Promise<CliRunResult> {
   try {
     const command = parseArgs(argv);
@@ -33,7 +54,7 @@ export async function runCli(
       };
     }
 
-    const runtime = createLocalRuntime(env);
+    const runtime = (options?.createRuntime ?? createLocalRuntime)(env);
     try {
       const taskService = runtime.services.task;
 
@@ -90,6 +111,16 @@ export async function runCli(
               await taskService.claimSession(
                 command.sessionId,
                 parseClaimSessionInput(claimSessionRequest(command))
+              )
+            )
+          );
+        case "sessions_push":
+          return success(
+            formatSessionsPush(
+              await executeSessionsPush(
+                command,
+                runtime.services.sessionMessage,
+                options?.sessionsPushDependencies
               )
             )
           );
@@ -327,6 +358,18 @@ function formatClaimResult(result: Record<string, unknown>): string {
   ].join("\n");
 }
 
+function formatSessionsPush(summary: SessionsPushSummary): string {
+  return [
+    "Session messages pushed",
+    `Session ID: ${summary.sessionId}`,
+    `Messages read: ${String(summary.read)}`,
+    `Messages sent: ${String(summary.sent)}`,
+    `Inserted: ${String(summary.inserted)}`,
+    `Skipped: ${String(summary.skipped)}`,
+    `Server total: ${String(summary.total)}`
+  ].join("\n");
+}
+
 function formatError(message: string): string {
   return `Error: ${message}`;
 }
@@ -378,6 +421,7 @@ function getHelpText(): string {
     "  task get         Show task details",
     "  sessions create  Create a task session",
     "  sessions claim   Claim an existing task session",
+    "  sessions push    Push transcript messages for a task session",
     "  --help           Show this help",
     "",
     "Examples:",
@@ -387,6 +431,7 @@ function getHelpText(): string {
     "  tasker task list",
     "  tasker task get <taskId>",
     "  tasker sessions create --task-id <taskId> --provider codex --unclaimed",
-    "  tasker sessions claim --session-id <sessionId> --provider codex --metadata reportedCwd=$PWD"
+    "  tasker sessions claim --session-id <sessionId> --provider codex --metadata reportedCwd=$PWD",
+    "  tasker sessions push --session-id <sessionId> --harness claude|codex|t3 --thread-id <threadId> [--transcript-path <path>] [--home <dir>] [--full]"
   ].join("\n");
 }

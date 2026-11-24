@@ -139,3 +139,19 @@ function makeEvent(
     type
   };
 }
+
+export {
+  chunkMessages,
+  extractClaudeContentText,
+  getDefaultT3DbPath,
+  isClaudeUserTextAllowed,
+  locateClaudeTranscript,
+  locateCodexTranscript,
+  locateT3DbPath,
+  readClaudeTranscript,
+  readCodexTranscript,
+  readT3Thread,
+  stripSystemReminders,
+  truncateMessageText,
+  type LocateTranscriptOptions
+} from "./transcripts/index.js";

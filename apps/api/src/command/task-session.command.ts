@@ -61,6 +61,20 @@ export function parseClaimSessionInput(body: unknown): ClaimTaskSessionRequestIn
   return claimSessionSchema.parse(body) as ClaimTaskSessionRequestInput;
 }
 
+export type LookupSessionsByProviderInput = {
+  readonly provider: string;
+  readonly providerId: string;
+};
+
+const lookupSessionsQuerySchema = z.object({
+  provider: z.string().trim().min(1),
+  providerId: z.string().trim().min(1)
+});
+
+export function parseLookupSessionsQuery(query: unknown): LookupSessionsByProviderInput {
+  return lookupSessionsQuerySchema.parse(query ?? {});
+}
+
 export const renderSessionPromptSchema = z.object({
   provider: z.enum(agentPromptProviderValues).default(defaultAgentPromptProvider),
   promptOptions: taskActionPromptValuesSchema.optional()

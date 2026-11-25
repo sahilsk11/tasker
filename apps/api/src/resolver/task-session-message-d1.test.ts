@@ -37,6 +37,12 @@ void test("Cloudflare Worker D1 path chunks within 100 params and preserves atom
     sqlite.exec(
       readFileSync(join(d1MigrationsDirectory, "0003_task_session_messages.sql"), "utf8")
     );
+    sqlite.exec(
+      readFileSync(
+        join(d1MigrationsDirectory, "0004_task_sessions_provider_id_idx.sql"),
+        "utf8"
+      )
+    );
 
     const { d1, getBatchCount, getMaxParamsSeen } = createStrictD1Adapter(sqlite);
     const env = {
@@ -181,6 +187,88 @@ void test("Cloudflare Worker D1 path chunks within 100 params and preserves atom
       env
     );
     assert.equal(unknownResponse.status, 404);
+
+    // Session lookup across tasks on D1: 0, 1, 2 matches and 400 validation.
+    const emptyLookup = await cloudflareApp.fetch(
+      new Request("https://tasker.example/api/sessions?provider=t3&providerId=d1-missing"),
+      env
+    );
+    assert.equal(emptyLookup.status, 200);
+    assert.deepEqual(await emptyLookup.json(), { sessions: [] });
+
+    const secondTaskResponse = await cloudflareApp.fetch(
+      new Request("https://tasker.example/api/tasks", {
+        body: JSON.stringify({ title: "D1 second lookup task" }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      }),
+      env
+    );
+    assert.equal(secondTaskResponse.status, 201);
+    const secondTaskId = ((await secondTaskResponse.json()) as {
+      readonly task: { readonly id: string };
+    }).task.id;
+
+    const t3Session1Response = await cloudflareApp.fetch(
+      new Request(`https://tasker.example/api/tasks/${taskId}/sessions`, {
+        body: JSON.stringify({ provider: "t3", providerId: "d1-thread-1" }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      }),
+      env
+    );
+    assert.equal(t3Session1Response.status, 201);
+    const t3Session1Id = ((await t3Session1Response.json()) as {
+      readonly session: { readonly id: string };
+    }).session.id;
+
+    const singleLookup = await cloudflareApp.fetch(
+      new Request("https://tasker.example/api/sessions?provider=t3&providerId=d1-thread-1"),
+      env
+    );
+    assert.equal(singleLookup.status, 200);
+    const singleLookupBody = (await singleLookup.json()) as {
+      readonly sessions: ReadonlyArray<{ readonly id: string; readonly taskId: string }>;
+    };
+    assert.deepEqual(
+      singleLookupBody.sessions.map((row) => ({ id: row.id, taskId: row.taskId })),
+      [{ id: t3Session1Id, taskId }]
+    );
+
+    const t3Session2Response = await cloudflareApp.fetch(
+      new Request(`https://tasker.example/api/tasks/${secondTaskId}/sessions`, {
+        body: JSON.stringify({ provider: "t3", providerId: "d1-thread-1" }),
+        headers: { "content-type": "application/json" },
+        method: "POST"
+      }),
+      env
+    );
+    assert.equal(t3Session2Response.status, 201);
+    const t3Session2Id = ((await t3Session2Response.json()) as {
+      readonly session: { readonly id: string };
+    }).session.id;
+
+    const multiLookup = await cloudflareApp.fetch(
+      new Request("https://tasker.example/api/sessions?provider=t3&providerId=d1-thread-1"),
+      env
+    );
+    assert.equal(multiLookup.status, 200);
+    const multiLookupBody = (await multiLookup.json()) as {
+      readonly sessions: ReadonlyArray<{ readonly id: string; readonly taskId: string }>;
+    };
+    assert.deepEqual(
+      multiLookupBody.sessions.map((row) => ({ id: row.id, taskId: row.taskId })),
+      [
+        { id: t3Session1Id, taskId },
+        { id: t3Session2Id, taskId: secondTaskId }
+      ]
+    );
+
+    const badLookup = await cloudflareApp.fetch(
+      new Request("https://tasker.example/api/sessions?provider=t3"),
+      env
+    );
+    assert.equal(badLookup.status, 400);
   } finally {
     sqlite.close();
     await rm(dir, { force: true, recursive: true });

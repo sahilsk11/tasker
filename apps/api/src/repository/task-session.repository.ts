@@ -5,6 +5,7 @@ import type {
   ClaimTaskSessionInput,
   CreateTaskSessionInput,
   SessionContext,
+  SessionProvider,
   TaskSession
 } from "../domain/task-session.js";
 import { safeSessionUrl } from "../domain/task-session.js";
@@ -29,6 +30,10 @@ export type TaskSessionRepository = {
     input: CreateTaskSessionInput
   ) => Promise<TaskSession>;
   readonly findById: (sessionId: string) => Promise<TaskSession | null>;
+  readonly listByProviderAndProviderId: (
+    provider: SessionProvider,
+    providerId: string
+  ) => Promise<readonly TaskSession[]>;
   readonly listByTaskId: (taskId: TaskId) => Promise<readonly TaskSession[]>;
 };
 
@@ -138,6 +143,23 @@ export class SqliteTaskSessionRepository implements TaskSessionRepository {
       .executeTakeFirst();
 
     return row == null ? null : toTaskSession(row);
+  }
+
+  public async listByProviderAndProviderId(
+    provider: SessionProvider,
+    providerId: string
+  ): Promise<readonly TaskSession[]> {
+    const rows = await this.db
+      .selectFrom("task_sessions")
+      .selectAll()
+      .where("provider", "=", provider)
+      .where("provider_id", "=", providerId)
+      .where("claimed_at", "is not", null)
+      .orderBy("created_at", "asc")
+      .orderBy("id", "asc")
+      .execute();
+
+    return rows.map(toTaskSession);
   }
 
   public async listByTaskId(taskId: TaskId): Promise<readonly TaskSession[]> {

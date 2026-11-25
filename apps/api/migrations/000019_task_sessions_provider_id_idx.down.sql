@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS task_sessions_provider_provider_id_idx;

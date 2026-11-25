@@ -17,6 +17,7 @@ import {
 import {
   parseClaimSessionInput,
   parseCreateSessionInput,
+  parseLookupSessionsQuery,
   parseSessionContext
 } from "./command/task-session.command.js";
 import { parseCreateTaskInput, parseUpdateTaskInput } from "./command/task.command.js";
@@ -168,6 +169,15 @@ api.patch("/tasks/:id/sessions/:sessionId", async (c) => c.json({
   session: await c.var.tasks.updateSessionContext(c.req.param("id"), c.req.param("sessionId"),
     parseSessionContext(await readJson(c.req)))
 }));
+api.get("/sessions", async (c) => {
+  const { provider, providerId } = parseLookupSessionsQuery({
+    provider: c.req.query("provider"),
+    providerId: c.req.query("providerId")
+  });
+  return c.json({
+    sessions: await c.var.tasks.findSessionsByProvider(provider, providerId)
+  });
+});
 api.post("/sessions/:id/claim", async (c) =>
   c.json(await c.var.tasks.claimSession(c.req.param("id"), parseClaimSessionInput(await readJson(c.req))))
 );

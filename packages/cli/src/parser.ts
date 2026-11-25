@@ -50,13 +50,6 @@ export type ParsedCommand =
       readonly transcriptPath?: string | null;
     }
   | {
-      readonly dbPath?: string;
-      readonly full: boolean;
-      readonly kind: "sessions_push";
-      readonly sessionId: string;
-      readonly threadId: string;
-    }
-  | {
       readonly kind: "help";
     };
 
@@ -417,11 +410,7 @@ function parseSessionsCommand(args: readonly string[]): ParsedCommand {
   const subcommand = remaining.shift();
 
   if (subcommand === undefined) {
-    throw createParseError("sessions requires a subcommand: create, claim, or push");
-  }
-
-  if (subcommand === "--help" || subcommand === "-h") {
-    return { kind: "help" };
+    throw createParseError("sessions requires a subcommand: create or claim");
   }
 
   if (subcommand === "create") {
@@ -430,10 +419,6 @@ function parseSessionsCommand(args: readonly string[]): ParsedCommand {
 
   if (subcommand === "claim") {
     return parseSessionsClaim(remaining);
-  }
-
-  if (subcommand === "push") {
-    return parseSessionsPush(remaining);
   }
 
   throw createParseError(`Unknown sessions subcommand: ${subcommand}`);
@@ -647,75 +632,6 @@ function parseSessionsClaim(args: readonly string[]): ParsedCommand {
     ...(providerId !== undefined ? { providerId } : {}),
     sessionId,
     ...(transcriptPath !== undefined ? { transcriptPath } : {})
-  };
-}
-
-function parseSessionsPush(args: readonly string[]): ParsedCommand {
-  let dbPath: string | undefined;
-  let full = false;
-  let sessionId: string | undefined;
-  let threadId: string | undefined;
-
-  const remaining = [...args];
-  while (remaining.length > 0) {
-    const flag = remaining.shift();
-
-    if (flag === "--help" || flag === "-h") {
-      return { kind: "help" };
-    }
-
-    if (flag === "--full") {
-      full = true;
-      continue;
-    }
-
-    if (flag === "--session-id") {
-      sessionId = readFlagValue(remaining, flag);
-      continue;
-    }
-
-    if (flag?.startsWith("--session-id=") === true) {
-      sessionId = readInlineFlagValue(flag, "--session-id");
-      continue;
-    }
-
-    if (flag === "--thread-id") {
-      threadId = readFlagValue(remaining, flag);
-      continue;
-    }
-
-    if (flag?.startsWith("--thread-id=") === true) {
-      threadId = readInlineFlagValue(flag, "--thread-id");
-      continue;
-    }
-
-    if (flag === "--db-path") {
-      dbPath = readFlagValue(remaining, flag);
-      continue;
-    }
-
-    if (flag?.startsWith("--db-path=") === true) {
-      dbPath = readInlineFlagValue(flag, "--db-path");
-      continue;
-    }
-
-    throw createParseError(`Unknown option for sessions push: ${flag ?? ""}`);
-  }
-
-  if (sessionId === undefined) {
-    throw createParseError("sessions push requires --session-id");
-  }
-
-  if (threadId === undefined) {
-    throw createParseError("sessions push requires --thread-id");
-  }
-
-  return {
-    ...(dbPath !== undefined ? { dbPath } : {}),
-    full,
-    kind: "sessions_push",
-    sessionId,
-    threadId
   };
 }
 

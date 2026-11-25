@@ -117,7 +117,8 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000015_drop_task_actions",
         "000016_artifact_lifecycle",
         "000017_session_context",
-        "000018_task_session_messages"
+        "000018_task_session_messages",
+        "000019_task_sessions_provider_id_idx"
       ]);
 
       const taskColumns = database
@@ -329,6 +330,8 @@ void test("migrations drop legacy task action table", async () => {
         CREATE TABLE task_sessions (
           id text PRIMARY KEY,
           task_id text NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          provider text NOT NULL DEFAULT 'codex',
+          provider_id text,
           metadata_json text
         );
         INSERT INTO tasks (id, title, state) VALUES ('legacy-task', 'Legacy task', 'planning');
@@ -612,6 +615,27 @@ void test("task session messages migration enforces constraints, cascade delete,
         )
       );
       assert.equal(tableExists(database, "task_session_messages"), false);
+
+      const sessionIndexesBeforeRollback = database
+        .prepare("PRAGMA index_list(task_sessions)")
+        .all()
+        .map((row) => (row as { name: string }).name);
+      assert.ok(
+        sessionIndexesBeforeRollback.includes("task_sessions_provider_provider_id_idx")
+      );
+      database.exec(
+        readFileSync(
+          join(migrationsDirectory, "000019_task_sessions_provider_id_idx.down.sql"),
+          "utf8"
+        )
+      );
+      const sessionIndexesAfterRollback = database
+        .prepare("PRAGMA index_list(task_sessions)")
+        .all()
+        .map((row) => (row as { name: string }).name);
+      assert.ok(
+        !sessionIndexesAfterRollback.includes("task_sessions_provider_provider_id_idx")
+      );
     } finally {
       database.close();
     }
@@ -628,6 +652,12 @@ void test("task session messages migration enforces constraints, cascade delete,
       d1Database.exec(
         readFileSync(join(d1MigrationsDirectory, "0003_task_session_messages.sql"), "utf8")
       );
+      d1Database.exec(
+        readFileSync(
+          join(d1MigrationsDirectory, "0004_task_sessions_provider_id_idx.sql"),
+          "utf8"
+        )
+      );
 
       assert.equal(tableExists(d1Database, "task_session_messages"), true);
       const indexes = d1Database
@@ -635,6 +665,11 @@ void test("task session messages migration enforces constraints, cascade delete,
         .all()
         .map((row) => (row as { name: string }).name);
       assert.ok(indexes.includes("task_session_messages_session_ordinal_idx"));
+      const d1SessionIndexes = d1Database
+        .prepare("PRAGMA index_list(task_sessions)")
+        .all()
+        .map((row) => (row as { name: string }).name);
+      assert.ok(d1SessionIndexes.includes("task_sessions_provider_provider_id_idx"));
     } finally {
       d1Database.close();
     }

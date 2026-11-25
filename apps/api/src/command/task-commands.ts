@@ -6,7 +6,8 @@ export {
 } from "./task-resource.command.js";
 export {
   parseClaimSessionInput,
-  parseCreateSessionInput
+  parseCreateSessionInput,
+  parseLookupSessionsQuery
 } from "./task-session.command.js";
 export {
   parseListSessionMessagesQuery,

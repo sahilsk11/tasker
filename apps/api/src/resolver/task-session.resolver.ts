@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   parseClaimSessionInput,
   parseCreateSessionInput,
+  parseLookupSessionsQuery,
   parseSessionContext,
   renderSessionPromptSchema
 } from "../command/task-session.command.js";
@@ -32,6 +33,13 @@ export function registerTaskSessionResolver(
   server: FastifyInstance,
   taskService: TaskService
 ): void {
+  server.get("/sessions", async (request) => {
+    const { provider, providerId } = parseLookupSessionsQuery(request.query);
+    return {
+      sessions: await taskService.findSessionsByProvider(provider, providerId)
+    };
+  });
+
   server.get("/tasks/:id/sessions", async (request) => {
     const { id } = taskIdParamsSchema.parse(request.params);
     return { sessions: await taskService.listSessions(id) };

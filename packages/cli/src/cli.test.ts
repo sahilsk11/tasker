@@ -373,7 +373,6 @@ function getExpectedHelpText(): string {
     "  task get         Show task details",
     "  sessions create  Create a task session",
     "  sessions claim   Claim an existing task session",
-    "  sessions push    Push T3 thread messages for a task session",
     "  --help           Show this help",
     "",
     "Examples:",
@@ -383,8 +382,7 @@ function getExpectedHelpText(): string {
     "  tasker task list",
     "  tasker task get <taskId>",
     "  tasker sessions create --task-id <taskId> --provider codex --unclaimed",
-    "  tasker sessions claim --session-id <sessionId> --provider codex --metadata reportedCwd=$PWD",
-    "  tasker sessions push --session-id <sessionId> --thread-id <threadId> [--db-path <statev2.sqlite>] [--full]"
+    "  tasker sessions claim --session-id <sessionId> --provider codex --metadata reportedCwd=$PWD"
   ].join("\n");
 }
 

@@ -16,6 +16,7 @@ import type {
   ClaimTaskSessionInput,
   CreateTaskSessionInput,
   SessionContext,
+  SessionProvider,
   TaskSession,
   TaskSessionMetadata
 } from "../domain/task-session.js";
@@ -466,6 +467,15 @@ export class TaskService {
       throw new NotFoundError(`Task session ${sessionId} not found`);
     }
     return session;
+  }
+
+  public async findSessionsByProvider(
+    provider: SessionProvider,
+    providerId: string
+  ): Promise<readonly TaskSession[]> {
+    return this.sessionProviders.enrichSessions(
+      await this.sessions.listByProviderAndProviderId(provider, providerId)
+    );
   }
 
   public async listSessions(taskId: TaskId): Promise<readonly TaskSession[]> {

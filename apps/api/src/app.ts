@@ -4,10 +4,16 @@ import { registerGitHubResolver } from "./resolver/github.resolver.js";
 import { registerTaskActionResolver } from "./resolver/task-action.resolver.js";
 import { registerTaskBreakdownResolver } from "./resolver/task-breakdown.resolver.js";
 import { registerTaskResourceResolver } from "./resolver/task-resource.resolver.js";
+import { registerTaskSessionMessageResolver } from "./resolver/task-session-message.resolver.js";
 import { registerTaskSessionResolver } from "./resolver/task-session.resolver.js";
 import { registerTaskResolver } from "./resolver/task.resolver.js";
 import { registerWorkingPathResolver } from "./resolver/working-path.resolver.js";
-import { BadRequestError, ConflictError, NotFoundError } from "./service/errors.js";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+  SessionMessageConflictError
+} from "./service/errors.js";
 import {
   createTaskerRuntime,
   type CreateTaskerRuntimeOptions
@@ -38,6 +44,14 @@ export async function createApp(options: CreateAppOptions) {
       return;
     }
 
+    if (error instanceof SessionMessageConflictError) {
+      void reply.code(409).send({
+        conflictingExternalIds: error.conflictingExternalIds,
+        error: error.message
+      });
+      return;
+    }
+
     if (error instanceof ConflictError) {
       void reply.code(409).send({ error: error.message });
       return;
@@ -56,6 +70,7 @@ export async function createApp(options: CreateAppOptions) {
       registerTaskBreakdownResolver(api, runtime.services.taskBreakdown);
       registerTaskResourceResolver(api, runtime.services.task);
       registerTaskSessionResolver(api, runtime.services.task);
+      registerTaskSessionMessageResolver(api, runtime.services.sessionMessage);
       registerWorkingPathResolver(api, runtime.services.workingPath);
       registerGitHubResolver(api, runtime.services.github);
       done();

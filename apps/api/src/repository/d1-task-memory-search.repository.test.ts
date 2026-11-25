@@ -5,6 +5,7 @@ import type {
   TaskMemoryIndexDocument,
   TaskMemorySearchJob
 } from "../domain/task-memory-search.js";
+import { chunkText } from "../service/task-memory-search.js";
 import { D1TaskMemorySearchRepository } from "./d1-task-memory-search.repository.js";
 
 void test("D1 indexing fences delayed Vectorize writes and superseded deletes", async () => {
@@ -153,10 +154,55 @@ void test("D1 source cleanup preserves documents from the active generation", as
   assert.deepEqual([...vectorIds], [document.vectorId]);
 });
 
+void test("D1 source cleanup stays within the bind limit at maximum message size", async () => {
+  const job = makeJob("current-lease", "current-generation");
+  const chunks = chunkText("x".repeat(256_000));
+  assert.equal(chunks.length, 640);
+
+  const oldDocuments = chunks.map((body, index) => ({
+    ...makeDocument("old-generation", body),
+    vectorId: `m:c2hhcmVk:${String(index)}:old-generation`
+  }));
+  const currentDocument = makeDocument("current-generation", "current source");
+  const state = {
+    documents: new Map(
+      [...oldDocuments, currentDocument].map((document) => [
+        document.vectorId,
+        document
+      ])
+    ),
+    generationToken: job.generationToken,
+    leaseToken: job.leaseToken,
+    maxBoundParameters: 0
+  };
+  const database = createDatabase(state);
+  const vectorIds = new Set(state.documents.keys());
+  const deleteBatchSizes: number[] = [];
+  const vectorIndex = {
+    upsert: () => Promise.resolve(),
+    deleteByIds: (ids: readonly string[]) => {
+      deleteBatchSizes.push(ids.length);
+      for (const id of ids) {
+        vectorIds.delete(id);
+      }
+      return Promise.resolve();
+    }
+  } as unknown as VectorizeIndex;
+  const repository = new D1TaskMemorySearchRepository(database, vectorIndex);
+
+  assert.equal(await repository.deleteSource(job), true);
+
+  assert.deepEqual([...state.documents.keys()], [currentDocument.vectorId]);
+  assert.deepEqual([...vectorIds], [currentDocument.vectorId]);
+  assert.deepEqual(deleteBatchSizes, [100, 100, 100, 100, 100, 100, 40]);
+  assert.equal(state.maxBoundParameters, 100);
+});
+
 type FakeRepositoryState = {
   readonly documents: Map<string, TaskMemoryIndexDocument>;
   generationToken: string;
   leaseToken: string;
+  maxBoundParameters?: number;
 };
 
 class FakeD1Statement {
@@ -169,6 +215,14 @@ class FakeD1Statement {
 
   public bind(...values: unknown[]): this {
     this.values = values;
+    this.state.maxBoundParameters = Math.max(
+      this.state.maxBoundParameters ?? 0,
+      values.length
+    );
+    assert.ok(
+      values.length <= 100,
+      `D1 statement bound ${String(values.length)} parameters; limit is 100`
+    );
     return this;
   }
 

@@ -17,6 +17,7 @@ import {
 export const HOSTED_TASK_MEMORY_EMBEDDING_MODEL = "@cf/baai/bge-small-en-v1.5";
 const HOSTED_VECTOR_DIMENSIONS = 384;
 const JOB_LEASE_MS = 5 * 60_000;
+const D1_MAX_BIND_PARAMETERS = 100;
 
 type CandidateRow = {
   body: string;
@@ -331,20 +332,32 @@ implements TaskMemorySearchRepository {
       .map((row) => row.vector_id)
       .filter((vectorId) => !vectorId.endsWith(`:${job.generationToken}`));
     if (obsoleteVectorIds.length > 0) {
-      const placeholders = obsoleteVectorIds.map(() => "?").join(", ");
       await this.deleteVectorIds(obsoleteVectorIds);
-      await this.database
-        .prepare(
-          `DELETE FROM task_memory_search_documents WHERE ${predicate.sql} AND vector_id IN (${placeholders})${leasePredicate}`
-        )
-        .bind(
-          ...predicate.parameters,
-          ...obsoleteVectorIds,
-          job.key,
-          job.leaseToken,
-          job.generationToken
-        )
-        .run();
+      const maxVectorIdsPerDelete =
+        D1_MAX_BIND_PARAMETERS - predicate.parameters.length - 3;
+      for (
+        let offset = 0;
+        offset < obsoleteVectorIds.length;
+        offset += maxVectorIdsPerDelete
+      ) {
+        const batch = obsoleteVectorIds.slice(
+          offset,
+          offset + maxVectorIdsPerDelete
+        );
+        const placeholders = batch.map(() => "?").join(", ");
+        await this.database
+          .prepare(
+            `DELETE FROM task_memory_search_documents WHERE ${predicate.sql} AND vector_id IN (${placeholders})${leasePredicate}`
+          )
+          .bind(
+            ...predicate.parameters,
+            ...batch,
+            job.key,
+            job.leaseToken,
+            job.generationToken
+          )
+          .run();
+      }
     }
     return true;
   }

@@ -1,7 +1,5 @@
 import { createParseError } from "./errors.js";
 
-export type SessionPushHarness = "claude" | "codex" | "t3";
-
 export type ParsedCommand =
   | {
       readonly kind: "runtime";
@@ -52,13 +50,11 @@ export type ParsedCommand =
       readonly transcriptPath?: string | null;
     }
   | {
+      readonly dbPath?: string;
       readonly full: boolean;
-      readonly harness: SessionPushHarness;
-      readonly homeDir?: string;
       readonly kind: "sessions_push";
       readonly sessionId: string;
       readonly threadId: string;
-      readonly transcriptPath?: string;
     }
   | {
       readonly kind: "help";
@@ -655,12 +651,10 @@ function parseSessionsClaim(args: readonly string[]): ParsedCommand {
 }
 
 function parseSessionsPush(args: readonly string[]): ParsedCommand {
+  let dbPath: string | undefined;
   let full = false;
-  let harness: SessionPushHarness | undefined;
-  let homeDir: string | undefined;
   let sessionId: string | undefined;
   let threadId: string | undefined;
-  let transcriptPath: string | undefined;
 
   const remaining = [...args];
   while (remaining.length > 0) {
@@ -685,16 +679,6 @@ function parseSessionsPush(args: readonly string[]): ParsedCommand {
       continue;
     }
 
-    if (flag === "--harness") {
-      harness = parseSessionPushHarness(readFlagValue(remaining, flag));
-      continue;
-    }
-
-    if (flag?.startsWith("--harness=") === true) {
-      harness = parseSessionPushHarness(readInlineFlagValue(flag, "--harness"));
-      continue;
-    }
-
     if (flag === "--thread-id") {
       threadId = readFlagValue(remaining, flag);
       continue;
@@ -705,23 +689,13 @@ function parseSessionsPush(args: readonly string[]): ParsedCommand {
       continue;
     }
 
-    if (flag === "--transcript-path") {
-      transcriptPath = readFlagValue(remaining, flag);
+    if (flag === "--db-path") {
+      dbPath = readFlagValue(remaining, flag);
       continue;
     }
 
-    if (flag?.startsWith("--transcript-path=") === true) {
-      transcriptPath = readInlineFlagValue(flag, "--transcript-path");
-      continue;
-    }
-
-    if (flag === "--home") {
-      homeDir = readFlagValue(remaining, flag);
-      continue;
-    }
-
-    if (flag?.startsWith("--home=") === true) {
-      homeDir = readInlineFlagValue(flag, "--home");
+    if (flag?.startsWith("--db-path=") === true) {
+      dbPath = readInlineFlagValue(flag, "--db-path");
       continue;
     }
 
@@ -732,31 +706,17 @@ function parseSessionsPush(args: readonly string[]): ParsedCommand {
     throw createParseError("sessions push requires --session-id");
   }
 
-  if (harness === undefined) {
-    throw createParseError("sessions push requires --harness");
-  }
-
   if (threadId === undefined) {
     throw createParseError("sessions push requires --thread-id");
   }
 
   return {
+    ...(dbPath !== undefined ? { dbPath } : {}),
     full,
-    harness,
-    ...(homeDir !== undefined ? { homeDir } : {}),
     kind: "sessions_push",
     sessionId,
-    threadId,
-    ...(transcriptPath !== undefined ? { transcriptPath } : {})
+    threadId
   };
-}
-
-function parseSessionPushHarness(value: string): SessionPushHarness {
-  if (value === "claude" || value === "codex" || value === "t3") {
-    return value;
-  }
-
-  throw createParseError("--harness must be one of: claude, codex, t3");
 }
 
 function readFlagValue(remaining: string[], flag: string): string {

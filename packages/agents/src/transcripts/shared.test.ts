@@ -10,7 +10,6 @@ import {
 import {
   chunkMessages,
   normalizeOccurredAt,
-  stripSystemReminders,
   truncateMessageText
 } from "./shared.js";
 
@@ -48,12 +47,6 @@ void test("truncateMessageText avoids splitting UTF-16 surrogate pairs", () => {
 
   assert.ok(truncated.length <= 35);
   assert.doesNotMatch(truncated, /[\uD800-\uDBFF](?![\uDC00-\uDFFF])/u);
-});
-
-void test("stripSystemReminders removes multiline reminder blocks and trims", () => {
-  const raw =
-    "<system-reminder>\nsecret context\n</system-reminder>\n\nHello world\n<system-reminder>more</system-reminder>";
-  assert.equal(stripSystemReminders(raw), "Hello world");
 });
 
 void test("normalizeOccurredAt preserves valid ISO timestamps with offset and nulls invalid ones", () => {

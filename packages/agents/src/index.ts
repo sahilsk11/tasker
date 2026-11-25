@@ -142,16 +142,11 @@ function makeEvent(
 
 export {
   chunkMessages,
-  extractClaudeContentText,
   getDefaultT3DbPath,
-  isClaudeUserTextAllowed,
-  locateClaudeTranscript,
-  locateCodexTranscript,
   locateT3DbPath,
-  readClaudeTranscript,
-  readCodexTranscript,
+  normalizeOccurredAt,
   readT3Thread,
-  stripSystemReminders,
+  T3ThreadNotFoundError,
   truncateMessageText,
   type LocateTranscriptOptions
 } from "./transcripts/index.js";

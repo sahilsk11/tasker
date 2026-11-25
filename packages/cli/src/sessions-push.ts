@@ -1,13 +1,9 @@
 import {
   chunkMessages,
   getDefaultT3DbPath,
-  locateClaudeTranscript,
-  locateCodexTranscript,
   locateT3DbPath,
-  readClaudeTranscript,
-  readCodexTranscript,
   readT3Thread,
-  type LocateTranscriptOptions
+  T3ThreadNotFoundError
 } from "@tasker/agents";
 import { parsePushSessionMessagesInput } from "@tasker/api/task-commands";
 import type { PushSessionMessagesRequest, SessionMessage } from "@tasker/core";
@@ -45,20 +41,12 @@ export type SessionsPushSummary = {
 };
 
 export type SessionsPushDependencies = {
-  readonly locateClaudeTranscript: typeof locateClaudeTranscript;
-  readonly locateCodexTranscript: typeof locateCodexTranscript;
   readonly locateT3DbPath: typeof locateT3DbPath;
-  readonly readClaudeTranscript: typeof readClaudeTranscript;
-  readonly readCodexTranscript: typeof readCodexTranscript;
   readonly readT3Thread: typeof readT3Thread;
 };
 
 const defaultDependencies: SessionsPushDependencies = {
-  locateClaudeTranscript,
-  locateCodexTranscript,
   locateT3DbPath,
-  readClaudeTranscript,
-  readCodexTranscript,
   readT3Thread
 };
 
@@ -67,7 +55,7 @@ export async function executeSessionsPush(
   client: SessionMessagesClient,
   dependencies: SessionsPushDependencies = defaultDependencies
 ): Promise<SessionsPushSummary> {
-  const messages = await loadTranscriptMessages(command, dependencies);
+  const messages = await loadT3Messages(command, dependencies);
   const head = await client.getHead(command.sessionId);
   const lastOrdinal = head.lastOrdinal;
 
@@ -111,73 +99,32 @@ export async function executeSessionsPush(
   };
 }
 
-async function loadTranscriptMessages(
+async function loadT3Messages(
   command: SessionsPushCommand,
   dependencies: SessionsPushDependencies
 ): Promise<SessionMessage[]> {
-  const locateOptions: LocateTranscriptOptions | undefined =
-    command.homeDir !== undefined ? { homeDir: command.homeDir } : undefined;
-
-  switch (command.harness) {
-    case "claude": {
-      const path =
-        command.transcriptPath ??
-        (await dependencies.locateClaudeTranscript(command.threadId, locateOptions));
-      if (path == null) {
-        throw createMissingTranscriptError(
-          `Claude transcript not found for thread ${command.threadId}`
-        );
-      }
-      return readWithFriendlyNotFound(
-        () => dependencies.readClaudeTranscript(path),
-        `Transcript file not found: ${path}`
-      );
-    }
-    case "codex": {
-      const path =
-        command.transcriptPath ??
-        (await dependencies.locateCodexTranscript(command.threadId, locateOptions));
-      if (path == null) {
-        throw createMissingTranscriptError(
-          `Codex transcript not found for thread ${command.threadId}`
-        );
-      }
-      return readWithFriendlyNotFound(
-        () => dependencies.readCodexTranscript(path),
-        `Transcript file not found: ${path}`
-      );
-    }
-    case "t3": {
-      const dbPath =
-        command.transcriptPath ?? (await dependencies.locateT3DbPath(locateOptions));
-      if (dbPath == null) {
-        throw createMissingTranscriptError(
-          `T3 database not found at ${getDefaultT3DbPath(locateOptions)}`
-        );
-      }
-      return readWithFriendlyNotFound(
-        () => dependencies.readT3Thread(dbPath, command.threadId),
-        `T3 database not found: ${dbPath}`
-      );
-    }
+  const dbPath = command.dbPath ?? (await dependencies.locateT3DbPath());
+  if (dbPath == null) {
+    throw createPushError(`T3 database not found at ${getDefaultT3DbPath()}`);
   }
-}
 
-async function readWithFriendlyNotFound(
-  reader: () => Promise<SessionMessage[]>,
-  notFoundMessage: string
-): Promise<SessionMessage[]> {
   try {
-    return await reader();
+    return await dependencies.readT3Thread(dbPath, command.threadId);
   } catch (error) {
-    if (isFileNotFoundError(error)) {
-      throw createMissingTranscriptError(notFoundMessage, error);
+    if (error instanceof T3ThreadNotFoundError) {
+      throw createPushError(error.message, error);
+    }
+    if (hasErrorCode(error, "ENOENT")) {
+      throw createPushError(`T3 database not found: ${dbPath}`, error);
+    }
+    if (hasErrorCode(error, "EACCES") || hasErrorCode(error, "EPERM")) {
+      throw createPushError(`T3 database is not readable: ${dbPath}`, error);
     }
     throw error;
   }
 }
 
-function createMissingTranscriptError(message: string, cause?: unknown): CliError {
+function createPushError(message: string, cause?: unknown): CliError {
   return new CliError(
     "unexpected_error",
     message,
@@ -186,11 +133,11 @@ function createMissingTranscriptError(message: string, cause?: unknown): CliErro
   );
 }
 
-function isFileNotFoundError(error: unknown): boolean {
+function hasErrorCode(error: unknown, code: string): boolean {
   return (
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
-    error.code === "ENOENT"
+    error.code === code
   );
 }

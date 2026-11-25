@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import { T3ThreadNotFoundError } from "@tasker/agents";
 import { createApp } from "@tasker/api/app";
 import { createTaskerRuntime } from "@tasker/api/runtime";
 import { NotFoundError, SessionMessageConflictError } from "@tasker/api/service-errors";
@@ -38,14 +40,40 @@ function createFakeDependencies(
   overrides: Partial<SessionsPushDependencies> = {}
 ): SessionsPushDependencies {
   return {
-    locateClaudeTranscript: () => Promise.resolve(null),
-    locateCodexTranscript: () => Promise.resolve(null),
     locateT3DbPath: () => Promise.resolve(null),
-    readClaudeTranscript: () => Promise.resolve([]),
-    readCodexTranscript: () => Promise.resolve([]),
     readT3Thread: () => Promise.resolve([]),
     ...overrides
   };
+}
+
+function createSyntheticT3Db(dbPath: string): DatabaseSync {
+  const db = new DatabaseSync(dbPath);
+  db.exec(`
+    CREATE TABLE orchestration_v2_projection_threads (
+      thread_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      default_provider TEXT NOT NULL,
+      runtime_mode TEXT NOT NULL,
+      interaction_mode TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      payload_json TEXT NOT NULL
+    );
+    CREATE TABLE orchestration_v2_projection_messages (
+      message_id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL,
+      run_id TEXT,
+      node_id TEXT,
+      role TEXT NOT NULL,
+      streaming INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      search_text TEXT
+    );
+  `);
+  return db;
 }
 
 void test("sessions push sends only messages after head.lastOrdinal unless --full is set", async () => {
@@ -72,12 +100,12 @@ void test("sessions push sends only messages after head.lastOrdinal unless --ful
   };
 
   const dependencies = createFakeDependencies({
-    locateClaudeTranscript: (threadId, options) => {
-      assert.equal(threadId, "claude-thread-1");
-      assert.deepEqual(options, { homeDir: "/custom/home" });
-      return Promise.resolve("/custom/home/.claude/projects/p/claude-thread-1.jsonl");
-    },
-    readClaudeTranscript: () => Promise.resolve(messages)
+    locateT3DbPath: () => Promise.resolve("/home/user/.t3/userdata/statev2.sqlite"),
+    readT3Thread: (dbPath, threadId) => {
+      assert.equal(dbPath, "/home/user/.t3/userdata/statev2.sqlite");
+      assert.equal(threadId, "t3-thread-1");
+      return Promise.resolve(messages);
+    }
   });
 
   // Tail-only: only ordinals 3 and 4 should be sent.
@@ -87,12 +115,8 @@ void test("sessions push sends only messages after head.lastOrdinal unless --ful
       "push",
       "--session-id",
       "session-1",
-      "--harness",
-      "claude",
       "--thread-id",
-      "claude-thread-1",
-      "--home",
-      "/custom/home"
+      "t3-thread-1"
     ],
     {},
     {
@@ -133,12 +157,8 @@ void test("sessions push sends only messages after head.lastOrdinal unless --ful
       "push",
       "--session-id",
       "session-1",
-      "--harness",
-      "claude",
       "--thread-id",
-      "claude-thread-1",
-      "--home",
-      "/custom/home"
+      "t3-thread-1"
     ],
     {},
     {
@@ -168,12 +188,8 @@ void test("sessions push sends only messages after head.lastOrdinal unless --ful
       "push",
       "--session-id",
       "session-1",
-      "--harness",
-      "claude",
       "--thread-id",
-      "claude-thread-1",
-      "--home",
-      "/custom/home",
+      "t3-thread-1",
       "--full"
     ],
     {},
@@ -235,19 +251,18 @@ void test("sessions push chunks batches larger than 200 messages in order and ag
       "push",
       "--session-id",
       "session-chunked",
-      "--harness",
-      "codex",
       "--thread-id",
-      "codex-thread-1",
-      "--transcript-path",
-      "/tmp/rollout.jsonl"
+      "t3-thread-chunked",
+      "--db-path",
+      "/tmp/statev2.sqlite"
     ],
     {},
     {
       createRuntime: () => createFakeRuntime(fakeClient),
       sessionsPushDependencies: createFakeDependencies({
-        readCodexTranscript: (path) => {
-          assert.equal(path, "/tmp/rollout.jsonl");
+        readT3Thread: (dbPath, threadId) => {
+          assert.equal(dbPath, "/tmp/statev2.sqlite");
+          assert.equal(threadId, "t3-thread-chunked");
           return Promise.resolve(messages);
         }
       })
@@ -271,10 +286,10 @@ void test("sessions push chunks batches larger than 200 messages in order and ag
   );
 });
 
-void test("sessions push returns nonzero exit with clear error on 404, 409, and missing transcript", async () => {
+void test("sessions push returns nonzero exit with clear error on 404, 409, missing/unreadable DB, and unknown thread", async () => {
   const dependencies = createFakeDependencies({
-    locateClaudeTranscript: () => Promise.resolve("/tmp/transcript.jsonl"),
-    readClaudeTranscript: () => Promise.resolve(makeMessages(2))
+    locateT3DbPath: () => Promise.resolve("/tmp/statev2.sqlite"),
+    readT3Thread: () => Promise.resolve(makeMessages(2))
   });
 
   // 404 unknown session
@@ -284,8 +299,6 @@ void test("sessions push returns nonzero exit with clear error on 404, 409, and 
       "push",
       "--session-id",
       "missing-session",
-      "--harness",
-      "claude",
       "--thread-id",
       "thread-1"
     ],
@@ -310,8 +323,6 @@ void test("sessions push returns nonzero exit with clear error on 404, 409, and 
       "push",
       "--session-id",
       "session-1",
-      "--harness",
-      "claude",
       "--thread-id",
       "thread-1"
     ],
@@ -337,17 +348,15 @@ void test("sessions push returns nonzero exit with clear error on 404, 409, and 
     "Error: Conflicting session messages for session session-1: ext-0"
   );
 
-  // Missing transcript from locator
+  // Missing default DB from locator
   const missingLocatorResult = await runCli(
     [
       "sessions",
       "push",
       "--session-id",
       "session-1",
-      "--harness",
-      "codex",
       "--thread-id",
-      "missing-thread"
+      "thread-1"
     ],
     {},
     {
@@ -360,23 +369,18 @@ void test("sessions push returns nonzero exit with clear error on 404, 409, and 
     }
   );
   assert.equal(missingLocatorResult.exitCode, 1);
-  assert.equal(
-    missingLocatorResult.output,
-    "Error: Codex transcript not found for thread missing-thread"
-  );
+  assert.match(missingLocatorResult.output, /^Error: T3 database not found at /u);
 
-  // Missing explicit --transcript-path on disk (real fs ENOENT)
+  // Missing explicit --db-path on disk (real fs ENOENT)
   const missingPathResult = await runCli(
     [
       "sessions",
       "push",
       "--session-id",
       "session-1",
-      "--harness",
-      "t3",
       "--thread-id",
       "thread-1",
-      "--transcript-path",
+      "--db-path",
       "/nonexistent/path/statev2.sqlite"
     ],
     {},
@@ -393,35 +397,117 @@ void test("sessions push returns nonzero exit with clear error on 404, 409, and 
     missingPathResult.output,
     "Error: T3 database not found: /nonexistent/path/statev2.sqlite"
   );
+
+  // Unreadable explicit --db-path (EACCES)
+  const unreadableDbResult = await runCli(
+    [
+      "sessions",
+      "push",
+      "--session-id",
+      "session-1",
+      "--thread-id",
+      "thread-1",
+      "--db-path",
+      "/restricted/statev2.sqlite"
+    ],
+    {},
+    {
+      createRuntime: () =>
+        createFakeRuntime({
+          getHead: () => Promise.reject(new Error("Should not call getHead")),
+          pushMessages: () => Promise.reject(new Error("Should not push"))
+        }),
+      sessionsPushDependencies: createFakeDependencies({
+        readT3Thread: () => Promise.reject(Object.assign(new Error("EACCES"), { code: "EACCES" }))
+      })
+    }
+  );
+  assert.equal(unreadableDbResult.exitCode, 1);
+  assert.equal(
+    unreadableDbResult.output,
+    "Error: T3 database is not readable: /restricted/statev2.sqlite"
+  );
+
+  // Unknown thread ID
+  const unknownThreadResult = await runCli(
+    [
+      "sessions",
+      "push",
+      "--session-id",
+      "session-1",
+      "--thread-id",
+      "unknown-thread-1",
+      "--db-path",
+      "/tmp/statev2.sqlite"
+    ],
+    {},
+    {
+      createRuntime: () =>
+        createFakeRuntime({
+          getHead: () => Promise.reject(new Error("Should not call getHead")),
+          pushMessages: () => Promise.reject(new Error("Should not push"))
+        }),
+      sessionsPushDependencies: createFakeDependencies({
+        readT3Thread: (_dbPath, threadId) => Promise.reject(new T3ThreadNotFoundError(threadId))
+      })
+    }
+  );
+  assert.equal(unknownThreadResult.exitCode, 1);
+  assert.equal(
+    unknownThreadResult.output,
+    "Error: T3 thread not found: unknown-thread-1"
+  );
 });
 
-void test("sessions push persists real transcript messages readable via Fastify API", async () => {
+void test("sessions push persists T3 messages readable via Fastify API and rejects unknown thread IDs", async () => {
   const dir = await mkdtemp(join(tmpdir(), "tasker-cli-sessions-push-"));
   const databasePath = join(dir, "tasker.sqlite");
-  const transcriptPath = join(dir, "claude-thread.jsonl");
+  const t3DbPath = join(dir, "statev2.sqlite");
 
   try {
-    await writeFile(
-      transcriptPath,
-      [
-        JSON.stringify({
-          message: { content: "First user prompt", role: "user" },
-          timestamp: "2026-01-01T00:00:00.000Z",
-          type: "user",
-          uuid: "u-1"
-        }),
-        JSON.stringify({
-          message: {
-            content: [{ text: "First assistant reply", type: "text" }],
-            role: "assistant"
-          },
-          timestamp: "2026-01-01T00:00:01.000Z",
-          type: "assistant",
-          uuid: "a-1"
-        })
-      ].join("\n"),
-      "utf8"
+    const t3Db = createSyntheticT3Db(t3DbPath);
+    t3Db
+      .prepare(`
+        INSERT INTO orchestration_v2_projection_threads
+          (thread_id, project_id, title, default_provider, runtime_mode, interaction_mode, created_at, updated_at, payload_json)
+        VALUES ('t3-thread', 'proj-1', 'Integration thread', 'claudeAgent', 'full-access', 'default', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z', '{}')
+      `)
+      .run();
+    const insertMsg = t3Db.prepare(`
+      INSERT INTO orchestration_v2_projection_messages
+        (message_id, thread_id, role, streaming, created_at, updated_at, payload_json)
+      VALUES (?, 't3-thread', ?, ?, ?, ?, ?)
+    `);
+    insertMsg.run(
+      "u-1",
+      "user",
+      0,
+      "2026-01-01T00:00:00.000Z",
+      "2026-01-01T00:00:00.000Z",
+      JSON.stringify({ createdBy: "user", creationSource: "web", text: "First user prompt" })
     );
+    insertMsg.run(
+      "u-agent",
+      "user",
+      0,
+      "2026-01-01T00:00:00.500Z",
+      "2026-01-01T00:00:00.500Z",
+      JSON.stringify({
+        createdBy: "agent",
+        creationSource: "server",
+        delegatedCompletion: { taskId: "d-1" },
+        text: "Delegated task completed"
+      })
+    );
+    insertMsg.run(
+      "a-1",
+      "assistant",
+      0,
+      "2026-01-01T00:00:01.000Z",
+      "2026-01-01T00:00:01.000Z",
+      JSON.stringify({ createdBy: "agent", creationSource: "provider", text: "First assistant reply" })
+    );
+    t3Db.close();
 
     const runtime = createTaskerRuntime({ databasePath });
     let sessionId: string;
@@ -432,12 +518,29 @@ void test("sessions push persists real transcript messages readable via Fastify 
         title: "Push integration task"
       });
       const session = await runtime.services.task.addSession(task.id, {
-        provider: "claude"
+        provider: "t3"
       });
       sessionId = session.id;
     } finally {
       await runtime.close();
     }
+
+    // Unknown thread ID fails cleanly rather than pushing 0 messages.
+    const unknownThreadPush = await runCli(
+      [
+        "sessions",
+        "push",
+        "--session-id",
+        sessionId,
+        "--thread-id",
+        "does-not-exist",
+        "--db-path",
+        t3DbPath
+      ],
+      { DATABASE_PATH: databasePath }
+    );
+    assert.equal(unknownThreadPush.exitCode, 1);
+    assert.equal(unknownThreadPush.output, "Error: T3 thread not found: does-not-exist");
 
     const firstPush = await runCli(
       [
@@ -445,12 +548,10 @@ void test("sessions push persists real transcript messages readable via Fastify 
         "push",
         "--session-id",
         sessionId,
-        "--harness",
-        "claude",
         "--thread-id",
-        "claude-thread",
-        "--transcript-path",
-        transcriptPath
+        "t3-thread",
+        "--db-path",
+        t3DbPath
       ],
       { DATABASE_PATH: databasePath }
     );

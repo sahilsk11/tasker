@@ -1,4 +1,3 @@
-import { open } from "node:fs/promises";
 import { homedir } from "node:os";
 import {
   SESSION_MESSAGE_MAX_TEXT_LENGTH,
@@ -10,10 +9,8 @@ export type LocateTranscriptOptions = {
   readonly homeDir?: string | undefined;
 };
 
-const SYSTEM_REMINDER_RE = /<system-reminder>[\s\S]*?<\/system-reminder>/gu;
 const ISO_DATETIME_WITH_OFFSET_RE =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/u;
-const FIRST_LINE_CHUNK_BYTES = 16_384;
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -21,10 +18,6 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function resolveHomeDir(options?: LocateTranscriptOptions): string {
   return options?.homeDir ?? homedir();
-}
-
-export function stripSystemReminders(text: string): string {
-  return text.replace(SYSTEM_REMINDER_RE, "").trim();
 }
 
 export function normalizeOccurredAt(value: unknown): string | null {
@@ -100,53 +93,6 @@ export function parseJsonObjectLine(line: string): Record<string, unknown> | nul
     return isRecord(parsed) ? parsed : null;
   } catch {
     return null;
-  }
-}
-
-export function isSafeFilenameComponent(value: string): boolean {
-  return (
-    value.length > 0 &&
-    !value.includes("/") &&
-    !value.includes("\\") &&
-    !value.includes("\0") &&
-    value !== "." &&
-    value !== ".."
-  );
-}
-
-export async function readFirstLine(filePath: string): Promise<string | null> {
-  const handle = await open(filePath, "r");
-  try {
-    const chunks: Buffer[] = [];
-    let offset = 0;
-
-    for (;;) {
-      const buffer = Buffer.allocUnsafe(FIRST_LINE_CHUNK_BYTES);
-      const { bytesRead } = await handle.read(buffer, 0, buffer.length, offset);
-
-      if (bytesRead === 0) {
-        break;
-      }
-
-      const slice = buffer.subarray(0, bytesRead);
-      const newlineIndex = slice.indexOf(0x0a);
-
-      if (newlineIndex !== -1) {
-        chunks.push(slice.subarray(0, newlineIndex));
-        return Buffer.concat(chunks).toString("utf8").replace(/\r$/u, "");
-      }
-
-      chunks.push(slice);
-      offset += bytesRead;
-    }
-
-    if (chunks.length === 0) {
-      return null;
-    }
-
-    return Buffer.concat(chunks).toString("utf8").replace(/\r$/u, "");
-  } finally {
-    await handle.close();
   }
 }
 

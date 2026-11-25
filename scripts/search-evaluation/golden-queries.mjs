@@ -187,5 +187,41 @@ export const goldenQueries = [
     query: "calculate the orbital period of a distant exoplanet",
     relevantGroups: [],
     noMatch: true
+  },
+  {
+    id: "semantic-paraphrase-suspended-runner",
+    query: "Why does a remote runner stall before it is ready after being asleep?",
+    relevantGroups: [["session:session_suspended_runner"]],
+    minGroupsAt5: 1,
+    maxFirstRelevantRank: 3
+  },
+  {
+    id: "semantic-paraphrase-auth-thread",
+    query: "Find the saved coding thread attached to this task, not my web login session.",
+    relevantGroups: [["session:session_task_session_binding"]],
+    minGroupsAt5: 1,
+    maxFirstRelevantRank: 2
+  },
+  {
+    id: "semantic-paraphrase-transcript-retry",
+    query: "Resend a timed-out transcript batch without saving duplicate turns.",
+    relevantGroups: [
+      ["session:session_append_retry"],
+      ["session:session_duplicate_turn"]
+    ],
+    minGroupsAt5: 2,
+    maxFirstRelevantRank: 3
+  },
+  {
+    id: "no-match-planetary-near-topic",
+    query: "How many times does Mars circle the Sun during one year?",
+    relevantGroups: [],
+    noMatch: true
+  },
+  {
+    id: "no-match-baking",
+    query: "What temperature should I use to bake sourdough bread?",
+    relevantGroups: [],
+    noMatch: true
   }
 ];

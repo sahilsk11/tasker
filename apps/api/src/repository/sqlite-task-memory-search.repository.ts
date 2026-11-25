@@ -1,26 +1,22 @@
 import SqliteDatabase from "better-sqlite3";
 import * as sqliteVec from "sqlite-vec";
+import type { TaskMemorySearchSourceType } from "@tasker/core";
 import type {
   TaskMemoryIndexDocument,
   TaskMemoryIndexSource,
   TaskMemorySearchCandidate,
   TaskMemorySearchIndexStatus,
-  TaskMemorySearchJob,
   TaskMemorySearchRepository
 } from "../domain/task-memory-search.js";
+import type { TaskMemorySearchJob } from "../domain/task-memory-search.js";
+import {
+  taskMemorySearchJobFromRow,
+  taskMemorySearchSourcePredicate,
+  type TaskMemorySearchJobRow
+} from "./task-memory-search-repository.shared.js";
 
 const LOCAL_VECTOR_DIMENSIONS = 384;
 const JOB_LEASE_MS = 5 * 60_000;
-
-type JobRow = {
-  attempts: number;
-  entity_id: string;
-  entity_type: "message" | "session" | "task";
-  job_key: string;
-  next_chunk: number;
-  task_id: string;
-  lease_token: string;
-};
 
 type TaskSourceRow = {
   task_id: string;
@@ -49,7 +45,7 @@ type CandidateRow = {
   session_source_url: string | null;
   session_title: string | null;
   semantic_similarity: number | null;
-  source_type: "message" | "session_title" | "task_title";
+  source_type: TaskMemorySearchSourceType;
   task_id: string;
   task_title: string;
   title: string;
@@ -75,7 +71,8 @@ implements TaskMemorySearchRepository {
       .prepare(
         `
           UPDATE task_memory_search_jobs
-          SET lease_token = ?, claimed_at = ?, attempts = attempts + 1
+          SET lease_token = ?, claimed_at = ?, attempts = attempts + 1,
+            last_error = NULL
           WHERE job_key IN (
             SELECT job_key
             FROM task_memory_search_jobs
@@ -91,7 +88,7 @@ implements TaskMemorySearchRepository {
     return this.database
       .prepare(
         `
-          SELECT job_key, entity_type, entity_id, task_id, next_chunk,
+          SELECT job_key, entity_type, entity_id, task_id, generation_token, next_chunk,
             attempts, lease_token
           FROM task_memory_search_jobs
           WHERE lease_token = ?
@@ -99,7 +96,7 @@ implements TaskMemorySearchRepository {
         `
       )
       .all(leaseToken)
-      .map((row) => toJob(row as JobRow));
+      .map((row) => taskMemorySearchJobFromRow(row as TaskMemorySearchJobRow));
   }
 
   public getSource(job: TaskMemorySearchJob): TaskMemoryIndexSource | null {
@@ -173,9 +170,10 @@ implements TaskMemorySearchRepository {
   }
 
   public persistDocuments(
+    job: TaskMemorySearchJob,
     documents: readonly TaskMemoryIndexDocument[],
     embeddings: readonly Float32Array[]
-  ): void {
+  ): boolean {
     if (documents.length !== embeddings.length) {
       throw new Error("Each search document must have one embedding");
     }
@@ -183,8 +181,8 @@ implements TaskMemorySearchRepository {
       `
         INSERT INTO task_memory_search_documents (
           vector_id, task_id, session_id, message_id, source_type, role,
-          ordinal, chunk_index, title, body, embedding_text
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ordinal, title, body
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(vector_id) DO UPDATE SET
           task_id = excluded.task_id,
           session_id = excluded.session_id,
@@ -192,10 +190,8 @@ implements TaskMemorySearchRepository {
           source_type = excluded.source_type,
           role = excluded.role,
           ordinal = excluded.ordinal,
-          chunk_index = excluded.chunk_index,
           title = excluded.title,
-          body = excluded.body,
-          embedding_text = excluded.embedding_text
+          body = excluded.body
         RETURNING rowid
       `
     );
@@ -210,6 +206,9 @@ implements TaskMemorySearchRepository {
     );
 
     const persist = this.database.transaction(() => {
+      if (!this.hasActiveLease(job)) {
+        return false;
+      }
       for (let index = 0; index < documents.length; index += 1) {
         const document = documents[index];
         const embedding = embeddings[index];
@@ -227,10 +226,8 @@ implements TaskMemorySearchRepository {
           document.sourceType,
           document.messageRole,
           document.messageOrdinal,
-          document.chunkIndex,
           document.title,
-          document.body,
-          document.embeddingText
+          document.body
         ) as { rowid: number };
         deleteVector.run(row.rowid);
         insertVector.run(
@@ -238,17 +235,18 @@ implements TaskMemorySearchRepository {
           Buffer.from(embedding.buffer, embedding.byteOffset, embedding.byteLength)
         );
       }
+      return true;
     });
-    persist();
+    return persist();
   }
 
   public completeJob(job: TaskMemorySearchJob, nextChunk: number | null): void {
     if (nextChunk == null) {
       this.database
         .prepare(
-          "DELETE FROM task_memory_search_jobs WHERE job_key = ? AND lease_token = ?"
+          "DELETE FROM task_memory_search_jobs WHERE job_key = ? AND lease_token = ? AND generation_token = ?"
         )
-        .run(job.key, job.leaseToken);
+        .run(job.key, job.leaseToken, job.generationToken);
       return;
     }
     this.database
@@ -256,15 +254,18 @@ implements TaskMemorySearchRepository {
         `
           UPDATE task_memory_search_jobs
           SET next_chunk = ?, lease_token = NULL, claimed_at = NULL
-          WHERE job_key = ? AND lease_token = ?
+          WHERE job_key = ? AND lease_token = ? AND generation_token = ?
         `
       )
-      .run(nextChunk, job.key, job.leaseToken);
+      .run(nextChunk, job.key, job.leaseToken, job.generationToken);
   }
 
-  public deleteSource(job: TaskMemorySearchJob): void {
-    const predicate = sourcePredicate(job);
+  public deleteSource(job: TaskMemorySearchJob): boolean {
+    const predicate = taskMemorySearchSourcePredicate(job);
     const remove = this.database.transaction(() => {
+      if (!this.hasActiveLease(job)) {
+        return false;
+      }
       this.database
         .prepare(
           `
@@ -280,8 +281,9 @@ implements TaskMemorySearchRepository {
           `DELETE FROM task_memory_search_documents WHERE ${predicate.sql}`
         )
         .run(...predicate.parameters);
+      return true;
     });
-    remove();
+    return remove();
   }
 
   public failJob(job: TaskMemorySearchJob, retryAt: string): void {
@@ -291,10 +293,10 @@ implements TaskMemorySearchRepository {
           UPDATE task_memory_search_jobs
           SET available_at = ?, lease_token = NULL, claimed_at = NULL,
             last_error = 'Semantic indexing failed; retry scheduled'
-          WHERE job_key = ? AND lease_token = ?
+          WHERE job_key = ? AND lease_token = ? AND generation_token = ?
         `
       )
-      .run(retryAt, job.key, job.leaseToken);
+      .run(retryAt, job.key, job.leaseToken, job.generationToken);
   }
 
   public lexicalSearch(
@@ -357,50 +359,36 @@ implements TaskMemorySearchRepository {
         `
           SELECT
             (SELECT count(*) FROM task_memory_search_documents) AS indexed_documents,
-            (SELECT count(*) FROM task_memory_search_jobs) AS pending_jobs
+            (SELECT count(*) FROM task_memory_search_jobs) AS pending_jobs,
+            (
+              SELECT count(*) FROM task_memory_search_jobs
+              WHERE last_error IS NOT NULL
+            ) AS failed_jobs
         `
       )
-      .get() as { indexed_documents: number; pending_jobs: number };
+      .get() as {
+        failed_jobs: number;
+        indexed_documents: number;
+        pending_jobs: number;
+      };
     return {
+      failedJobs: row.failed_jobs,
       indexedDocuments: row.indexed_documents,
       pendingJobs: row.pending_jobs
     };
   }
 
+  private hasActiveLease(job: TaskMemorySearchJob): boolean {
+    return this.database
+      .prepare(
+        "SELECT 1 FROM task_memory_search_jobs WHERE job_key = ? AND lease_token = ? AND generation_token = ?"
+      )
+      .get(job.key, job.leaseToken, job.generationToken) != null;
+  }
+
   public close(): void {
     this.database.close();
   }
-}
-
-function sourcePredicate(
-  job: TaskMemorySearchJob
-): { readonly parameters: readonly string[]; readonly sql: string } {
-  switch (job.entityType) {
-    case "task":
-      return { parameters: [job.entityId], sql: "source_type = 'task_title' AND task_id = ?" };
-    case "session":
-      return {
-        parameters: [job.entityId],
-        sql: "source_type = 'session_title' AND session_id = ?"
-      };
-    case "message":
-      return {
-        parameters: [job.entityId],
-        sql: "source_type = 'message' AND message_id = ?"
-      };
-  }
-}
-
-function toJob(row: JobRow): TaskMemorySearchJob {
-  return {
-    attempts: row.attempts,
-    entityId: row.entity_id,
-    entityType: row.entity_type,
-    key: row.job_key,
-    leaseToken: row.lease_token,
-    nextChunk: row.next_chunk,
-    taskId: row.task_id
-  };
 }
 
 function toCandidate(row: CandidateRow): TaskMemorySearchCandidate {

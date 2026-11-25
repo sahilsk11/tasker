@@ -1,6 +1,6 @@
-import type { TaskMemorySearchInput } from "../command/task-memory-search.command.js";
 import type {
   TaskMemoryEmbeddingProvider,
+  TaskMemorySearchInput,
   TaskMemoryIndexDocument,
   TaskMemoryIndexSource,
   TaskMemorySearchCandidate,
@@ -15,7 +15,8 @@ export const TASK_MEMORY_CHUNK_OVERLAP_CHARACTERS = 80;
 const SEARCH_CANDIDATE_LIMIT = 80;
 const RRF_CONSTANT = 60;
 const MAX_RESULTS_PER_TASK = 4;
-const MIN_SEMANTIC_SIMILARITY = 0.52;
+const MIN_SEMANTIC_SIMILARITY = 0.61;
+const MIN_RELATED_TASK_TITLE_SIMILARITY = 0.52;
 const RELATED_SESSION_TITLE_BOOST = 0.95;
 const FTS_STOP_WORDS = new Set([
   "a",
@@ -74,10 +75,13 @@ const FTS_STOP_WORDS = new Set([
   "your"
 ]);
 
+type TaskMemorySearchLogger = Pick<Console, "error">;
+
 export class TaskMemorySearchService {
   public constructor(
     private readonly repository: TaskMemorySearchRepository,
-    private readonly embeddings: TaskMemoryEmbeddingProvider
+    private readonly embeddings: TaskMemoryEmbeddingProvider,
+    private readonly logger: TaskMemorySearchLogger = console
   ) {}
 
   public getIndexStatus() {
@@ -92,7 +96,6 @@ export class TaskMemorySearchService {
     ]);
 
     let semantic: readonly TaskMemorySearchCandidate[] = [];
-    let mode: TaskMemorySearchResponse["mode"] = "hybrid";
     let semanticStatus: TaskMemorySearchResponse["semanticStatus"] =
       status.pendingJobs > 0 ? "indexing" : "ready";
 
@@ -106,14 +109,12 @@ export class TaskMemorySearchService {
         SEARCH_CANDIDATE_LIMIT
       );
     } catch {
-      mode = "lexical";
       semanticStatus = "degraded";
     }
 
     return {
-      indexedDocuments: status.indexedDocuments,
-      mode,
-      pendingJobs: status.pendingJobs,
+      ...status,
+      mode: semanticStatus === "degraded" ? "lexical" : "hybrid",
       results: fuseCandidates(lexical, semantic, input.limit),
       semanticStatus
     };
@@ -125,17 +126,24 @@ export class TaskMemorySearchService {
     for (const job of jobs) {
       try {
         if (job.nextChunk === 0) {
-          await this.repository.deleteSource(job);
+          if (!(await this.repository.deleteSource(job))) {
+            continue;
+          }
         }
         const source = await this.repository.getSource(job);
+        if (source != null && source.taskId !== job.taskId) {
+          throw new Error("Search index source task does not match its queued task");
+        }
         if (source == null || sourceHasNoIndexableText(source)) {
-          await this.repository.deleteSource(job);
+          if (!(await this.repository.deleteSource(job))) {
+            continue;
+          }
           await this.repository.completeJob(job, null);
           processed += 1;
           continue;
         }
 
-        const documents = makeIndexDocuments(source);
+        const documents = await makeIndexDocuments(source, job.generationToken);
         const start = job.nextChunk;
         const end = Math.min(
           documents.length,
@@ -153,11 +161,17 @@ export class TaskMemorySearchService {
         if (vectors.length !== batch.length) {
           throw new Error("Embedding provider returned the wrong vector count");
         }
-        await this.repository.persistDocuments(batch, vectors);
+        if (!(await this.repository.persistDocuments(job, batch, vectors))) {
+          continue;
+        }
         await this.repository.completeJob(job, end < documents.length ? end : null);
         processed += 1;
-      } catch {
+      } catch (error) {
         const delay = Math.min(30 * 60_000, 1_000 * 2 ** Math.min(job.attempts, 10));
+        this.logger.error("Task memory indexing job failed; retry scheduled", {
+          entityType: job.entityType,
+          errorName: error instanceof Error ? error.name : "UnknownError"
+        });
         await this.repository.failJob(job, new Date(Date.now() + delay).toISOString());
       }
     }
@@ -220,13 +234,21 @@ function sourceHasNoIndexableText(source: TaskMemoryIndexSource): boolean {
   );
 }
 
-function makeIndexDocuments(
-  source: TaskMemoryIndexSource
-): readonly TaskMemoryIndexDocument[] {
+async function makeIndexDocuments(
+  source: TaskMemoryIndexSource,
+  generationToken: string
+): Promise<readonly TaskMemoryIndexDocument[]> {
+  const sourceKey = source.type === "task_title"
+    ? `task:${source.taskId}`
+    : source.type === "session_title"
+      ? `session:${source.sessionId}`
+      : `message:${source.messageId}`;
+  const sourceHash = await hashSourceKey(sourceKey);
+  const generation = generationToken.replaceAll("-", "");
+
   if (source.type === "task_title") {
     return [{
       body: "",
-      chunkIndex: 0,
       embeddingText: source.taskTitle,
       messageId: null,
       messageOrdinal: null,
@@ -235,14 +257,13 @@ function makeIndexDocuments(
       sourceType: "task_title",
       taskId: source.taskId,
       title: source.taskTitle,
-      vectorId: `task:${source.taskId}`
+      vectorId: `t:${sourceHash}:${generation}`
     }];
   }
   if (source.type === "session_title") {
     const title = source.sessionTitle?.trim() ?? "";
     return [{
       body: "",
-      chunkIndex: 0,
       embeddingText: `Task: ${source.taskTitle}\nSession: ${title}`,
       messageId: null,
       messageOrdinal: null,
@@ -251,7 +272,7 @@ function makeIndexDocuments(
       sourceType: "session_title",
       taskId: source.taskId,
       title,
-      vectorId: `session:${source.sessionId}:title`
+      vectorId: `s:${sourceHash}:${generation}`
     }];
   }
 
@@ -264,7 +285,6 @@ function makeIndexDocuments(
     .join("\n");
   return chunks.map((body, chunkIndex) => ({
     body,
-    chunkIndex,
     embeddingText: `${context}\n${body}`,
     messageId: source.messageId,
     messageOrdinal: source.ordinal,
@@ -273,8 +293,24 @@ function makeIndexDocuments(
     sourceType: "message",
     taskId: source.taskId,
     title: "",
-    vectorId: `message:${source.messageId}:${String(chunkIndex)}`
+    vectorId: `m:${sourceHash}:${String(chunkIndex)}:${generation}`
   }));
+}
+
+async function hashSourceKey(sourceKey: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(sourceKey)
+  );
+  const bytes = new Uint8Array(digest).subarray(0, 16);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/u, "");
 }
 
 function fuseCandidates(
@@ -292,10 +328,29 @@ function fuseCandidates(
     const score = titleBoost / (RRF_CONSTANT + index + 1);
     ranked.set(candidate.vectorId, { candidate, score });
   });
-  semantic.forEach((candidate, index) => {
+  const supportedTaskIds = new Set(
+    lexical
+      .filter((candidate) => candidate.sessionId != null)
+      .map((candidate) => candidate.taskId)
+  );
+  semantic.forEach((candidate) => {
     if (
-      candidate.semanticSimilarity == null ||
-      candidate.semanticSimilarity < MIN_SEMANTIC_SIMILARITY
+      candidate.sessionId != null &&
+      candidate.semanticSimilarity != null &&
+      candidate.semanticSimilarity >= MIN_SEMANTIC_SIMILARITY
+    ) {
+      supportedTaskIds.add(candidate.taskId);
+    }
+  });
+  semantic.forEach((candidate, index) => {
+    const similarity = candidate.semanticSimilarity;
+    const hasStrongSessionSupport = candidate.sourceType === "task_title" &&
+      similarity != null &&
+      similarity >= MIN_RELATED_TASK_TITLE_SIMILARITY &&
+      supportedTaskIds.has(candidate.taskId);
+    if (
+      similarity == null ||
+      (similarity < MIN_SEMANTIC_SIMILARITY && !hasStrongSessionSupport)
     ) {
       return;
     }

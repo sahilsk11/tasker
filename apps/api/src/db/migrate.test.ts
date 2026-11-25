@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -175,6 +175,95 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
           label: "Pull request",
           uri: "https://github.com/sahilsk11/tasker/pull/1"
         }
+      ]);
+    } finally {
+      database.close();
+    }
+  } finally {
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+void test("memory search migration backfills sources and title dependency jobs", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-migrate-memory-backfill-"));
+  const oldMigrationsDirectory = join(dir, "migrations");
+  const databasePath = join(dir, "tasker.sqlite");
+
+  try {
+    await mkdir(oldMigrationsDirectory);
+    for (const filename of await readdir(migrationsDirectory)) {
+      if (filename.endsWith(".up.sql") && filename !== "000020_task_memory_search.up.sql") {
+        await copyFile(
+          join(migrationsDirectory, filename),
+          join(oldMigrationsDirectory, filename)
+        );
+      }
+    }
+
+    migrate({ databasePath, migrationsDirectory: oldMigrationsDirectory });
+    const legacyDatabase = new SqliteDatabase(databasePath);
+    try {
+      legacyDatabase.pragma("foreign_keys = ON");
+      legacyDatabase
+        .prepare("INSERT INTO tasks (id, title) VALUES (?, ?)")
+        .run("task-backfill", "Legacy title");
+      legacyDatabase
+        .prepare(
+          "INSERT INTO task_sessions (id, task_id, provider, display_title) VALUES (?, ?, ?, ?)"
+        )
+        .run("session-backfill", "task-backfill", "codex", "Legacy session title");
+      legacyDatabase
+        .prepare(
+          `
+            INSERT INTO task_session_messages (
+              id, session_id, external_id, ordinal, role, text, content_hash
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          `
+        )
+        .run(
+          "message-backfill",
+          "session-backfill",
+          "external-backfill",
+          0,
+          "user",
+          "Legacy message body",
+          "legacy-hash"
+        );
+    } finally {
+      legacyDatabase.close();
+    }
+
+    await copyFile(
+      join(migrationsDirectory, "000020_task_memory_search.up.sql"),
+      join(oldMigrationsDirectory, "000020_task_memory_search.up.sql")
+    );
+    migrate({ databasePath, migrationsDirectory: oldMigrationsDirectory });
+
+    const database = new SqliteDatabase(databasePath);
+    try {
+      assert.deepEqual(readMemoryJobs(database), [
+        { entity_id: "message-backfill", entity_type: "message", task_id: "task-backfill" },
+        { entity_id: "session-backfill", entity_type: "session", task_id: "task-backfill" },
+        { entity_id: "task-backfill", entity_type: "task", task_id: "task-backfill" }
+      ]);
+
+      database.prepare("DELETE FROM task_memory_search_jobs").run();
+      database
+        .prepare("UPDATE tasks SET title = ? WHERE id = ?")
+        .run("Updated task title", "task-backfill");
+      assert.deepEqual(readMemoryJobs(database), [
+        { entity_id: "message-backfill", entity_type: "message", task_id: "task-backfill" },
+        { entity_id: "session-backfill", entity_type: "session", task_id: "task-backfill" },
+        { entity_id: "task-backfill", entity_type: "task", task_id: "task-backfill" }
+      ]);
+
+      database.prepare("DELETE FROM task_memory_search_jobs").run();
+      database
+        .prepare("UPDATE task_sessions SET display_title = ? WHERE id = ?")
+        .run("Updated session title", "session-backfill");
+      assert.deepEqual(readMemoryJobs(database), [
+        { entity_id: "message-backfill", entity_type: "message", task_id: "task-backfill" },
+        { entity_id: "session-backfill", entity_type: "session", task_id: "task-backfill" }
       ]);
     } finally {
       database.close();
@@ -697,10 +786,12 @@ void test("SQLite memory search persists and retrieves sqlite-vec embeddings", a
     try {
       const embedding = new Float32Array(384);
       embedding[0] = 1;
+      const [job] = repository.claimJobs(1);
+      assert.ok(job);
       repository.persistDocuments(
+        job,
         [{
           body: "",
-          chunkIndex: 0,
           embeddingText: "Latency troubleshooting",
           messageId: null,
           messageOrdinal: null,
@@ -733,6 +824,28 @@ function tableExists(database: BetterSqliteDatabase, tableName: string): boolean
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
     .get(tableName);
   return row != null;
+}
+
+function readMemoryJobs(
+  database: BetterSqliteDatabase
+): ReadonlyArray<{
+  readonly entity_id: string;
+  readonly entity_type: string;
+  readonly task_id: string;
+}> {
+  return database
+    .prepare(
+      `
+        SELECT entity_id, entity_type, task_id
+        FROM task_memory_search_jobs
+        ORDER BY entity_type, entity_id
+      `
+    )
+    .all() as ReadonlyArray<{
+      readonly entity_id: string;
+      readonly entity_type: string;
+      readonly task_id: string;
+    }>;
 }
 
 function seedLegacySessionDatabase(databasePath: string): void {

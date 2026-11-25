@@ -22,8 +22,8 @@ transcripts and creates no artifact records.
   one boilerplate record.
 
 References use fixture labels such as `task:task_latency` and
-`session:session_first_request_delay`. Seeding writes the actual API IDs and
-their label mapping to the map file.
+`session:session_first_request_delay`. Seeding writes the actual API IDs to the
+map file. The evaluator derives the reverse label lookup from those IDs.
 
 ## Seed through the supported local API
 
@@ -66,8 +66,9 @@ search contract is available.
 order, for example `["session:session_first_request_delay"]`. The context
 contains `limit`, `ids`, `refsById`, and `resolveId(actualApiId)`. The adapter
 owns the eventual API request and response normalization; no search endpoint
-or response shape is assumed here. Return `artifact:<id>` for any artifact
-result so the evaluator can reject it.
+or response shape is assumed here. The Tasker adapter accepts only task-title,
+session-title, and message results, and rejects artifact or unsupported source
+identities before resolving fixture IDs.
 
 Example after an implementation-specific adapter exists:
 

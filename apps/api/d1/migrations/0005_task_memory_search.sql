@@ -3,6 +3,7 @@ CREATE TABLE task_memory_search_jobs (
   entity_type text NOT NULL CHECK (entity_type IN ('task', 'session', 'message')),
   entity_id text NOT NULL,
   task_id text NOT NULL,
+  generation_token text NOT NULL DEFAULT (lower(hex(randomblob(16)))),
   next_chunk integer NOT NULL DEFAULT 0,
   attempts integer NOT NULL DEFAULT 0,
   queued_at text NOT NULL,
@@ -26,10 +27,8 @@ CREATE TABLE task_memory_search_documents (
   ),
   role text,
   ordinal integer,
-  chunk_index integer NOT NULL,
   title text NOT NULL DEFAULT '',
-  body text NOT NULL DEFAULT '',
-  embedding_text text NOT NULL
+  body text NOT NULL DEFAULT ''
 );
 
 CREATE INDEX task_memory_search_documents_task_idx
@@ -81,6 +80,7 @@ BEGIN
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   )
   ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
     task_id = excluded.task_id, next_chunk = 0, attempts = 0,
     queued_at = excluded.queued_at, available_at = excluded.available_at,
     claimed_at = NULL, lease_token = NULL, last_error = NULL;
@@ -98,6 +98,38 @@ BEGIN
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   )
   ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
+    task_id = excluded.task_id, next_chunk = 0, attempts = 0,
+    queued_at = excluded.queued_at, available_at = excluded.available_at,
+    claimed_at = NULL, lease_token = NULL, last_error = NULL;
+
+  INSERT INTO task_memory_search_jobs (
+    job_key, entity_type, entity_id, task_id, queued_at, available_at
+  )
+  SELECT
+    'session:' || s.id, 'session', s.id, s.task_id,
+    strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+  FROM task_sessions AS s
+  WHERE s.task_id = new.id
+  ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
+    task_id = excluded.task_id, next_chunk = 0, attempts = 0,
+    queued_at = excluded.queued_at, available_at = excluded.available_at,
+    claimed_at = NULL, lease_token = NULL, last_error = NULL;
+
+  INSERT INTO task_memory_search_jobs (
+    job_key, entity_type, entity_id, task_id, queued_at, available_at
+  )
+  SELECT
+    'message:' || m.id, 'message', m.id, s.task_id,
+    strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+  FROM task_session_messages AS m
+  JOIN task_sessions AS s ON s.id = m.session_id
+  WHERE s.task_id = new.id
+  ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
     task_id = excluded.task_id, next_chunk = 0, attempts = 0,
     queued_at = excluded.queued_at, available_at = excluded.available_at,
     claimed_at = NULL, lease_token = NULL, last_error = NULL;
@@ -114,6 +146,7 @@ BEGIN
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   )
   ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
     task_id = excluded.task_id, next_chunk = 0, attempts = 0,
     queued_at = excluded.queued_at, available_at = excluded.available_at,
     claimed_at = NULL, lease_token = NULL, last_error = NULL;
@@ -130,6 +163,7 @@ BEGIN
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   )
   ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
     task_id = excluded.task_id, next_chunk = 0, attempts = 0,
     queued_at = excluded.queued_at, available_at = excluded.available_at,
     claimed_at = NULL, lease_token = NULL, last_error = NULL;
@@ -147,6 +181,22 @@ BEGIN
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   )
   ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
+    task_id = excluded.task_id, next_chunk = 0, attempts = 0,
+    queued_at = excluded.queued_at, available_at = excluded.available_at,
+    claimed_at = NULL, lease_token = NULL, last_error = NULL;
+
+  INSERT INTO task_memory_search_jobs (
+    job_key, entity_type, entity_id, task_id, queued_at, available_at
+  )
+  SELECT
+    'message:' || id, 'message', id, new.task_id,
+    strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+  FROM task_session_messages
+  WHERE session_id = new.id
+  ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
     task_id = excluded.task_id, next_chunk = 0, attempts = 0,
     queued_at = excluded.queued_at, available_at = excluded.available_at,
     claimed_at = NULL, lease_token = NULL, last_error = NULL;
@@ -163,6 +213,7 @@ BEGIN
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   )
   ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
     task_id = excluded.task_id, next_chunk = 0, attempts = 0,
     queued_at = excluded.queued_at, available_at = excluded.available_at,
     claimed_at = NULL, lease_token = NULL, last_error = NULL;
@@ -181,6 +232,7 @@ BEGIN
   FROM task_sessions AS s
   WHERE s.id = new.session_id
   ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
     task_id = excluded.task_id, next_chunk = 0, attempts = 0,
     queued_at = excluded.queued_at, available_at = excluded.available_at,
     claimed_at = NULL, lease_token = NULL, last_error = NULL;
@@ -203,6 +255,7 @@ BEGIN
   FROM task_sessions AS s
   WHERE s.id = new.session_id
   ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
     task_id = excluded.task_id, next_chunk = 0, attempts = 0,
     queued_at = excluded.queued_at, available_at = excluded.available_at,
     claimed_at = NULL, lease_token = NULL, last_error = NULL;
@@ -220,6 +273,7 @@ BEGIN
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   )
   ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
     next_chunk = 0, attempts = 0, queued_at = excluded.queued_at,
     available_at = excluded.available_at, claimed_at = NULL,
     lease_token = NULL, last_error = NULL;
@@ -237,6 +291,7 @@ BEGIN
     strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
   )
   ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
     task_id = excluded.task_id, next_chunk = 0, attempts = 0,
     queued_at = excluded.queued_at, available_at = excluded.available_at,
     claimed_at = NULL, lease_token = NULL, last_error = NULL;
@@ -256,6 +311,7 @@ BEGIN
   FROM task_session_messages AS m
   WHERE m.session_id = new.id
   ON CONFLICT(job_key) DO UPDATE SET
+    generation_token = excluded.generation_token,
     task_id = excluded.task_id, next_chunk = 0, attempts = 0,
     queued_at = excluded.queued_at, available_at = excluded.available_at,
     claimed_at = NULL, lease_token = NULL, last_error = NULL;

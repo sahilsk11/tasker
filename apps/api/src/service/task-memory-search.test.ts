@@ -104,21 +104,29 @@ void test("hybrid search fuses ranks, deduplicates a session, and thresholds noi
 
 void test("semantic threshold excludes weak nearest-neighbor matches", async () => {
   const weakMatch = candidate({
-    semanticSimilarity: 0.519,
+    semanticSimilarity: 0.609,
     sessionId: "session-weak",
     sourceType: "session_title",
     title: "Weak neighbor",
     vectorId: "session:session-weak:title"
   });
+  const unsupportedTaskTitle = candidate({
+    semanticSimilarity: 0.6,
+    sessionId: null,
+    sourceType: "task_title",
+    taskId: "task-unsupported",
+    title: "Weak task title",
+    vectorId: "task:task-unsupported"
+  });
   const relevant = candidate({
-    semanticSimilarity: 0.52,
+    semanticSimilarity: 0.61,
     sessionId: "session-relevant",
     sourceType: "session_title",
     title: "Relevant session",
     vectorId: "session:session-relevant:title"
   });
   const service = new TaskMemorySearchService(
-    repository({ vectorSearch: () => [weakMatch, relevant] }),
+    repository({ vectorSearch: () => [weakMatch, unsupportedTaskTitle, relevant] }),
     embeddings()
   );
 
@@ -249,12 +257,12 @@ function repository(
   return {
     claimJobs: () => [],
     completeJob: () => undefined,
-    deleteSource: () => undefined,
+    deleteSource: () => true,
     failJob: () => undefined,
-    getIndexStatus: () => ({ indexedDocuments: 3, pendingJobs: 0 }),
+    getIndexStatus: () => ({ failedJobs: 0, indexedDocuments: 3, pendingJobs: 0 }),
     getSource: () => null,
     lexicalSearch: () => [],
-    persistDocuments: () => undefined,
+    persistDocuments: () => true,
     vectorSearch: () => [],
     ...overrides
   };

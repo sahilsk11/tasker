@@ -1,32 +1,25 @@
-export type TaskMemorySearchSourceType = "message" | "session_title" | "task_title";
+import type {
+  TaskMemorySearchIndexStatus,
+  TaskMemorySearchSourceType
+} from "@tasker/core";
 
-export type TaskMemorySearchResult = {
-  readonly messageId: string | null;
-  readonly messageOrdinal: number | null;
-  readonly messageRole: string | null;
-  readonly parentTaskId: string | null;
-  readonly score: number;
-  readonly sessionId: string | null;
-  readonly sessionSourceUrl: string | null;
-  readonly sessionTitle: string | null;
-  readonly snippet: string;
-  readonly sourceType: TaskMemorySearchSourceType;
-  readonly taskId: string;
-  readonly taskTitle: string;
-};
+export type {
+  TaskMemorySearchIndexStatus,
+  TaskMemorySearchResponse,
+  TaskMemorySearchResult,
+  TaskMemorySearchSourceType
+} from "@tasker/core";
 
-export type TaskMemorySearchResponse = {
-  readonly indexedDocuments: number;
-  readonly mode: "hybrid" | "lexical";
-  readonly pendingJobs: number;
-  readonly results: readonly TaskMemorySearchResult[];
-  readonly semanticStatus: "degraded" | "indexing" | "ready";
+export type TaskMemorySearchInput = {
+  readonly limit: number;
+  readonly query: string;
 };
 
 export type TaskMemorySearchJob = {
   readonly attempts: number;
   readonly entityId: string;
   readonly entityType: "message" | "session" | "task";
+  readonly generationToken: string;
   readonly key: string;
   readonly leaseToken: string;
   readonly nextChunk: number;
@@ -60,7 +53,6 @@ export type TaskMemoryIndexSource =
 
 export type TaskMemoryIndexDocument = {
   readonly body: string;
-  readonly chunkIndex: number;
   readonly embeddingText: string;
   readonly messageId: string | null;
   readonly messageOrdinal: number | null;
@@ -89,11 +81,6 @@ export type TaskMemorySearchCandidate = {
   readonly vectorId: string;
 };
 
-export type TaskMemorySearchIndexStatus = {
-  readonly indexedDocuments: number;
-  readonly pendingJobs: number;
-};
-
 export type TaskMemoryMaybePromise<T> = T | Promise<T>;
 
 export type TaskMemorySearchRepository = {
@@ -104,7 +91,7 @@ export type TaskMemorySearchRepository = {
     job: TaskMemorySearchJob,
     nextChunk: number | null
   ) => TaskMemoryMaybePromise<void>;
-  readonly deleteSource: (job: TaskMemorySearchJob) => TaskMemoryMaybePromise<void>;
+  readonly deleteSource: (job: TaskMemorySearchJob) => TaskMemoryMaybePromise<boolean>;
   readonly failJob: (
     job: TaskMemorySearchJob,
     retryAt: string
@@ -118,9 +105,10 @@ export type TaskMemorySearchRepository = {
     limit: number
   ) => TaskMemoryMaybePromise<readonly TaskMemorySearchCandidate[]>;
   readonly persistDocuments: (
+    job: TaskMemorySearchJob,
     documents: readonly TaskMemoryIndexDocument[],
     embeddings: readonly Float32Array[]
-  ) => TaskMemoryMaybePromise<void>;
+  ) => TaskMemoryMaybePromise<boolean>;
   readonly vectorSearch: (
     embedding: Float32Array,
     limit: number

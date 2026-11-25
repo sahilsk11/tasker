@@ -1,9 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { requireLoopbackApiUrl } from "./api-url.mjs";
 import { coreTasks, makeDistractors } from "./corpus.mjs";
 
 const options = parseArgs(process.argv.slice(2));
-const baseUrl = requireLocalApiUrl(process.env.TASKER_API_BASE_URL);
+const baseUrl = requireLoopbackApiUrl(process.env.TASKER_API_BASE_URL, {
+  invalidMessage: "Refusing non-local API URL; only a loopback HTTP origin is allowed",
+  missingMessage: "Set TASKER_API_BASE_URL to the local API URL printed by pnpm worktree:setup"
+});
 const mapPath = resolve(
   options.mapOut ?? ".tasker/dev-runs/search-evaluation-seed-map.json"
 );
@@ -11,7 +15,6 @@ const generatedTasks = makeDistractors(options.distractors);
 const tasks = [...coreTasks, ...generatedTasks];
 const taskIds = {};
 const sessionIds = {};
-const refsById = {};
 const existing = await request("/tasks");
 
 if (!Array.isArray(existing.tasks)) {
@@ -28,7 +31,6 @@ for (const task of tasks) {
   const taskResponse = await request("/tasks", "POST", { title: task.title });
   const taskId = requireId(taskResponse.task, "task");
   taskIds[task.label] = taskId;
-  refsById[taskId] = `task:${task.label}`;
 
   for (const session of task.sessions) {
     const sessionResponse = await request(`/tasks/${encodeURIComponent(taskId)}/sessions`, "POST", {
@@ -39,7 +41,6 @@ for (const task of tasks) {
     });
     const sessionId = requireId(sessionResponse.session, "session");
     sessionIds[session.label] = sessionId;
-    refsById[sessionId] = `session:${session.label}`;
 
     if (session.messages.length > 0) {
       await request(
@@ -72,8 +73,7 @@ const map = {
   ids: {
     sessions: sessionIds,
     tasks: taskIds
-  },
-  refsById
+  }
 };
 
 await mkdir(dirname(mapPath), { recursive: true });
@@ -110,27 +110,6 @@ function parseArgs(args) {
   }
 
   return parsed;
-}
-
-function requireLocalApiUrl(value) {
-  if (value == null || value.trim().length === 0) {
-    throw new Error("Set TASKER_API_BASE_URL to the local API URL printed by pnpm worktree:setup");
-  }
-
-  const url = new URL(value);
-  if (
-    url.protocol !== "http:" ||
-    !["127.0.0.1", "[::1]"].includes(url.hostname) ||
-    url.username.length > 0 ||
-    url.password.length > 0 ||
-    url.pathname !== "/" ||
-    url.search.length > 0 ||
-    url.hash.length > 0
-  ) {
-    throw new Error("Refusing non-local API URL; only a loopback HTTP origin is allowed");
-  }
-
-  return url;
 }
 
 async function request(path, method = "GET", body) {

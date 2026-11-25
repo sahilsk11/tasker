@@ -1,26 +1,22 @@
 import type { D1Database, VectorizeIndex } from "@cloudflare/workers-types";
+import type { TaskMemorySearchSourceType } from "@tasker/core";
 import type {
   TaskMemoryIndexDocument,
   TaskMemoryIndexSource,
   TaskMemorySearchCandidate,
   TaskMemorySearchIndexStatus,
-  TaskMemorySearchJob,
   TaskMemorySearchRepository
 } from "../domain/task-memory-search.js";
+import type { TaskMemorySearchJob } from "../domain/task-memory-search.js";
+import {
+  taskMemorySearchJobFromRow,
+  taskMemorySearchSourcePredicate,
+  type TaskMemorySearchJobRow
+} from "./task-memory-search-repository.shared.js";
 
 export const HOSTED_TASK_MEMORY_EMBEDDING_MODEL = "@cf/baai/bge-small-en-v1.5";
 const HOSTED_VECTOR_DIMENSIONS = 384;
 const JOB_LEASE_MS = 5 * 60_000;
-
-type JobRow = {
-  attempts: number;
-  entity_id: string;
-  entity_type: "message" | "session" | "task";
-  job_key: string;
-  next_chunk: number;
-  task_id: string;
-  lease_token: string;
-};
 
 type CandidateRow = {
   body: string;
@@ -32,7 +28,7 @@ type CandidateRow = {
   session_source_url: string | null;
   session_title: string | null;
   semantic_similarity: number | null;
-  source_type: "message" | "session_title" | "task_title";
+  source_type: TaskMemorySearchSourceType;
   task_id: string;
   task_title: string;
   title: string;
@@ -99,7 +95,8 @@ implements TaskMemorySearchRepository {
       .prepare(
         `
           UPDATE task_memory_search_jobs
-          SET lease_token = ?, claimed_at = ?, attempts = attempts + 1
+          SET lease_token = ?, claimed_at = ?, attempts = attempts + 1,
+            last_error = NULL
           WHERE job_key IN (
             SELECT job_key
             FROM task_memory_search_jobs
@@ -115,7 +112,7 @@ implements TaskMemorySearchRepository {
     const rows = await this.database
       .prepare(
         `
-          SELECT job_key, entity_type, entity_id, task_id, next_chunk,
+          SELECT job_key, entity_type, entity_id, task_id, generation_token, next_chunk,
             attempts, lease_token
           FROM task_memory_search_jobs
           WHERE lease_token = ?
@@ -123,8 +120,8 @@ implements TaskMemorySearchRepository {
         `
       )
       .bind(leaseToken)
-      .all<JobRow>();
-    return rows.results.map(toJob);
+      .all<TaskMemorySearchJobRow>();
+    return rows.results.map(taskMemorySearchJobFromRow);
   }
 
   public async getSource(
@@ -193,11 +190,15 @@ implements TaskMemorySearchRepository {
   }
 
   public async persistDocuments(
+    job: TaskMemorySearchJob,
     documents: readonly TaskMemoryIndexDocument[],
     embeddings: readonly Float32Array[]
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (documents.length !== embeddings.length) {
       throw new Error("Each search document must have one embedding");
+    }
+    if (documents.length > 0 && this.vectorIndex == null) {
+      throw new Error("Cloudflare Vectorize is not configured");
     }
     const vectors = documents.map((document, index) => {
       const embedding = embeddings[index];
@@ -215,10 +216,9 @@ implements TaskMemorySearchRepository {
       };
     });
     if (vectors.length > 0) {
-      if (this.vectorIndex == null) {
-        throw new Error("Cloudflare Vectorize is not configured");
+      if (!(await this.hasActiveLease(job))) {
+        return false;
       }
-      await this.vectorIndex.upsert(vectors);
     }
 
     const statements = documents.map((document) =>
@@ -227,8 +227,13 @@ implements TaskMemorySearchRepository {
           `
             INSERT INTO task_memory_search_documents (
               vector_id, task_id, session_id, message_id, source_type, role,
-              ordinal, chunk_index, title, body, embedding_text
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ordinal, title, body
+            )
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+            WHERE EXISTS (
+              SELECT 1 FROM task_memory_search_jobs
+              WHERE job_key = ? AND lease_token = ? AND generation_token = ?
+            )
             ON CONFLICT(vector_id) DO UPDATE SET
               task_id = excluded.task_id,
               session_id = excluded.session_id,
@@ -236,10 +241,8 @@ implements TaskMemorySearchRepository {
               source_type = excluded.source_type,
               role = excluded.role,
               ordinal = excluded.ordinal,
-              chunk_index = excluded.chunk_index,
               title = excluded.title,
-              body = excluded.body,
-              embedding_text = excluded.embedding_text
+              body = excluded.body
           `
         )
         .bind(
@@ -250,15 +253,40 @@ implements TaskMemorySearchRepository {
           document.sourceType,
           document.messageRole,
           document.messageOrdinal,
-          document.chunkIndex,
           document.title,
           document.body,
-          document.embeddingText
+          job.key,
+          job.leaseToken,
+          job.generationToken
         )
     );
     if (statements.length > 0) {
-      await this.database.batch(statements);
+      const results = await this.database.batch(statements);
+      if (!results.every((result) => result.meta.changes > 0)) {
+        return false;
+      }
     }
+
+    if (vectors.length > 0) {
+      try {
+        await this.vectorIndex?.upsert(vectors);
+      } catch (error) {
+        await this.deleteVectorIdsIfUnreferenced(
+          job,
+          vectors.map((vector) => vector.id)
+        );
+        throw error;
+      }
+      if (!(await this.hasActiveLease(job))) {
+        await this.deleteVectorIdsIfUnreferenced(
+          job,
+          vectors.map((vector) => vector.id)
+        );
+        return false;
+      }
+      return true;
+    }
+    return documents.length === 0 && (await this.hasActiveLease(job));
   }
 
   public async completeJob(
@@ -268,9 +296,9 @@ implements TaskMemorySearchRepository {
     if (nextChunk == null) {
       await this.database
         .prepare(
-          "DELETE FROM task_memory_search_jobs WHERE job_key = ? AND lease_token = ?"
+          "DELETE FROM task_memory_search_jobs WHERE job_key = ? AND lease_token = ? AND generation_token = ?"
         )
-        .bind(job.key, job.leaseToken)
+        .bind(job.key, job.leaseToken, job.generationToken)
         .run();
       return;
     }
@@ -279,36 +307,46 @@ implements TaskMemorySearchRepository {
         `
           UPDATE task_memory_search_jobs
           SET next_chunk = ?, lease_token = NULL, claimed_at = NULL
-          WHERE job_key = ? AND lease_token = ?
+          WHERE job_key = ? AND lease_token = ? AND generation_token = ?
         `
       )
-      .bind(nextChunk, job.key, job.leaseToken)
+      .bind(nextChunk, job.key, job.leaseToken, job.generationToken)
       .run();
   }
 
-  public async deleteSource(job: TaskMemorySearchJob): Promise<void> {
-    const predicate = sourcePredicate(job);
+  public async deleteSource(job: TaskMemorySearchJob): Promise<boolean> {
+    if (!(await this.hasActiveLease(job))) {
+      return false;
+    }
+    const predicate = taskMemorySearchSourcePredicate(job);
+    const leasePredicate =
+      " AND EXISTS (SELECT 1 FROM task_memory_search_jobs WHERE job_key = ? AND lease_token = ? AND generation_token = ?)";
     const rows = await this.database
       .prepare(
-        `SELECT vector_id FROM task_memory_search_documents WHERE ${predicate.sql}`
+        `SELECT vector_id FROM task_memory_search_documents WHERE ${predicate.sql}${leasePredicate}`
       )
-      .bind(...predicate.parameters)
+      .bind(...predicate.parameters, job.key, job.leaseToken, job.generationToken)
       .all<{ vector_id: string }>();
-    const vectorIds = rows.results.map((row) => row.vector_id);
-    if (this.vectorIndex != null) {
-      for (let offset = 0; offset < vectorIds.length; offset += 100) {
-        const batch = vectorIds.slice(offset, offset + 100);
-        if (batch.length > 0) {
-          await this.vectorIndex.deleteByIds(batch);
-        }
-      }
+    const obsoleteVectorIds = rows.results
+      .map((row) => row.vector_id)
+      .filter((vectorId) => !vectorId.endsWith(`:${job.generationToken}`));
+    if (obsoleteVectorIds.length > 0) {
+      const placeholders = obsoleteVectorIds.map(() => "?").join(", ");
+      await this.deleteVectorIds(obsoleteVectorIds);
+      await this.database
+        .prepare(
+          `DELETE FROM task_memory_search_documents WHERE ${predicate.sql} AND vector_id IN (${placeholders})${leasePredicate}`
+        )
+        .bind(
+          ...predicate.parameters,
+          ...obsoleteVectorIds,
+          job.key,
+          job.leaseToken,
+          job.generationToken
+        )
+        .run();
     }
-    await this.database
-      .prepare(
-        `DELETE FROM task_memory_search_documents WHERE ${predicate.sql}`
-      )
-      .bind(...predicate.parameters)
-      .run();
+    return true;
   }
 
   public async failJob(job: TaskMemorySearchJob, retryAt: string): Promise<void> {
@@ -318,10 +356,10 @@ implements TaskMemorySearchRepository {
           UPDATE task_memory_search_jobs
           SET available_at = ?, lease_token = NULL, claimed_at = NULL,
             last_error = 'Semantic indexing failed; retry scheduled'
-          WHERE job_key = ? AND lease_token = ?
+          WHERE job_key = ? AND lease_token = ? AND generation_token = ?
         `
       )
-      .bind(retryAt, job.key, job.leaseToken)
+      .bind(retryAt, job.key, job.leaseToken, job.generationToken)
       .run();
   }
 
@@ -412,46 +450,74 @@ implements TaskMemorySearchRepository {
         `
           SELECT
             (SELECT count(*) FROM task_memory_search_documents) AS indexed_documents,
-            (SELECT count(*) FROM task_memory_search_jobs) AS pending_jobs
+            (SELECT count(*) FROM task_memory_search_jobs) AS pending_jobs,
+            (
+              SELECT count(*) FROM task_memory_search_jobs
+              WHERE last_error IS NOT NULL
+            ) AS failed_jobs
         `
       )
-      .first<{ indexed_documents: number; pending_jobs: number }>();
+      .first<{
+        failed_jobs: number;
+        indexed_documents: number;
+        pending_jobs: number;
+      }>();
     return {
+      failedJobs: row?.failed_jobs ?? 0,
       indexedDocuments: row?.indexed_documents ?? 0,
       pendingJobs: row?.pending_jobs ?? 0
     };
   }
-}
 
-function sourcePredicate(
-  job: TaskMemorySearchJob
-): { readonly parameters: readonly string[]; readonly sql: string } {
-  switch (job.entityType) {
-    case "task":
-      return { parameters: [job.entityId], sql: "source_type = 'task_title' AND task_id = ?" };
-    case "session":
-      return {
-        parameters: [job.entityId],
-        sql: "source_type = 'session_title' AND session_id = ?"
-      };
-    case "message":
-      return {
-        parameters: [job.entityId],
-        sql: "source_type = 'message' AND message_id = ?"
-      };
+  private async hasActiveLease(job: TaskMemorySearchJob): Promise<boolean> {
+    const row = await this.database
+      .prepare(
+        "SELECT 1 AS active FROM task_memory_search_jobs WHERE job_key = ? AND lease_token = ? AND generation_token = ?"
+      )
+      .bind(job.key, job.leaseToken, job.generationToken)
+      .first<{ active: number }>();
+    return row != null;
   }
-}
 
-function toJob(row: JobRow): TaskMemorySearchJob {
-  return {
-    attempts: row.attempts,
-    entityId: row.entity_id,
-    entityType: row.entity_type,
-    key: row.job_key,
-    leaseToken: row.lease_token,
-    nextChunk: row.next_chunk,
-    taskId: row.task_id
-  };
+  private async deleteVectorIdsIfUnreferenced(
+    job: TaskMemorySearchJob,
+    vectorIds: readonly string[]
+  ): Promise<void> {
+    if (vectorIds.length === 0) {
+      return;
+    }
+    const placeholders = vectorIds.map(() => "?").join(", ");
+    const reference = await this.database
+      .prepare(
+        `
+          SELECT 1 AS referenced
+          FROM task_memory_search_jobs
+          WHERE job_key = ? AND generation_token = ?
+          UNION ALL
+          SELECT 1 AS referenced
+          FROM task_memory_search_documents
+          WHERE vector_id IN (${placeholders})
+          LIMIT 1
+        `
+      )
+      .bind(job.key, job.generationToken, ...vectorIds)
+      .first<{ referenced: number }>();
+    if (reference == null) {
+      await this.deleteVectorIds(vectorIds);
+    }
+  }
+
+  private async deleteVectorIds(vectorIds: readonly string[]): Promise<void> {
+    if (this.vectorIndex == null) {
+      return;
+    }
+    for (let offset = 0; offset < vectorIds.length; offset += 100) {
+      const batch = vectorIds.slice(offset, offset + 100);
+      if (batch.length > 0) {
+        await this.vectorIndex.deleteByIds([...batch]);
+      }
+    }
+  }
 }
 
 function toCandidate(row: CandidateRow): TaskMemorySearchCandidate {

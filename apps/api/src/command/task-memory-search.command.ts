@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { TaskMemorySearchInput } from "../domain/task-memory-search.js";
 
 const searchQuerySchema = z.object({
   limit: z
@@ -24,11 +25,6 @@ const searchQuerySchema = z.object({
     .min(1, "Query is required")
     .max(240, "Query must be 240 characters or fewer")
 });
-
-export type TaskMemorySearchInput = {
-  readonly limit: number;
-  readonly query: string;
-};
 
 export function parseTaskMemorySearchQuery(query: unknown): TaskMemorySearchInput {
   const parsed = searchQuerySchema.parse(query ?? {});

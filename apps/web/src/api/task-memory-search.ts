@@ -1,32 +1,18 @@
 import { apiClient } from "@/lib/api";
+import type { TaskMemorySearchResponse } from "@tasker/core";
 
-export type TaskMemorySearchResult = {
-  readonly messageId: string | null;
-  readonly messageOrdinal: number | null;
-  readonly messageRole: string | null;
-  readonly parentTaskId: string | null;
-  readonly score: number;
-  readonly sessionId: string | null;
-  readonly sessionSourceUrl: string | null;
-  readonly sessionTitle: string | null;
-  readonly snippet: string;
-  readonly sourceType: "message" | "session_title" | "task_title";
-  readonly taskId: string;
-  readonly taskTitle: string;
-};
-
-export type TaskMemorySearchResponse = {
-  readonly indexedDocuments: number;
-  readonly mode: "hybrid" | "lexical";
-  readonly pendingJobs: number;
-  readonly results: readonly TaskMemorySearchResult[];
-  readonly semanticStatus: "degraded" | "indexing" | "ready";
-};
+export type {
+  TaskMemorySearchResponse,
+  TaskMemorySearchResult
+} from "@tasker/core";
 
 export function searchTaskMemory(
   query: string,
-  limit = 12
+  limit?: number
 ): Promise<TaskMemorySearchResponse> {
-  const params = new URLSearchParams({ limit: String(limit), q: query });
+  const params = new URLSearchParams({ q: query });
+  if (limit !== undefined) {
+    params.set("limit", String(limit));
+  }
   return apiClient.get(`/search?${params.toString()}`);
 }

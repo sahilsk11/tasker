@@ -11,16 +11,13 @@ const adapter = await import(adapterUrl.href);
 if (typeof adapter.search !== "function") {
   throw new Error("Search adapter must export async search(query, context)");
 }
-if (map.refsById == null || typeof map.refsById !== "object") {
-  throw new Error("Seed map is missing refsById");
-}
-
-const refSet = new Set(Object.values(map.refsById));
-const resolveId = (id) => map.refsById[id] ?? null;
+const refsById = deriveRefsById(map);
+const refSet = new Set(Object.values(refsById));
+const resolveId = (id) => refsById[id] ?? null;
 const context = {
   limit: options.limit,
   ids: map.ids,
-  refsById: map.refsById,
+  refsById,
   resolveId
 };
 const firstPass = [];
@@ -140,6 +137,61 @@ function parseArgs(args) {
   }
 
   return parsed;
+}
+
+function deriveRefsById(map) {
+  if (map == null || typeof map !== "object" || Array.isArray(map)) {
+    throw new Error("Seed map must be an object");
+  }
+  const refs = Object.create(null);
+  const seenRefs = new Set();
+  const addRef = (id, ref) => {
+    if (
+      typeof id !== "string" ||
+      id.length === 0 ||
+      typeof ref !== "string" ||
+      !/^(?:session|task):[A-Za-z0-9_-]+$/u.test(ref) ||
+      Object.hasOwn(refs, id) ||
+      seenRefs.has(ref)
+    ) {
+      throw new Error("Seed map contains an invalid or duplicate memory reference");
+    }
+    refs[id] = ref;
+    seenRefs.add(ref);
+  };
+
+  if (map.ids == null || typeof map.ids !== "object") {
+    if (
+      map.refsById == null ||
+      typeof map.refsById !== "object" ||
+      Array.isArray(map.refsById)
+    ) {
+      throw new Error("Seed map is missing ids");
+    }
+    for (const [id, ref] of Object.entries(map.refsById)) {
+      addRef(id, ref);
+    }
+    if (seenRefs.size === 0) {
+      throw new Error("Seed map has no memory references");
+    }
+    return refs;
+  }
+
+  for (const [kind, labels] of [
+    ["session", map.ids.sessions],
+    ["task", map.ids.tasks]
+  ]) {
+    if (labels == null || typeof labels !== "object" || Array.isArray(labels)) {
+      throw new Error(`Seed map is missing ${kind} ids`);
+    }
+    for (const [label, id] of Object.entries(labels)) {
+      addRef(id, `${kind}:${label}`);
+    }
+  }
+  if (seenRefs.size === 0) {
+    throw new Error("Seed map has no memory references");
+  }
+  return refs;
 }
 
 function validateResults(results, queryId, refs) {

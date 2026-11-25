@@ -1,4 +1,5 @@
 import type { Generated, Selectable } from "kysely";
+import type { TaskMemorySearchSourceType } from "@tasker/core";
 import type { TaskArtifactLabel } from "../domain/task-artifact.js";
 import type { TaskSessionMessageRole } from "../domain/task-session-message.js";
 
@@ -70,13 +71,11 @@ export type TaskSessionMessagesTable = {
 
 export type TaskMemorySearchDocumentsTable = {
   readonly body: string;
-  readonly chunk_index: number;
-  readonly embedding_text: string;
   readonly message_id: string | null;
   readonly ordinal: number | null;
   readonly role: TaskSessionMessageRole | null;
   readonly session_id: string | null;
-  readonly source_type: "message" | "session_title" | "task_title";
+  readonly source_type: TaskMemorySearchSourceType;
   readonly task_id: string;
   readonly title: string;
   readonly vector_id: string;
@@ -88,6 +87,7 @@ export type TaskMemorySearchJobsTable = {
   readonly claimed_at: string | null;
   readonly entity_id: string;
   readonly entity_type: "message" | "session" | "task";
+  readonly generation_token: string;
   readonly job_key: string;
   readonly last_error: string | null;
   readonly lease_token: string | null;

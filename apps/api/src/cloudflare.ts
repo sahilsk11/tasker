@@ -316,5 +316,4 @@ const worker = {
   }
 };
 
-export { app as cloudflareApp };
 export default worker;

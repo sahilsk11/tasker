@@ -19,3 +19,13 @@ database_name = "tasker"
 # The deploy workflow replaces this local ID with the Terraform output.
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "d1/migrations"
+
+[[vectorize]]
+binding = "MEMORY"
+index_name = "tasker-memory-bge-small-v1"
+
+[ai]
+binding = "AI"
+
+[triggers]
+crons = ["* * * * *"]

@@ -87,5 +87,14 @@ jobs:
             exit 1
           fi
           sed "s/00000000-0000-0000-0000-000000000000/$TASKER_DATABASE_ID/g" wrangler.toml > wrangler.deploy.toml
+          VECTOR_INDEX_NAME="$(sed -n '/^\[\[vectorize\]\]/,/^\[/{s/^index_name = "\(.*\)"/\1/p;}' wrangler.toml)"
+          if [ -z "$VECTOR_INDEX_NAME" ]; then
+            echo "::error::Could not read vectorize index_name from wrangler.toml."
+            exit 1
+          fi
+          if ! pnpm exec wrangler vectorize list --config wrangler.deploy.toml | grep -Fq "$VECTOR_INDEX_NAME"; then
+            pnpm exec wrangler vectorize create "$VECTOR_INDEX_NAME" \
+              --dimensions=384 --metric=cosine --config wrangler.deploy.toml
+          fi
           pnpm exec wrangler d1 migrations apply DB --remote --config wrangler.deploy.toml
           pnpm exec wrangler deploy --config wrangler.deploy.toml

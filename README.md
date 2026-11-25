@@ -198,6 +198,36 @@ List stored messages ordered by `ordinal ASC, created_at ASC`.
 - Response (`200`): `{ "messages": [ { "id", "sessionId", "externalId", "ordinal", "role", "text", "contentHash", "occurredAt", "createdAt" } ], "nextAfter": 199 | null }`.
 - Errors: `404` for unknown session, `400` for invalid query params.
 
+### Persisted task memory search
+
+`GET /search?q=<query>&limit=<1..20>` searches task titles, session titles,
+and saved user/assistant messages. The hosted route is
+`GET /api/search?q=<query>&limit=<1..20>`. It returns grouped task/session
+results with a passage, source type, message role/ordinal when applicable, and
+session provenance. Artifacts are not indexed. `GET /search/status` (hosted:
+`/api/search/status`) reports indexed documents and pending indexing jobs.
+
+The local API uses SQLite FTS5 plus `sqlite-vec` and the
+`Xenova/bge-small-en-v1.5` model. The model is downloaded and cached on first
+use; embeddings stay local. The hosted Worker uses Cloudflare Workers AI
+(`@cf/baai/bge-small-en-v1.5`) and Vectorize. Hosted saved-message text is sent
+to Workers AI to create embeddings; Vectorize stores those embeddings. The
+main-branch deploy workflow provisions the 384-dimensional Vectorize index
+before deploying.
+
+Task/session/message writes and migration backfills enqueue durable indexing
+jobs. Local indexing runs in the API process; the Worker drains hosted jobs
+after writes and on its scheduled trigger. While indexing is pending, search
+reports that state and the web UI refreshes results. If semantic inference or
+vector search is unavailable, the API reports a lexical-only degraded result.
+
+## Search evaluation
+
+The independent synthetic corpus and real-API evaluator are documented in
+[`scripts/search-evaluation/README.md`](scripts/search-evaluation/README.md).
+They seed only a fresh loopback worktree database and enforce ranking,
+no-match, and artifact-exclusion gates.
+
 ## Layout
 
 ```text

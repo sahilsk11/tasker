@@ -40,3 +40,10 @@ export type {
   PushSessionMessagesRequest,
   SessionMessage
 } from "./session-messages/index.js";
+
+export type {
+  TaskMemorySearchIndexStatus,
+  TaskMemorySearchResponse,
+  TaskMemorySearchResult,
+  TaskMemorySearchSourceType
+} from "./task-memory-search/index.js";

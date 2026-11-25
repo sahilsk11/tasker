@@ -1,4 +1,5 @@
 import SqliteDatabase from "better-sqlite3";
+import * as sqliteVec from "sqlite-vec";
 import { Kysely, SqliteDialect } from "kysely";
 import type { Database } from "./schema.js";
 
@@ -9,6 +10,7 @@ export type CreateDbOptions = {
 export function createDb(options: CreateDbOptions): Kysely<Database> {
   const database = new SqliteDatabase(options.path);
   database.pragma("foreign_keys = ON");
+  sqliteVec.load(database);
 
   return new Kysely<Database>({
     dialect: new SqliteDialect({ database })

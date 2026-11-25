@@ -7,6 +7,7 @@ import { FileTaskActionRepository } from "./repository/task-action.repository.js
 import { SqliteTaskArtifactRepository } from "./repository/task-artifact.repository.js";
 import { SqliteTaskPullRequestRepository } from "./repository/task-pull-request.repository.js";
 import { SqliteTaskSessionMessageRepository } from "./repository/task-session-message.repository.js";
+import { SqliteTaskMemorySearchRepository } from "./repository/sqlite-task-memory-search.repository.js";
 import { SqliteTaskSessionRepository } from "./repository/task-session.repository.js";
 import { SqliteTaskTicketRepository } from "./repository/task-ticket.repository.js";
 import { SqliteTaskRepository } from "./repository/task.repository.js";
@@ -25,6 +26,9 @@ import {
   type TaskSessionProvider
 } from "./service/session-provider.js";
 import { TaskSessionMessageService } from "./service/task-session-message.service.js";
+import { LocalTaskMemoryEmbeddings } from "./service/local-task-memory-embeddings.js";
+import { TaskMemoryIndexWorker } from "./service/task-memory-index-worker.js";
+import { TaskMemorySearchService } from "./service/task-memory-search.js";
 import { TaskService } from "./service/task.service.js";
 import { WorkingPathService } from "./service/working-path.service.js";
 import { getDefaultTaskActionsPath } from "./task-actions/catalog.js";
@@ -68,6 +72,7 @@ export type TaskerRuntimeRepositories = {
 
 export type TaskerRuntimeServices = {
   readonly github: GitHubService;
+  readonly memorySearch: TaskMemorySearchService;
   readonly sessionMessage: TaskSessionMessageService;
   readonly task: TaskService;
   readonly taskBreakdown: TaskBreakdownService;
@@ -118,6 +123,15 @@ export function createTaskerRuntime(
   const sessionProviders = new TaskSessionProviderRegistry(providers, {
     defaultLaunchProvider: options.agentRunProvider ?? null
   });
+  const memorySearchRepository = new SqliteTaskMemorySearchRepository(
+    options.databasePath
+  );
+  const memorySearch = new TaskMemorySearchService(
+    memorySearchRepository,
+    new LocalTaskMemoryEmbeddings()
+  );
+  const memoryIndexWorker = new TaskMemoryIndexWorker(memorySearch);
+  memoryIndexWorker.start();
 
   const repositories: TaskerRuntimeRepositories = {
     artifact: new SqliteTaskArtifactRepository(db),
@@ -144,6 +158,7 @@ export function createTaskerRuntime(
 
   const services: TaskerRuntimeServices = {
     github: githubService,
+    memorySearch,
     sessionMessage: new TaskSessionMessageService(
       repositories.session,
       repositories.sessionMessage
@@ -161,6 +176,8 @@ export function createTaskerRuntime(
         return;
       }
       closed = true;
+      await memoryIndexWorker.close();
+      memorySearchRepository.close();
       await db.destroy();
     },
     db,

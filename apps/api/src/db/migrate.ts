@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import SqliteDatabase from "better-sqlite3";
+import * as sqliteVec from "sqlite-vec";
 
 export type MigrateOptions = {
   readonly databasePath: string;
@@ -10,6 +11,7 @@ export type MigrateOptions = {
 export function migrate(options: MigrateOptions): void {
   const database = new SqliteDatabase(options.databasePath);
   database.pragma("foreign_keys = ON");
+  sqliteVec.load(database);
 
   try {
     database.exec(`

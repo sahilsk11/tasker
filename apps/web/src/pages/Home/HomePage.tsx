@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
+import { searchTaskMemory } from "@/api/task-memory-search";
 import {
   getTask,
   listTaskBundles
@@ -9,6 +10,7 @@ import { NewTaskDialog } from "./NewTaskDialog";
 import { SettingsDialog } from "./SettingsDialog";
 import { TaskGrid, TaskGridSkeleton } from "./TaskGrid";
 import { TaskToolbar } from "./TaskToolbar";
+import { MemorySearchResults } from "./MemorySearchResults";
 import { getVisibleTaskBundles, type TaskFilter } from "./task-filtering";
 import { usePullRequestStatuses } from "./use-pull-request-statuses";
 
@@ -38,6 +40,15 @@ export function HomePage(): React.JSX.Element {
     queryFn: () => listTaskBundles(parentTaskId),
     queryKey: ["tasks", parentTaskId]
   });
+  const searchText = taskViewState.query.trim();
+  const memorySearchQuery = useQuery({
+    enabled: searchText.length > 0,
+    queryFn: () => searchTaskMemory(searchText),
+    queryKey: ["task-memory-search", searchText],
+    refetchInterval: (query) =>
+      query.state.data?.semanticStatus === "indexing" ? 1_000 : false,
+    staleTime: 5_000
+  });
   const parentTaskQuery = useQuery({
     enabled: parentTaskId != null,
     queryFn: () => getTask(parentTaskId ?? ""),
@@ -48,11 +59,12 @@ export function HomePage(): React.JSX.Element {
       tasksQuery.isSuccess
         ? getVisibleTaskBundles(tasksQuery.data, {
             filter: taskViewState.filter,
-            query: taskViewState.query,
+            query: searchText.length === 0 ? taskViewState.query : "",
           })
         : [],
     [
       taskViewState.filter,
+      searchText,
       taskViewState.query,
       tasksQuery.data,
       tasksQuery.isSuccess
@@ -109,13 +121,22 @@ export function HomePage(): React.JSX.Element {
               }}
               query={taskViewState.query}
             />
-            <TaskGrid
-              bundles={visibleBundles}
-              onSessionRun={() => {
-                void queryClient.invalidateQueries({ queryKey: ["tasks"] });
-              }}
-              pullRequestStatuses={pullRequestStatuses}
-            />
+            {searchText.length > 0 ? (
+              <MemorySearchResults
+                data={memorySearchQuery.data}
+                error={memorySearchQuery.error}
+                isLoading={memorySearchQuery.isLoading}
+                query={searchText}
+              />
+            ) : (
+              <TaskGrid
+                bundles={visibleBundles}
+                onSessionRun={() => {
+                  void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+                }}
+                pullRequestStatuses={pullRequestStatuses}
+              />
+            )}
           </>
         ) : null}
       </div>

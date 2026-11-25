@@ -6,6 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import SqliteDatabase, { type Database as BetterSqliteDatabase } from "better-sqlite3";
 import { migrate } from "./migrate.js";
+import { SqliteTaskMemorySearchRepository } from "../repository/sqlite-task-memory-search.repository.js";
 
 const migrationsDirectory = new URL("../../migrations", import.meta.url).pathname;
 
@@ -118,7 +119,8 @@ void test("migrations upgrade legacy sessions and remain idempotent", async () =
         "000016_artifact_lifecycle",
         "000017_session_context",
         "000018_task_session_messages",
-        "000019_task_sessions_provider_id_idx"
+        "000019_task_sessions_provider_id_idx",
+        "000020_task_memory_search"
       ]);
 
       const taskColumns = database
@@ -672,6 +674,54 @@ void test("task session messages migration enforces constraints, cascade delete,
       assert.ok(d1SessionIndexes.includes("task_sessions_provider_provider_id_idx"));
     } finally {
       d1Database.close();
+    }
+  } finally {
+    await rm(dir, { force: true, recursive: true });
+  }
+});
+
+void test("SQLite memory search persists and retrieves sqlite-vec embeddings", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "tasker-migrate-memory-search-"));
+  const databasePath = join(dir, "tasker.sqlite");
+
+  try {
+    migrate({ databasePath, migrationsDirectory });
+    const database = new SqliteDatabase(databasePath);
+    database.pragma("foreign_keys = ON");
+    database
+      .prepare("INSERT INTO tasks (id, title) VALUES (?, ?)")
+      .run("task-1", "Latency troubleshooting");
+    database.close();
+
+    const repository = new SqliteTaskMemorySearchRepository(databasePath);
+    try {
+      const embedding = new Float32Array(384);
+      embedding[0] = 1;
+      repository.persistDocuments(
+        [{
+          body: "",
+          chunkIndex: 0,
+          embeddingText: "Latency troubleshooting",
+          messageId: null,
+          messageOrdinal: null,
+          messageRole: null,
+          sessionId: null,
+          sourceType: "task_title",
+          taskId: "task-1",
+          title: "Latency troubleshooting",
+          vectorId: "task:task-1"
+        }],
+        [embedding]
+      );
+
+      const lexical = repository.lexicalSearch('"latency"', 5);
+      const semantic = repository.vectorSearch(embedding, 5);
+      assert.equal(lexical[0]?.taskId, "task-1");
+      assert.equal(semantic[0]?.taskId, "task-1");
+      assert.equal(semantic[0].semanticSimilarity, 1);
+      assert.equal(semantic[0].sessionSourceUrl, null);
+    } finally {
+      repository.close();
     }
   } finally {
     await rm(dir, { force: true, recursive: true });

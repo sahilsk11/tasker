@@ -87,5 +87,9 @@ jobs:
             exit 1
           fi
           sed "s/00000000-0000-0000-0000-000000000000/$TASKER_DATABASE_ID/g" wrangler.toml > wrangler.deploy.toml
+          if ! pnpm exec wrangler vectorize list --config wrangler.deploy.toml | grep -Fq "tasker-memory-bge-small-v1"; then
+            pnpm exec wrangler vectorize create tasker-memory-bge-small-v1 \
+              --dimensions=384 --metric=cosine --config wrangler.deploy.toml
+          fi
           pnpm exec wrangler d1 migrations apply DB --remote --config wrangler.deploy.toml
           pnpm exec wrangler deploy --config wrangler.deploy.toml

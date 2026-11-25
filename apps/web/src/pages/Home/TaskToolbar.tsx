@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Search, SlidersHorizontal } from "lucide-react";
+import { Check, ChevronDown, Search, SlidersHorizontal, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,41 +28,55 @@ export function TaskToolbar({
   readonly query: string;
 }): React.JSX.Element {
   const activeFilterCount = filter === "all" ? 0 : 1;
+  const isSearching = query.trim().length > 0;
 
   return (
     <section className="mx-auto flex w-full max-w-[76rem] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="relative w-full sm:max-w-sm">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          aria-label="Search tasks"
-          className="h-10 pl-9"
+          aria-label="Search tasks and saved conversations"
+          className="h-10 pl-9 pr-10"
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Search tasks..."
+          placeholder="Search tasks, sessions, and messages..."
           value={query}
         />
+        {query.length === 0 ? null : (
+          <Button
+            aria-label="Clear search"
+            className="absolute right-1 top-1/2 size-8 -translate-y-1/2"
+            onClick={() => onQueryChange("")}
+            type="button"
+            variant="ghost"
+          >
+            <X aria-hidden="true" className="size-4" />
+          </Button>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <Popover open={isFilterOpen} onOpenChange={onFilterOpenChange}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="shrink-0">
-              <SlidersHorizontal className="size-4" />
-              Filters
-              {activeFilterCount > 0 ? (
-                <Badge variant="secondary" className="ml-1 px-1.5 py-0.5">
-                  {activeFilterCount}
-                </Badge>
-              ) : null}
-              <ChevronDown className="size-4 text-muted-foreground" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 p-0">
-            <FilterContent
-              filter={filter}
-              onFilterChange={onFilterChange}
-            />
-          </PopoverContent>
-        </Popover>
+        {isSearching ? null : (
+          <Popover open={isFilterOpen} onOpenChange={onFilterOpenChange}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="shrink-0">
+                <SlidersHorizontal className="size-4" />
+                Filters
+                {activeFilterCount > 0 ? (
+                  <Badge variant="secondary" className="ml-1 px-1.5 py-0.5">
+                    {activeFilterCount}
+                  </Badge>
+                ) : null}
+                <ChevronDown className="size-4 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 p-0">
+              <FilterContent
+                filter={filter}
+                onFilterChange={onFilterChange}
+              />
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
     </section>
   );

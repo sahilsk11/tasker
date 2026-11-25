@@ -73,10 +73,14 @@ Example after an implementation-specific adapter exists:
 
 ```sh
 node scripts/search-evaluation/evaluate.mjs \
-  --adapter /path/to/tasker-search-adapter.mjs \
+  --adapter scripts/search-evaluation/tasker-api-adapter.mjs \
   --map .tasker/dev-runs/search-evaluation-seed-map.json \
   --warm-repeats 10
 ```
+
+The Tasker API adapter calls the real local `GET /search` endpoint. It rejects
+lexical-only responses and incomplete indexes so the evaluator cannot report
+keyword search as semantic retrieval.
 
 The evaluator checks:
 

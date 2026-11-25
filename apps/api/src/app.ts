@@ -5,6 +5,7 @@ import { registerTaskActionResolver } from "./resolver/task-action.resolver.js";
 import { registerTaskBreakdownResolver } from "./resolver/task-breakdown.resolver.js";
 import { registerTaskResourceResolver } from "./resolver/task-resource.resolver.js";
 import { registerTaskSessionMessageResolver } from "./resolver/task-session-message.resolver.js";
+import { registerTaskMemorySearchResolver } from "./resolver/task-memory-search.resolver.js";
 import { registerTaskSessionResolver } from "./resolver/task-session.resolver.js";
 import { registerTaskResolver } from "./resolver/task.resolver.js";
 import { registerWorkingPathResolver } from "./resolver/working-path.resolver.js";
@@ -71,6 +72,7 @@ export async function createApp(options: CreateAppOptions) {
       registerTaskResourceResolver(api, runtime.services.task);
       registerTaskSessionResolver(api, runtime.services.task);
       registerTaskSessionMessageResolver(api, runtime.services.sessionMessage);
+      registerTaskMemorySearchResolver(api, runtime.services.memorySearch);
       registerWorkingPathResolver(api, runtime.services.workingPath);
       registerGitHubResolver(api, runtime.services.github);
       done();

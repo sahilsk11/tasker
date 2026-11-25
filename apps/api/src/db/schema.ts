@@ -9,6 +9,8 @@ export type Database = {
   readonly task_pull_requests: TaskPullRequestsTable;
   readonly task_session_messages: TaskSessionMessagesTable;
   readonly task_sessions: TaskSessionsTable;
+  readonly task_memory_search_documents: TaskMemorySearchDocumentsTable;
+  readonly task_memory_search_jobs: TaskMemorySearchJobsTable;
   readonly task_tickets: TaskTicketsTable;
   readonly tasks: TasksTable;
   readonly working_path_settings: WorkingPathSettingsTable;
@@ -64,6 +66,34 @@ export type TaskSessionMessagesTable = {
   readonly role: TaskSessionMessageRole;
   readonly session_id: string;
   readonly text: string;
+};
+
+export type TaskMemorySearchDocumentsTable = {
+  readonly body: string;
+  readonly chunk_index: number;
+  readonly embedding_text: string;
+  readonly message_id: string | null;
+  readonly ordinal: number | null;
+  readonly role: TaskSessionMessageRole | null;
+  readonly session_id: string | null;
+  readonly source_type: "message" | "session_title" | "task_title";
+  readonly task_id: string;
+  readonly title: string;
+  readonly vector_id: string;
+};
+
+export type TaskMemorySearchJobsTable = {
+  readonly attempts: number;
+  readonly available_at: string;
+  readonly claimed_at: string | null;
+  readonly entity_id: string;
+  readonly entity_type: "message" | "session" | "task";
+  readonly job_key: string;
+  readonly last_error: string | null;
+  readonly lease_token: string | null;
+  readonly next_chunk: number;
+  readonly queued_at: string;
+  readonly task_id: string;
 };
 
 export type TaskSessionsTable = {

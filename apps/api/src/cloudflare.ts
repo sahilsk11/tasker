@@ -1,4 +1,5 @@
 import type { D1Database } from "@cloudflare/workers-types";
+import type { VectorizeIndex } from "@cloudflare/workers-types";
 import { Hono } from "hono";
 import { Kysely } from "kysely";
 import { D1Dialect } from "kysely-d1";
@@ -14,6 +15,7 @@ import {
   parseListSessionMessagesQuery,
   parsePushSessionMessagesInput
 } from "./command/task-session-message.command.js";
+import { parseTaskMemorySearchQuery } from "./command/task-memory-search.command.js";
 import {
   parseClaimSessionInput,
   parseCreateSessionInput,
@@ -27,6 +29,11 @@ import { parseTaskActionCatalog } from "./task-actions/catalog.js";
 import { SqliteTaskArtifactRepository } from "./repository/task-artifact.repository.js";
 import { SqliteTaskPullRequestRepository } from "./repository/task-pull-request.repository.js";
 import { SqliteTaskSessionMessageRepository } from "./repository/task-session-message.repository.js";
+import {
+  D1TaskMemorySearchRepository,
+  WorkersAiTaskMemoryEmbeddings,
+  type WorkersAiBinding
+} from "./repository/d1-task-memory-search.repository.js";
 import { SqliteTaskSessionRepository } from "./repository/task-session.repository.js";
 import { SqliteTaskTicketRepository } from "./repository/task-ticket.repository.js";
 import { SqliteTaskRepository } from "./repository/task.repository.js";
@@ -39,27 +46,46 @@ import {
 } from "./service/errors.js";
 import { TaskSessionProviderRegistry } from "./service/session-provider.js";
 import { TaskSessionMessageService } from "./service/task-session-message.service.js";
+import { TaskMemorySearchService } from "./service/task-memory-search.js";
 import { TaskService } from "./service/task.service.js";
 
 type Bindings = {
+  readonly AI?: WorkersAiBinding;
   readonly ASSETS: { readonly fetch: (request: Request) => Promise<Response> };
   readonly DB: D1Database;
+  readonly MEMORY?: VectorizeIndex;
 };
 
 type Variables = {
   readonly sessionMessages: TaskSessionMessageService;
+  readonly memorySearch: TaskMemorySearchService;
   readonly tasks: TaskService;
 };
 
+type WorkerExecutionContext = NonNullable<Parameters<typeof app.fetch>[2]>;
+
 const actionCatalog = parseTaskActionCatalog(taskActions);
 
-function createCloudServices(binding: D1Database, origin: string): Variables {
+function createCloudServices(
+  binding: D1Database,
+  origin: string,
+  ai: WorkersAiBinding | undefined,
+  vectorIndex: VectorizeIndex | undefined
+): Variables {
   const db = new Kysely<Database>({ dialect: new D1Dialect({ database: binding }) });
   const sessions = new SqliteTaskSessionRepository(db);
   const sessionMessagesRepo = new SqliteTaskSessionMessageRepository(db, {
     d1: binding
   });
+  const searchRepository = new D1TaskMemorySearchRepository(
+    binding,
+    vectorIndex
+  );
   return {
+    memorySearch: new TaskMemorySearchService(
+      searchRepository,
+      new WorkersAiTaskMemoryEmbeddings(ai)
+    ),
     sessionMessages: new TaskSessionMessageService(sessions, sessionMessagesRepo),
     tasks: new TaskService(
       new SqliteTaskRepository(db),
@@ -88,6 +114,17 @@ async function readJson(request: { json: () => Promise<unknown> }): Promise<unkn
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 const api = app.basePath("/api");
 
+function getOptionalExecutionContext(
+  context: { readonly executionCtx: WorkerExecutionContext }
+): WorkerExecutionContext | undefined {
+  try {
+    return context.executionCtx;
+  } catch {
+    // Hono throws when the app is called without a Worker execution context.
+    return undefined;
+  }
+}
+
 api.use("*", async (c, next) => {
   c.header("Cache-Control", "no-store");
   if (["POST", "PATCH", "PUT", "DELETE"].includes(c.req.method)) {
@@ -96,10 +133,25 @@ api.use("*", async (c, next) => {
       return c.json({ error: "Cross-origin writes are disabled" }, 403);
     }
   }
-  const services = createCloudServices(c.env.DB, new URL(c.req.url).origin);
+  const services = createCloudServices(
+    c.env.DB,
+    new URL(c.req.url).origin,
+    c.env.AI,
+    c.env.MEMORY
+  );
   c.set("tasks", services.tasks);
   c.set("sessionMessages", services.sessionMessages);
-  return next();
+  c.set("memorySearch", services.memorySearch);
+  await next();
+  if (
+    c.res.status < 400 &&
+    ["POST", "PATCH", "PUT", "DELETE"].includes(c.req.method)
+  ) {
+    getOptionalExecutionContext(c)?.waitUntil(
+      services.memorySearch.processPendingJobs(4)
+    );
+  }
+  return c.res;
 });
 
 app.onError((error, c) => {
@@ -133,6 +185,19 @@ api.get("/health", async (c) => {
   await c.env.DB.prepare("SELECT id FROM tasks LIMIT 1").first();
   return c.json({ ok: true });
 });
+api.get("/search", async (c) =>
+  c.json(
+    await c.var.memorySearch.search(
+      parseTaskMemorySearchQuery({
+        q: c.req.query("q"),
+        limit: c.req.query("limit")
+      })
+    )
+  )
+);
+api.get("/search/status", async (c) =>
+  c.json(await c.var.memorySearch.getIndexStatus())
+);
 api.get("/tasks", async (c) => c.json({
   tasks: await c.var.tasks.listTasks({ parentTaskId: c.req.query("parentTaskId") ?? null })
 }));
@@ -232,4 +297,24 @@ app.all("/api/*", (c) => c.json({ error: "Endpoint unavailable in hosted Tasker"
 
 app.notFound((c) => c.env.ASSETS.fetch(c.req.raw));
 
-export default app;
+const worker = {
+  fetch: (request: Request, env: Bindings, context?: WorkerExecutionContext) =>
+    app.fetch(request, env, context),
+  scheduled: (
+    _controller: unknown,
+    env: Bindings,
+    context: WorkerExecutionContext
+  ) => {
+    const search = new TaskMemorySearchService(
+      new D1TaskMemorySearchRepository(
+        env.DB,
+        env.MEMORY
+      ),
+      new WorkersAiTaskMemoryEmbeddings(env.AI)
+    );
+    context.waitUntil(search.processPendingJobs(16));
+  }
+};
+
+export { app as cloudflareApp };
+export default worker;

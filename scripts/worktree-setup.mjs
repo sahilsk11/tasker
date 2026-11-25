@@ -1,10 +1,18 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import net from "node:net";
 
 const root = process.cwd();
+const coreBuild = spawnSync("pnpm", ["--filter", "@tasker/core", "build"], {
+  cwd: root,
+  stdio: "inherit"
+});
+if (coreBuild.status !== 0) {
+  throw new Error("Failed to build @tasker/core before starting the dev environment.");
+}
+
 const runId = new Date().toISOString().replaceAll(/[:.]/gu, "-");
 const runDirectory = await mkdtemp(join(tmpdir(), "tasker-dev-"));
 const databasePath = join(runDirectory, "tasker.sqlite");
@@ -38,7 +46,7 @@ const web = spawnManaged(
     "exec",
     "vite",
     "--host",
-    "0.0.0.0",
+    "127.0.0.1",
     "--port",
     String(webPort),
     "--strictPort"

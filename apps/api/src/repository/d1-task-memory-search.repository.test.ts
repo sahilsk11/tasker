@@ -8,6 +8,28 @@ import type {
 import { chunkText } from "../service/task-memory-search.js";
 import { D1TaskMemorySearchRepository } from "./d1-task-memory-search.repository.js";
 
+void test("D1 search uses the Vectorize V2 metadata option", async () => {
+  const database = createDatabase({
+    documents: new Map(),
+    generationToken: "current-generation",
+    leaseToken: "current-lease"
+  });
+  const embedding = new Float32Array(384);
+  embedding[0] = 1;
+  const query = test.mock.fn<VectorizeIndex["query"]>(() =>
+    Promise.resolve({ count: 0, matches: [] })
+  );
+  const vectorIndex = { query } as unknown as VectorizeIndex;
+  const repository = new D1TaskMemorySearchRepository(database, vectorIndex);
+
+  assert.deepEqual(await repository.vectorSearch(embedding, 80), []);
+  assert.equal(query.mock.callCount(), 1);
+  assert.deepEqual(query.mock.calls[0]?.arguments, [
+    Array.from(embedding),
+    { returnMetadata: "none", topK: 80 }
+  ]);
+});
+
 void test("D1 indexing fences delayed Vectorize writes and superseded deletes", async () => {
   const oldJob = makeJob("old-lease", "source-old");
   const currentJob = makeJob("current-lease", "source-current");

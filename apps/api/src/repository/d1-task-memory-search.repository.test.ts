@@ -19,7 +19,8 @@ void test("D1 search uses the Vectorize V2 metadata option", async () => {
   const query = test.mock.fn<VectorizeIndex["query"]>(() =>
     Promise.resolve({ count: 0, matches: [] })
   );
-  const repository = new D1TaskMemorySearchRepository(database, { query } as VectorizeIndex);
+  const vectorIndex = { query } as unknown as VectorizeIndex;
+  const repository = new D1TaskMemorySearchRepository(database, vectorIndex);
 
   assert.deepEqual(await repository.vectorSearch(embedding, 80), []);
   assert.equal(query.mock.callCount(), 1);

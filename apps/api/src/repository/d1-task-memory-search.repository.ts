@@ -411,7 +411,7 @@ implements TaskMemorySearchRepository {
       throw new Error("Cloudflare Vectorize is not configured");
     }
     const result = await this.vectorIndex.query(Array.from(embedding), {
-      returnMetadata: false,
+      returnMetadata: "none",
       topK: limit
     });
     const ids = result.matches.map((match) => match.id);
